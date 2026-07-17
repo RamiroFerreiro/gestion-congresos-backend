@@ -27,7 +27,7 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
 
         return UserResponse.builder()
-                .id(savedUser.getId())
+                .id(savedUser.getUserId())
                 .firstName(savedUser.getFirstName())
                 .lastName(savedUser.getLastName())
                 .email(savedUser.getEmail())
