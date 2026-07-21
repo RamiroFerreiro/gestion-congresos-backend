@@ -7,11 +7,14 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserResponse {
+public class UserResponseDTO {
 
-    private Long id;
+    private Long userId;
     private String firstName;
     private String lastName;
     private String email;
+    private Long dni;
+    private String institution;
+    private String country;
 
 }
