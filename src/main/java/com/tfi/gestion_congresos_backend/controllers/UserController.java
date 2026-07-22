@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import com.tfi.gestion_congresos_backend.dtos.UserRequest;
+import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import jakarta.validation.Valid;
@@ -26,6 +27,8 @@ public class UserController {
         return Map.of("mensaje", "Hola desde Spring Boot");
     }
 
+    ///GET
+    ///Traer a todos los usuarios 
     @GetMapping
     public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
 
@@ -33,12 +36,12 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    @PostMapping
-    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody UserRequest request) {
+    ///Traer a un usuario por ID
+    @GetMapping("/{userId}")
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long userId){
 
-        UserResponseDTO response = userService.createUser(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.ok(userService.getUserById(userId));
     }
+
 }
 

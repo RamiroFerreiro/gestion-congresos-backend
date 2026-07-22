@@ -1,15 +1,17 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
 
-import com.tfi.gestion_congresos_backend.dtos.UserRequest;
+import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -19,25 +21,6 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
-
-    @Override
-    public UserResponseDTO createUser(UserRequest request) {
-
-        User user = User.builder()
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .email(request.getEmail())
-                .build();
-
-        User savedUser = userRepository.save(user);
-
-        return UserResponseDTO.builder()
-                .userId(savedUser.getUserId())
-                .firstName(savedUser.getFirstName())
-                .lastName(savedUser.getLastName())
-                .email(savedUser.getEmail())
-                .build();
-    }
 
     @Override
     public List<UserResponseDTO> getAllUsers(){
@@ -51,4 +34,15 @@ public class UserServiceImpl implements UserService {
 
         return result;
     }
+
+    public UserResponseDTO getUserById(Long userId){
+
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException( "Usuario no encontrado con ID: " + userId));
+        
+        UserResponseDTO result = userMapper.toUserResponseDTO(user);
+
+        return result;
+    }
+
 }
