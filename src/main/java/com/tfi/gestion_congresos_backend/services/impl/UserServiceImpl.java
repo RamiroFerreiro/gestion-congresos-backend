@@ -64,11 +64,25 @@ public class UserServiceImpl implements UserService {
         //buscamos el rol, si existe seteamos y luego guardamos en bd
         Role role = roleRepository.findById(request.getRoleId()).orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
         user.setRole(role);
+        user.setEnabled(true);
+
         user = userRepository.save(user);
 
         //retorno de entidad a DTO
         UserResponseDTO result = userMapper.toUserResponseDTO(user);
         return result;
+    }
+
+    @Override
+    public void deleteUser(Long userId) {
+    
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException( "Usuario no encontrado con ID: " + userId));
+
+        user.setEnabled(false);
+
+
+        userRepository.save(user);
     }
 
 }

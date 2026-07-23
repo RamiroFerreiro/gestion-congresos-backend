@@ -51,5 +51,15 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
     }
 
+    ///DELETE
+    ///Borrar un usuario
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
+
+        userService.deleteUser(userId);
+
+        return ResponseEntity.noContent().build();
+    }
+
 }
 
