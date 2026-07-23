@@ -1,5 +1,6 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
+import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
@@ -59,6 +60,15 @@ public class UserController {
         userService.deleteUser(userId);
 
         return ResponseEntity.noContent().build();
+    }
+
+
+    ///PUT
+    ///Actualizar un usuario
+    @PutMapping("/{userId}")
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Long userId, @RequestBody UpdateUserRequestDTO request) {
+
+        return ResponseEntity.ok(userService.updateUser(userId, request));
     }
 
 }

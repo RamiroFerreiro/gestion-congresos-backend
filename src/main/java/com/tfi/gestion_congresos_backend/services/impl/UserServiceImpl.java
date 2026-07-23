@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
 
+import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
@@ -83,6 +84,36 @@ public class UserServiceImpl implements UserService {
 
 
         userRepository.save(user);
+    }
+
+    @Override
+    public UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO) {
+
+        ///Se busca el usuario, si no existe lanza excepción
+        User user = userRepository.findById(userId).orElseThrow(() -> 
+                    new ResourceNotFoundException("Usuario no encontrado"));
+
+        ///Si el mail se modificó por uno que ya existe lanza excepción
+        if (!user.getEmail().equals(userRequestDTO.getEmail()) && userRepository.existsByEmail(userRequestDTO.getEmail())) {
+
+            throw new EmailAlreadyExistsException("Ya existe un usuario con ese email.");
+        }
+
+        ///Se busca el rol, si no existe lanza excepción
+        Role role = roleRepository.findById(userRequestDTO.getRoleId()).orElseThrow(() ->
+                    new ResourceNotFoundException("Rol no encontrado"));
+
+        ///Actualiza la entidad con los datos del DTO
+        userMapper.updateUserFromDto(userRequestDTO, user);
+
+        ///Seteamos el role
+        user.setRole(role);
+
+        ///Guardamos en la bd y devolvemos el DTO
+        user = userRepository.save(user);
+        UserResponseDTO result = userMapper.toUserResponseDTO(user);
+
+        return result;
     }
 
 }

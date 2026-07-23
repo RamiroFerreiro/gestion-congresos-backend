@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.services;
 
 import java.util.List;
 
+import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
 
@@ -17,4 +18,6 @@ public interface UserService {
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
     void deleteUser(Long userId);
+
+    UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
 }
