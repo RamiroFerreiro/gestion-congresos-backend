@@ -1,5 +1,7 @@
 package com.tfi.gestion_congresos_backend.dtos;
 
+import com.tfi.gestion_congresos_backend.enums.RoleName;
+
 import lombok.*;
 
 @Getter
@@ -16,5 +18,5 @@ public class UserResponseDTO {
     private Long dni;
     private String institution;
     private String country;
-
+    private RoleName role;
 }

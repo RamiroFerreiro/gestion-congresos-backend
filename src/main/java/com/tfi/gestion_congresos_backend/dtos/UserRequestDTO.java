@@ -11,14 +11,12 @@ import lombok.*;
 @Builder
 public class UserRequestDTO {
 
-    @NotBlank
     private String firstName;
-
-    @NotBlank
     private String lastName;
-
-    @Email
-    @NotBlank
     private String email;
-
+    private String password;
+    private Long dni;
+    private String institution;
+    private String country;
+    private Long roleId;
 }
