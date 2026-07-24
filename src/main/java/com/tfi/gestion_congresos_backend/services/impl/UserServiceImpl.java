@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,6 +27,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public List<UserResponseDTO> getAllUsers(){
@@ -51,6 +53,7 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+
     @Override
     public UserResponseDTO createUser(UserRequestDTO request){
 
@@ -62,11 +65,15 @@ public class UserServiceImpl implements UserService {
         //mapeamos DTO a entidad
         User user = userMapper.toEntity(request);
 
-        //buscamos el rol, si existe seteamos y luego guardamos en bd
+        //buscamos el rol, si existe, lo seteamos
         Role role = roleRepository.findById(request.getRoleId()).orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
         user.setRole(role);
-        user.setEnabled(true);
 
+        //activamos al usuario
+        user.setEnabled(true);
+        
+        //Encriptamos la contraseña y la guardamos
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user = userRepository.save(user);
 
         //retorno de entidad a DTO

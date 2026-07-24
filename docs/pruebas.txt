@@ -1,0 +1,13 @@
+
+JSON UserRequestDTO
+
+{
+  "firstName": "Ramiro",
+  "lastName": "Ferreiro",
+  "email": "ramiro.ferreiro@gmail.com",
+  "password": "MiPassword123!",
+  "dni": 40123456,
+  "institution": "Universidad Nacional de Lanús",
+  "country": "Argentina",
+  "roleId": 2
+}
