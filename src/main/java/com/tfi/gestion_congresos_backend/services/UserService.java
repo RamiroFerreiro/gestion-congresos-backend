@@ -1,11 +1,23 @@
 package com.tfi.gestion_congresos_backend.services;
 
-import com.tfi.gestion_congresos_backend.dtos.UserRequest;
-import com.tfi.gestion_congresos_backend.dtos.UserResponse;
+import java.util.List;
+
+import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+
+import lombok.val;
 
 
 public interface UserService {
 
-    UserResponse createUser(UserRequest request);
+    List<UserResponseDTO> getAllUsers();
 
+    UserResponseDTO getUserById(Long userId);
+
+    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
+
+    void deleteUser(Long userId);
+
+    UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
 }
