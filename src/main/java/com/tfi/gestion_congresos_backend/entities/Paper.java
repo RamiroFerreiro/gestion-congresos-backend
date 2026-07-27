@@ -72,4 +72,10 @@ public class Paper {
     @OrderBy("authorOrder ASC")
     @Builder.Default
     private List<PaperAuthor> authors = new ArrayList<>();
+
+	@OneToMany(mappedBy = "paper", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("submissionDate DESC")
+    @Builder.Default
+    private List<Submission> submissions = new ArrayList<>();
+	
 }
