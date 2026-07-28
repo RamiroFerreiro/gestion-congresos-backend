@@ -1,11 +1,11 @@
 USE gestion_congresos;
 -- Insertar roles
 INSERT INTO roles (role_name) VALUES
-('DESCONOCIDO'),
-('ADMINISTRADOR'),
-('EVALUADOR'),
+('UNKNOWN'),
+('ADMINISTRATOR'),
+('EVALUATOR'),
 ('EXPOSITOR'),
-('OYENTE');
+('LISTENER');
 
 
 -- Insertar usuarios
