@@ -23,8 +23,8 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping
-    public ResponseEntity<LoginResponseDTO> createUser(@RequestBody LoginRequestDTO request){
-
+    public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request){
+        
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.login(request));
     }
 }
