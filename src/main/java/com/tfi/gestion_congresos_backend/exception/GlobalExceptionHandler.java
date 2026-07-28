@@ -20,5 +20,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleEmailAlreadyExists(EmailAlreadyExistsException ex){
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+    
+    //401 Unauthorized
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException ex){
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.getMessage());
+    } 
+    
+    //403 FORBIDDEN
+    @ExceptionHandler(UserDisabledException.class)
+    public ResponseEntity<String> handleUserDisabled(UserDisabledException ex){
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }   
-}
+
+
+}   
