@@ -11,6 +11,8 @@ import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.AuthMapper;
 import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
+import com.tfi.gestion_congresos_backend.security.JwtService;
+
 import lombok.*;
 
 @Service
@@ -20,9 +22,11 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
+    private final JwtService jwtService;
     
     @Override
     public LoginResponseDTO login(LoginRequestDTO request) {
+        
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new InvalidCredentialsException("Email o contraseña incorrectos"));
 
@@ -35,7 +39,10 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Email o contraseña incorrectos");
         }
 
-        return authMapper.toLoginResponseDTO(user);
-            
+        LoginResponseDTO response =  authMapper.toLoginResponseDTO(user);
+        String token = jwtService.generateToken(user);
+        response.setToken(token);
+
+        return response;            
     }
 }

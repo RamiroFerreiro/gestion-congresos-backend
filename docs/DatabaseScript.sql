@@ -1,6 +1,6 @@
 USE gestion_congresos;
 -- Insertar roles
-INSERT INTO roles (name) VALUES
+INSERT INTO roles (role_name) VALUES
 ('DESCONOCIDO'),
 ('ADMINISTRADOR'),
 ('EVALUADOR'),
