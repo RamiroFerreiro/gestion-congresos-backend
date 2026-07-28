@@ -4,8 +4,11 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -68,6 +71,18 @@ public class Congress {
 	
 	@Column(name = "max_keywords")
 	private Integer maxKeywords;
+	
+	@ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+        name = "congress_thematic_areas", // Nombre de la tabla secundaria.
+        joinColumns = @JoinColumn(name = "congresses_id") // FK hacia la tabla congresses.
+    )
+    @Column(name = "thematic_area") // Nombre de la columna que guarda cada String.
+	@Builder.Default
+    private Set<String> thematicAreas = new HashSet<>();
+	
+	@Column(name = "enabled", nullable = false)
+	private boolean enabled;
 	
 	@ManyToMany
 	@JoinTable(

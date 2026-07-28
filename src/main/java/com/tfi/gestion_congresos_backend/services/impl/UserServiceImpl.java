@@ -6,7 +6,7 @@ import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
-import com.tfi.gestion_congresos_backend.exception.EmailAlreadyExistsException;
+import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
@@ -15,7 +15,6 @@ import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -59,7 +58,7 @@ public class UserServiceImpl implements UserService {
 
         //verificamos que no esté registrado el mail
         if(userRepository.existsByEmail(request.getEmail())){
-            throw new EmailAlreadyExistsException( "Ya existe un usuario con ese email.");
+            throw new ResourceAlreadyExistsException( "Ya existe un usuario con ese email.");
         }
 
         //mapeamos DTO a entidad
@@ -103,7 +102,7 @@ public class UserServiceImpl implements UserService {
         ///Si el mail se modificó por uno que ya existe lanza excepción
         if (!user.getEmail().equals(userRequestDTO.getEmail()) && userRepository.existsByEmail(userRequestDTO.getEmail())) {
 
-            throw new EmailAlreadyExistsException("Ya existe un usuario con ese email.");
+            throw new ResourceAlreadyExistsException("Ya existe un usuario con ese email.");
         }
 
         ///Se busca el rol, si no existe lanza excepción
