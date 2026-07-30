@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public List<UserResponseDTO> getAllUsers(){
         
@@ -41,7 +43,7 @@ public class UserServiceImpl implements UserService {
 
         return result;
     }
-
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public UserResponseDTO getUserById(Long userId){
 
@@ -53,7 +55,7 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
-
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public UserResponseDTO createUser(UserRequestDTO request){
 
@@ -81,6 +83,7 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public void deleteUser(Long userId) {
     
@@ -92,7 +95,7 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(user);
     }
-
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO) {
 

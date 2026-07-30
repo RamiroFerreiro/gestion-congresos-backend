@@ -1,8 +1,11 @@
 package com.tfi.gestion_congresos_backend.security;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -47,15 +50,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter{
         //Verificar si ya hay un usuario autenticado y si el mail es válido
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             
-            //buscar al usuario en la bd
-            User user = userRepository.findByEmail(userEmail).orElse(null);
+            //buscar al usuario en la bd con su rol asociado
+            User user = userRepository.findByEmailWithRole(userEmail).orElse(null);
 
             //verificar que el usuario exista, el token sea válido(corresponda al usuario y no haya expirado)
             if (user != null && jwtService.isTokenValid(jwt, user)) {
 
+                ///creo una lista con las autoridades del usuario
+                List<GrantedAuthority> authorities = List.of(
+                        new SimpleGrantedAuthority("ROLE_" + user.getRole().getName().name())
+                );
+            
+                System.out.println(authorities);
                 //Crear el objeto de autenticación que Spring Security almacenará para esta petición
                 UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
+                        new UsernamePasswordAuthenticationToken(user, null, authorities);
 
                 //Asociar información adicional de la petición HTTP
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

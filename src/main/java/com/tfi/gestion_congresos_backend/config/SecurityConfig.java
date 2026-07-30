@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -15,6 +16,7 @@ import lombok.*;;
 
 ///Clase de configuración spring security
 @Configuration
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -36,12 +38,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Permitir explícitamente todas las peticiones OPTIONS preflight
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/login").permitAll() // ruta pública
-                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .anyRequest().authenticated() // el resto requiere autenticacion
-                )
+                        //.requestMatchers("/api/auth/**").permitAll() // ruta pública
+                        //.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                        //.anyRequest().authenticated() // el resto requiere autenticacion
+                        .anyRequest().permitAll()
+                );
                 // agregamos el filtro 
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                //.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
