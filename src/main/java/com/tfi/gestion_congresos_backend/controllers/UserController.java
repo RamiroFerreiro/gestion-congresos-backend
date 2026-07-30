@@ -1,5 +1,6 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
+import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
@@ -71,5 +72,13 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(userId, request));
     }
 
+    ///PATCH
+    ///Actualizar el rol de un usuario
+    @PatchMapping("/{userId}/role")
+    public ResponseEntity<UserResponseDTO> updateUserRole(@PathVariable Long userId, @Valid @RequestBody UpdateUserRoleRequestDTO request) {
+
+        return ResponseEntity.ok(userService.updateUserRole(userId, request.getRoleName()));
+    }
+    
 }
 

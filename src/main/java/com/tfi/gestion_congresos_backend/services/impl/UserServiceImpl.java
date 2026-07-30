@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
-
+import org.springframework.transaction.annotation.Transactional;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
@@ -122,4 +123,20 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    @Transactional
+    @Override
+    public UserResponseDTO updateUserRole(Long userId, RoleName newRoleName) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+
+        Role role = roleRepository.findByName(newRoleName)
+                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado: " + newRoleName));
+
+        user.setRole(role);
+
+        User updatedUser = userRepository.save(user);
+
+        return userMapper.toUserResponseDTO(updatedUser);
+    }
+    
 }
