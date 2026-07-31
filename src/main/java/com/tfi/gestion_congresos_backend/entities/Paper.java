@@ -4,9 +4,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -44,7 +48,7 @@ public class Paper {
 	@EqualsAndHashCode.Include
 	@Column(name = "code", nullable = false, unique = true)
 	private String code;
-	
+
 	@Column(name = "version", nullable = false)
 	private String version;
 	
@@ -57,8 +61,9 @@ public class Paper {
 	@Column(name = "presentation_date", nullable = false)
 	private LocalDateTime presentationDate;
 	
-	@Column(name = "status", nullable = false)
-	private String status;
+	@Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private PaperStatus status;
 	
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "users_reviewer_id")
@@ -74,8 +79,8 @@ public class Paper {
     private List<PaperAuthor> authors = new ArrayList<>();
 
 	@OneToMany(mappedBy = "paper", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("submissionDate DESC")
+    @OrderBy("evaluationDate DESC")
     @Builder.Default
-    private List<Submission> submissions = new ArrayList<>();
+    private List<Evaluation> evaluations = new ArrayList<>();
 	
 }

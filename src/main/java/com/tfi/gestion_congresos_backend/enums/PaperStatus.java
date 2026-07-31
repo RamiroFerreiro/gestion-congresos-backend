@@ -1,6 +1,6 @@
 package com.tfi.gestion_congresos_backend.enums;
 
-public enum SubmissionStatus {
+public enum PaperStatus {
     NOT_SUBMITTED,      // No enviado
     UNDER_EVALUATION,   // En evaluación
     ACCEPTED,           // Aceptado
