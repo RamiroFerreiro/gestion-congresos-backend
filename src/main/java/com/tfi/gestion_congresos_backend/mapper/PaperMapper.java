@@ -10,9 +10,9 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface PaperMapper {
 
-    @Mapping(target = "congressId", source = "congress.congressesId")
+    @Mapping(target = "congressId", source = "congress.congressId")
     @Mapping(target = "congressName", source = "congress.name")
-    @Mapping(target = "reviewerId", source = "userReviewer.usersId")
+    @Mapping(target = "reviewerId", source = "userReviewer.userId")
     @Mapping(target = "reviewerFullName", expression = "java(paper.getUserReviewer() != null ? paper.getUserReviewer().getFirstName() + \" \" + paper.getUserReviewer().getLastName() : null)")
     PaperResponseDTO toPaperResponseDTO(Paper paper);
 
