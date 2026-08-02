@@ -6,9 +6,7 @@ import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
-
-import lombok.val;
-
+import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
 
@@ -23,4 +21,10 @@ public interface UserService {
     UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
 
     UserResponseDTO updateUserRole(Long userId, RoleName newRoleName);
+    
+    User getUserByUserId(Long userId);
+    
+    List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
+    
+    boolean existsById(Long userId);
 }

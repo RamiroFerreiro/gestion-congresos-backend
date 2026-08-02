@@ -4,17 +4,18 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -25,7 +26,7 @@ public class CongressServiceImpl implements CongressService {
 	private final CongressMapper congressMapper;
 	
 	@Override
-	@Transactional
+	@Transactional(readOnly = true)
 	/// Obtener todos los congresos con sus participantes:
 	public List<CongressResponseDTO> getAllCongresses() {
 		
@@ -39,7 +40,7 @@ public class CongressServiceImpl implements CongressService {
 	}
 	
 	@Override
-	@Transactional
+	@Transactional(readOnly = true)
 	/// Obtener todos los congresos activos/desactivados con sus participantes:
 	public List<CongressResponseDTO> getCongressesByEnabled(boolean enabled) {
 		
@@ -53,7 +54,7 @@ public class CongressServiceImpl implements CongressService {
 	}
 	
 	@Override
-	@Transactional
+	@Transactional(readOnly = true)
 	/// Obtener un congreso con sus participantes por su ID:
 	public CongressResponseDTO getCongressById(Long congressId) {
 		 
@@ -117,6 +118,20 @@ public class CongressServiceImpl implements CongressService {
 		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
 		 
 		return result;
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	/// Determinar si existe un usuario de determinado rol en un congreso:
+	public boolean existsByCongressIdAndUserIdAndRoleName(Long congressId, Long userId, RoleName role) {
+		return congressRepository.existsByCongressIdAndUserIdAndRole(congressId, userId, role);
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	/// Determinar si existe un congreso por su ID:
+	public boolean existsById(Long congressId) {
+		return congressRepository.existsById(congressId);
 	}
 	
 	/// Cambiar de estado un congreso:

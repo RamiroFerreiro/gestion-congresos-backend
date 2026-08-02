@@ -52,6 +52,9 @@ public class Paper {
 	@Column(name = "version", nullable = false)
 	private String version;
 	
+	@Column(name = "thematic_area", nullable = false)
+	private String thematicArea;
+	
 	@Column(name = "summary", nullable = false)
 	private String summary;
 	
@@ -77,10 +80,4 @@ public class Paper {
     @OrderBy("authorOrder ASC")
     @Builder.Default
     private List<PaperAuthor> authors = new ArrayList<>();
-
-	@OneToMany(mappedBy = "paper", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("evaluationDate DESC")
-    @Builder.Default
-    private List<Evaluation> evaluations = new ArrayList<>();
-	
 }

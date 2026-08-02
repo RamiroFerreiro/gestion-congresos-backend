@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -29,4 +30,6 @@ public class PaperResponseDTO {
     
     private Long reviewerId;
     private String reviewerFullName;
+    
+    private List<AuthorResponseDTO> authors;
 }

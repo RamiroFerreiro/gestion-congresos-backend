@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.UserService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class CongressController {
 	
 	private final CongressService congressService;
+	private final UserService userService;
 	
 	/// Traer congresos (Todos / Activos / Desactivados):
 	@GetMapping
@@ -78,5 +82,12 @@ public class CongressController {
 	public ResponseEntity<CongressResponseDTO> updateCongress(@PathVariable Long congressId, @Valid @RequestBody CongressRequestDTO request) {
 		
 		return ResponseEntity.ok(congressService.updateCongress(congressId, request));
+	}
+	
+	/// Obtener usuarios de un congreso con determinado rol:
+	@GetMapping("/{congressId}/participants")
+	public ResponseEntity<List<UserResponseDTO>> getParticipantsByCongressAndRole(@PathVariable Long congressId, @RequestParam(required = false) RoleName role) {
+		
+		return ResponseEntity.ok(userService.getParticipantsByCongressAndRole(congressId, role));
 	}
 }

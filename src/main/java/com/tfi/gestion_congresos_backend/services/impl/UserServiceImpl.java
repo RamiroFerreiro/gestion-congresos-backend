@@ -11,6 +11,7 @@ import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsExceptio
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
+import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final CongressService congressService;
 
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
@@ -142,4 +144,40 @@ public class UserServiceImpl implements UserService {
         return userMapper.toUserResponseDTO(updatedUser);
     }
     
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    @Transactional(readOnly = true)
+    public User getUserByUserId(Long userId){
+
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+
+        return user;
+    }
+    
+    @Override
+	@Transactional(readOnly = true)
+	/// Obtener participantes de un congreso con determinado rol:
+	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
+		
+    	// Validar existencia del congreso:
+        if (!congressService.existsById(congressId)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
+        }
+    	
+    	List<User> participants = userRepository.findParticipantsByCongressIdAndRole(congressId, role);
+		
+		List<UserResponseDTO> result = participants.stream()
+				.map(userMapper::toUserResponseDTO)
+				.toList();
+		
+		return result;
+	}
+    
+    @Override
+	@Transactional(readOnly = true)
+	/// Determinar si existe un usuario por su ID:
+	public boolean existsById(Long userId) {
+		return userRepository.existsById(userId);
+	}
 }
