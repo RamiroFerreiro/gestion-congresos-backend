@@ -2,9 +2,9 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import org.springframework.transaction.annotation.Transactional;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
-import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -180,4 +182,18 @@ public class UserServiceImpl implements UserService {
 	public boolean existsById(Long userId) {
 		return userRepository.existsById(userId);
 	}
+
+    @Override
+    public UserResponseDTO getAuthenticatedUser() {
+
+        User user = getAuthenticatedUserEntity(); // método privado
+
+        return userMapper.toUserResponseDTO(user);
+    }
+
+    private User getAuthenticatedUserEntity() {
+        
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return (User) authentication.getPrincipal();
+    }
 }

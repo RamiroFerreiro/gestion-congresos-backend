@@ -3,6 +3,8 @@ package com.tfi.gestion_congresos_backend.dtos;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

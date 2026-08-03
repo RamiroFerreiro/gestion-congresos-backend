@@ -1,9 +1,9 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import com.tfi.gestion_congresos_backend.dtos.LoginRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.LoginResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 

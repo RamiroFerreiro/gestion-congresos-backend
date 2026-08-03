@@ -1,8 +1,8 @@
 package com.tfi.gestion_congresos_backend.mapper;
 
-import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.User;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

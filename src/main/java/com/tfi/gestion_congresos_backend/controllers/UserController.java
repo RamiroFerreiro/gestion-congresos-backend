@@ -1,10 +1,9 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,10 +45,19 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserById(userId));
     }
 
+    ///Traer un usuario por ID
+    @GetMapping("/me")
+    public ResponseEntity<UserResponseDTO> getAuthenticatedUser( ){
+
+        return ResponseEntity.ok(userService.getAuthenticatedUser());
+    }
+
+
+
     ///POST
     ///Crear un usuario
     @PostMapping
-    public ResponseEntity<UserResponseDTO> createUser(@RequestBody UserRequestDTO request){
+    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody UserRequestDTO request){
 
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
     }

@@ -3,9 +3,9 @@ package com.tfi.gestion_congresos_backend.services;
 import java.util.List;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
-import com.tfi.gestion_congresos_backend.dtos.UpdateUserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
@@ -27,4 +27,8 @@ public interface UserService {
     List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
     
     boolean existsById(Long userId);
+
+    UserResponseDTO getAuthenticatedUser();
+
+    //void changePassword(ChangePasswordRequestDTO request);
 }

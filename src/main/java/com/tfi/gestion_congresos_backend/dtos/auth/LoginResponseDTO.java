@@ -1,4 +1,4 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.auth;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import lombok.*;

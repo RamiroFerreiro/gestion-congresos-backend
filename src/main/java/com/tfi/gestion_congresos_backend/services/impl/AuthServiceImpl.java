@@ -3,8 +3,8 @@ package com.tfi.gestion_congresos_backend.services.impl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.tfi.gestion_congresos_backend.dtos.LoginRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.LoginResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
