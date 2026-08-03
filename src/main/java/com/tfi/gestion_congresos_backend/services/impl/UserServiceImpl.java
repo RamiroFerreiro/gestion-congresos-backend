@@ -2,11 +2,14 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import org.springframework.transaction.annotation.Transactional;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
@@ -190,10 +193,51 @@ public class UserServiceImpl implements UserService {
 
         return userMapper.toUserResponseDTO(user);
     }
+    
+    
+    @Override
+    public MessageResponseDTO changePassword(ChangePasswordRequestDTO request){
 
-    private User getAuthenticatedUserEntity() {
+        User user = getAuthenticatedUserEntity();
         
+        validateCurrentPassword(user, request);
+        validatePasswordConfirmation(request);
+        validateNewPassword(user, request);
+        
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        userRepository.save(user);
+
+        return new MessageResponseDTO("Password changed successfully");
+    }
+
+    ///PRIVADOS
+    private User getAuthenticatedUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return (User) authentication.getPrincipal();
     }
+
+    private void validateCurrentPassword(User user, ChangePasswordRequestDTO request){
+        if (!passwordEncoder.matches(request.getCurrentPassword(),user.getPassword())) {
+
+            throw new ArgumentNotValidException("La contraseña actual es incorrecta");
+        }
+    }
+
+    private void validatePasswordConfirmation(ChangePasswordRequestDTO request){
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+
+            throw new ArgumentNotValidException("Las contraseñas no coinciden");
+        }
+    }
+
+    private void validateNewPassword(User user, ChangePasswordRequestDTO request){
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+
+            throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
+        }
+    }
+
+
+    
 }

@@ -129,6 +129,7 @@ public class GlobalExceptionHandler {
     }
     
     /// 500 - Error no controlado del servidor:
+    @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDTO> handleGlobalException(Exception ex) {
     	
     	ErrorResponseDTO error = ErrorResponseDTO.builder()

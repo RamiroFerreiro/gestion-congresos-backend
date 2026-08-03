@@ -1,6 +1,8 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
@@ -88,6 +90,13 @@ public class UserController {
 
         return ResponseEntity.ok(userService.updateUserRole(userId, request.getRoleName()));
     }
-    
+
+    ///Cambiar contraseña
+    @PatchMapping("/change-password")
+    public ResponseEntity<MessageResponseDTO> changePassword(@Valid @RequestBody ChangePasswordRequestDTO request) {
+
+        return ResponseEntity.ok(userService.changePassword(request));
+    }
+        
 }
 

@@ -3,6 +3,8 @@ package com.tfi.gestion_congresos_backend.services;
 import java.util.List;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
@@ -30,5 +32,5 @@ public interface UserService {
 
     UserResponseDTO getAuthenticatedUser();
 
-    //void changePassword(ChangePasswordRequestDTO request);
+    MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
 }
