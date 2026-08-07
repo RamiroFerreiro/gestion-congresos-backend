@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 
 public interface CongressService {
@@ -13,6 +14,8 @@ public interface CongressService {
 	List<CongressResponseDTO> getCongressesByEnabled(boolean enabled);
 	
 	CongressResponseDTO getCongressById(Long congressId);
+	
+	Congress getCongressByCongressId(Long congressId);
 	
 	CongressResponseDTO createCongress(CongressRequestDTO congressRequestDTO);
 	
@@ -25,4 +28,6 @@ public interface CongressService {
 	boolean existsByCongressIdAndUserIdAndRoleName(Long congressId, Long userId, RoleName role);
 	
 	boolean existsById(Long congressId);
+	
+	void addParticipantToCongress(Long congressId, Long participantId);
 }

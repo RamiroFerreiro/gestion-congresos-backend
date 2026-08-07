@@ -90,4 +90,14 @@ public class CongressController {
 		
 		return ResponseEntity.ok(userService.getParticipantsByCongressAndRole(congressId, role));
 	}
+	
+	/// Agregar un participante a un congreso:
+	@PostMapping("/{congressId}/participants/{participantId}")
+	public ResponseEntity<Void> addParticipantToCongress(@PathVariable Long congressId, @PathVariable Long participantId) {
+		
+		congressService.addParticipantToCongress(congressId, participantId);
+	    
+		return ResponseEntity.noContent().build();
+	}
 }
+

@@ -13,8 +13,8 @@ import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
+import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
-import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
-    private final CongressService congressService;
+    private final CongressRepository congressRepository;
 
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
@@ -166,7 +166,7 @@ public class UserServiceImpl implements UserService {
 	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
 		
     	// Validar existencia del congreso:
-        if (!congressService.existsById(congressId)) {
+        if (!congressRepository.existsById(congressId)) {
             throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
         }
     	

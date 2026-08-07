@@ -9,12 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
+import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.UserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,6 +27,7 @@ public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
 	private final CongressMapper congressMapper;
+	private final UserService userService;
 	
 	@Override
 	@Transactional(readOnly = true)
@@ -64,6 +68,17 @@ public class CongressServiceImpl implements CongressService {
 		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
 		 
 		return result;
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	/// Obtener una entidad congreso con sus participantes por su ID:
+	public Congress getCongressByCongressId(Long congressId) {
+		 
+		Congress congress = congressRepository.findByCongressId(congressId)
+												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));;
+		 
+		return congress;
 	}
 	 
 	@Override
@@ -134,6 +149,27 @@ public class CongressServiceImpl implements CongressService {
 		return congressRepository.existsById(congressId);
 	}
 	
+	@Override
+	@Transactional
+	/// Agregar un participante a un congreso:
+	public void addParticipantToCongress(Long congressId, Long participantId) {
+		// Buscar congreso:
+		Congress congress = getCongressByCongressId(congressId);
+		
+		// Buscar participante:
+		User participant = userService.getUserByUserId(participantId);
+		
+		// Validar que el participante no esté inscripto previamente en el congreso:
+		if (congressRepository.existsByCongressIdAndParticipantsUserId(congressId, participantId)) {
+			throw new ResourceAlreadyExistsException("El participante con ID " + participantId + " ya está inscripto en el congreso con ID " + congressId + ".");
+		}
+		
+		// Añadir el participante al congreso:
+		congress.getParticipants().add(participant);
+		congressRepository.save(congress);
+	}
+	
+	@Transactional
 	/// Cambiar de estado un congreso:
 	private void changeCongressStatus(Long congressId, boolean targetStatus) {
 	    Congress congress = congressRepository.findById(congressId)
