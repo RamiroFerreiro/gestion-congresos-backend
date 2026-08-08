@@ -5,6 +5,7 @@ import lombok.*;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class MessageResponseDTO {
 
     private String message;

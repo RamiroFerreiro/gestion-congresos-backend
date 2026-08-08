@@ -9,6 +9,6 @@ import com.tfi.gestion_congresos_backend.enums.RoleName;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
-        Optional<Role> findByName(RoleName name);
-
+        Optional<Role>findByName(RoleName name);
+        
 }

@@ -38,10 +38,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Permitir explícitamente todas las peticiones OPTIONS preflight
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        //.requestMatchers("/api/auth/**").permitAll() // ruta pública
-                        //.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        //.anyRequest().authenticated() // el resto requiere autenticacion
+
+                        /* 
+                        .requestMatchers(
+                            "/api/auth/**",
+                            "/api/auth/reset-password").permitAll() // ruta pública
+                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                        .anyRequest().authenticated() // el resto requiere autenticacion
+                        */
                         .anyRequest().permitAll()
+                        
                 );
                 // agregamos el filtro 
                 //.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

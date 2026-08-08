@@ -1,7 +1,10 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
+import com.tfi.gestion_congresos_backend.dtos.auth.ForgotPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.ResetPasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.services.AuthService;
@@ -26,5 +29,17 @@ public class AuthController {
     public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request){
         
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.login(request));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<MessageResponseDTO> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request) {
+
+        return ResponseEntity.ok(authService.forgotPassword(request));
+    }
+
+    @PatchMapping("/reset-password")
+    public ResponseEntity<MessageResponseDTO> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO request) {
+
+        return ResponseEntity.ok(authService.resetPassword(request));
     }
 }
