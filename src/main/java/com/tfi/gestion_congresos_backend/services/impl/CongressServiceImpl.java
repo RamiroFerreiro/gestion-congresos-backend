@@ -80,7 +80,7 @@ public class CongressServiceImpl implements CongressService {
 		 
 		return congress;
 	}
-	 
+	
 	@Override
 	@Transactional
 	/// Crear un congreso:

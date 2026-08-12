@@ -1,9 +1,13 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
+import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -17,6 +21,8 @@ import com.tfi.gestion_congresos_backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -124,4 +130,117 @@ public class PaperServiceImpl implements PaperService {
     	paper.setUserReviewer(reviewer);
     	paperRepository.save(paper);
     }
+
+    @Override
+    @Transactional
+    public PaperResponseDTO createPaper(PaperRequestDTO dto) {
+
+        // Validar que cada Expositor esté inscripto como tal en el congreso
+        for (Long authorId : dto.getAuthorUserIds()) {
+            User auth = userService.getUserByUserId(authorId);
+            boolean isAuthorInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
+                    dto.getCongressId(), authorId, auth.getRole().getName());
+            if (!isAuthorInCongress) {
+                throw new ArgumentNotValidException(
+                    "El usuario con ID " + authorId + " no está inscripto como Expositor en el congreso con ID " + dto.getCongressId());
+            }
+        }
+
+        Congress congress = congressService.getCongressByCongressId(dto.getCongressId());
+
+        Paper paper = paperMapper.toEntity(dto);
+        paper.setVersion("1.0");
+        paper.setStatus(PaperStatus.NOT_SUBMITTED);
+        paper.setCongress(congress);
+
+        Paper savedPaper = paperRepository.save(paper);
+
+        // Resolver autores y armar PaperAuthor con orden
+        List<PaperAuthor> authors = new ArrayList<>();
+        int order = 1;
+        for (Long authorId : dto.getAuthorUserIds()) {
+            User author = userService.getUserByUserId(authorId);
+            authors.add(PaperAuthor.builder()
+                    .paper(savedPaper)
+                    .author(author)
+                    .authorOrder(order++)
+                    .build());
+        }
+        savedPaper.setAuthors(authors);
+
+        Paper finalPaper = paperRepository.save(savedPaper);
+        return paperMapper.toPaperResponseDTO(finalPaper);
+    }
+
+    @Override
+    @Transactional
+    public PaperResponseDTO submitPaper(Long paperId) {
+        Paper paper = getPaperByPaperId(paperId); 
+
+        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED
+                && paper.getStatus() != PaperStatus.NEEDS_REVISION) {
+            throw new ArgumentNotValidException(
+                "No se puede enviar un Paper en estado " + paper.getStatus() +
+                ". Solo se permite desde NOT_SUBMITTED o NEEDS_REVISION.");
+        }
+
+        if (paper.getAuthors() == null || paper.getAuthors().isEmpty()) {
+            throw new ArgumentNotValidException("El Paper debe tener al menos un autor antes de enviarlo a revisión");
+        }
+
+        paper.setStatus(PaperStatus.UNDER_EVALUATION);
+        Paper saved = paperRepository.save(paper);
+        return paperMapper.toPaperResponseDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public List<AuthorResponseDTO> addAuthorToPaper(Long paperId, Long userId) {
+
+        Paper paper = getPaperByPaperId(paperId); 
+
+        // Regla de negocio: solo se puede agregar autores antes del primer envío
+        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED) {
+            throw new ArgumentNotValidException(
+                "No se pueden agregar autores a un Paper en estado " + paper.getStatus() +
+                ". Solo se permite en NOT_SUBMITTED.");
+        }
+
+        User user = userService.getUserByUserId(userId);
+
+        // Validar que el usuario tenga rol AUTHOR en el congreso de este Paper
+        Long congressId = paper.getCongress().getCongressId();
+        boolean isAuthorInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
+                congressId, userId, RoleName.EXPOSITOR);
+        
+        // En caso que sea admin se puede inscribir igualmente
+        if (!isAuthorInCongress && user.getRole().getName() != RoleName.ADMINISTRATOR) {
+            throw new ArgumentNotValidException(
+                "El usuario con ID " + userId + " no está inscripto como autor en el congreso con ID " + congressId);
+        }
+
+        // Evitar duplicados: que no sea ya autor de este mismo Paper
+        boolean alreadyAuthor = paper.getAuthors().stream()
+                .anyMatch(pa -> pa.getAuthor().getUserId().equals(userId));
+        if (alreadyAuthor) {
+            throw new ResourceAlreadyExistsException(
+                "El usuario con ID " + userId + " ya es autor de este Paper");
+        }
+
+        // Calcular el próximo orden (siguiente al último existente)
+        int nextOrder = paper.getAuthors().size() + 1;
+
+        PaperAuthor newPaperAuthor = PaperAuthor.builder()
+                .paper(paper)
+                .author(user)
+                .authorOrder(nextOrder)
+                .build();
+
+        paper.getAuthors().add(newPaperAuthor); // gracias al cascade = ALL de Paper, se persiste solo
+
+        Paper savedPaper = paperRepository.save(paper);
+
+        return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
+    }
+
 }

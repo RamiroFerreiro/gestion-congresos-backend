@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 
-import io.jsonwebtoken.lang.Collections;
+import io.jsonwebtoken.JwtException; // 👈 nuevo import
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,58 +23,48 @@ import lombok.*;
 
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends OncePerRequestFilter{
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-
     private final UserRepository userRepository;
 
-
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        
-        //leer el Authorization Header
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
         final String authHeader = request.getHeader("Authorization");
 
-        //verificar si existe token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
-        //extraer el token
+
         String jwt = authHeader.substring(7);
 
-        ///extraer el mail
-        String userEmail = jwtService.extractUsername(jwt);
+        try {
+            String userEmail = jwtService.extractUsername(jwt);
 
-        //Verificar si ya hay un usuario autenticado y si el mail es válido
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            
-            //buscar al usuario en la bd con su rol asociado
-            User user = userRepository.findByEmailWithRole(userEmail).orElse(null);
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                User user = userRepository.findByEmailWithRole(userEmail).orElse(null);
 
-            //verificar que el usuario exista, el token sea válido(corresponda al usuario y no haya expirado)
-            if (user != null && jwtService.isTokenValid(jwt, user)) {
+                if (user != null && jwtService.isTokenValid(jwt, user)) {
+                    List<GrantedAuthority> authorities = List.of(
+                            new SimpleGrantedAuthority("ROLE_" + user.getRole().getName().name())
+                    );
 
-                ///creo una lista con las autoridades del usuario
-                List<GrantedAuthority> authorities = List.of(
-                        new SimpleGrantedAuthority("ROLE_" + user.getRole().getName().name())
-                );
-            
-                System.out.println(authorities);
-                //Crear el objeto de autenticación que Spring Security almacenará para esta petición
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(user, null, authorities);
-
-                //Asociar información adicional de la petición HTTP
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                //Setear usuario autenticado
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(user, null, authorities);
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (JwtException ex) {
+            // Token malformado, vencido, firma inválida, etc.
+            // No autenticamos, pero dejamos que la cadena siga: la ruta puede ser pública
+            // o la AuthorizationFilter más adelante se encarga de rechazarla con 401/403.
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
-    
 }

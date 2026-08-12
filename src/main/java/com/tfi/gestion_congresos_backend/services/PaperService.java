@@ -1,9 +1,17 @@
 package com.tfi.gestion_congresos_backend.services;
 
+import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 
 import java.util.List;
+
+// Se deben implementar metodos CRUD
+// (C): Crean un nuevo registro en la BD
+// (R): Lee un registro existente en la BD
+// (U): Actualiza un registro existente en la BD
+// (D): Elimina un registro existente en la BD
 
 public interface PaperService {
 
@@ -21,5 +29,14 @@ public interface PaperService {
     
     /// Asignar un evaluador a un trabajo:
     void assignReviewerToPaper(Long paperId, Long reviewerId);
+
+    // Crear paper (C)
+    PaperResponseDTO createPaper(PaperRequestDTO dto);
     
+    // Enviar paper (U)
+    PaperResponseDTO submitPaper(Long paperId);
+    
+    // Crear Autor en paper (C)
+    List<AuthorResponseDTO> addAuthorToPaper(Long paperId, Long userId);
+
 }

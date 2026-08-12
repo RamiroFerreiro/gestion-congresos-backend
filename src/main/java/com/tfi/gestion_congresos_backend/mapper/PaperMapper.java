@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.mapper;
 
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
@@ -30,4 +31,20 @@ public interface PaperMapper {
     @Mapping(target = "country", source = "author.country")
     @Mapping(target = "authorOrder", source = "authorOrder")
     AuthorResponseDTO toAuthorResponseDTO(PaperAuthor paperAuthor);
+
+
+    // Mapeo lista de PaperAuthor
+    List<AuthorResponseDTO> toAuthorResponseDTOList(List<PaperAuthor> paperAuthors);
+
+    // Mapeo desde PaperRequestDTO -> Paper 
+    @Mapping(target = "paperId", ignore = true)
+    @Mapping(target = "version", ignore = true)      // se setea server-side, nunca del DTO
+    @Mapping(target = "status", ignore = true)        // se setea server-side (NOT_SUBMITTED)
+    @Mapping(target = "congress", ignore = true)      // se resuelve en el service vía congressId
+    @Mapping(target = "userReviewer", ignore = true)  // no se asigna en la creación
+    @Mapping(target = "authors", ignore = true)        // se arma a mano en el service
+    Paper toEntity(PaperRequestDTO dto);
+
+    
+
 }
