@@ -40,11 +40,10 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
                         /* 
-                        .requestMatchers(
-                            "/api/auth/**",
-                            "/api/auth/reset-password").permitAll() // ruta pública
-                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .anyRequest().authenticated() // el resto requiere autenticacion
+                        .requestMatchers("/api/auth/**").permitAll() // Rutas públicas de autenticación
+                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Registro de usuarios
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()  // Swagger / OpenAPI
+                        .anyRequest().authenticated() // El resto requiere autenticación
                         */
                         .anyRequest().permitAll()
                         

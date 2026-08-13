@@ -12,25 +12,36 @@ import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
 
+    ///GET
+
     List<UserResponseDTO> getAllUsers();
 
     UserResponseDTO getUserById(Long userId);
 
+    User getUserByUserId(Long userId);
+
+    UserResponseDTO getAuthenticatedUser();
+
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
+    List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
+
+    ///DELETE
+
     void deleteUser(Long userId);
+
+    ///UPDATE
 
     UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
 
     UserResponseDTO updateUserRole(Long userId, RoleName newRoleName);
+
+    MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
     
-    User getUserByUserId(Long userId);
-    
-    List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
+    ///BOOLEAN
     
     boolean existsById(Long userId);
 
-    UserResponseDTO getAuthenticatedUser();
-
-    MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
+    
+    
 }

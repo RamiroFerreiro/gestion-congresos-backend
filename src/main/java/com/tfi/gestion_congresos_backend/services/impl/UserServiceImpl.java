@@ -10,6 +10,7 @@ import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
+import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
@@ -37,6 +38,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final CongressRepository congressRepository;
 
+    ///----------------------------------------------------------GET----------------------------------------------------------///
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public List<UserResponseDTO> getAllUsers(){
@@ -50,6 +52,7 @@ public class UserServiceImpl implements UserService {
 
         return result;
     }
+
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public UserResponseDTO getUserById(Long userId){
@@ -61,6 +64,46 @@ public class UserServiceImpl implements UserService {
 
         return result;
     }
+
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    @Transactional(readOnly = true)
+    public User getUserByUserId(Long userId){
+
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+
+        return user;
+    }
+
+    @Override
+	@Transactional(readOnly = true)
+	/// Obtener participantes de un congreso con determinado rol:
+	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
+		
+    	// Validar existencia del congreso:
+        if (!congressRepository.existsById(congressId)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
+        }
+    	
+    	List<User> participants = userRepository.findParticipantsByCongressIdAndRole(congressId, role);
+		
+		List<UserResponseDTO> result = participants.stream()
+				.map(userMapper::toUserResponseDTO)
+				.toList();
+		
+		return result;
+	}
+
+    @Override
+    public UserResponseDTO getAuthenticatedUser() {
+
+        User user = getAuthenticatedUserEntity(); // método privado
+
+        return userMapper.toUserResponseDTO(user);
+    }
+
+    ///----------------------------------------------------------CREATE----------------------------------------------------------///
 
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
@@ -90,6 +133,8 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    ///----------------------------------------------------------DELETE----------------------------------------------------------///
+    
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public void deleteUser(Long userId) {
@@ -99,9 +144,11 @@ public class UserServiceImpl implements UserService {
 
         user.setEnabled(false);
 
-
         userRepository.save(user);
     }
+
+    ///----------------------------------------------------------UPDATE----------------------------------------------------------///
+    
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
     public UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO) {
@@ -149,52 +196,6 @@ public class UserServiceImpl implements UserService {
         return userMapper.toUserResponseDTO(updatedUser);
     }
     
-    //@PreAuthorize("hasRole('ADMINISTRATOR')")
-    @Override
-    @Transactional(readOnly = true)
-    public User getUserByUserId(Long userId){
-
-        User user = userRepository.findById(userId).orElseThrow(() ->
-                    new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
-
-        return user;
-    }
-    
-    @Override
-	@Transactional(readOnly = true)
-	/// Obtener participantes de un congreso con determinado rol:
-	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
-		
-    	// Validar existencia del congreso:
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
-        }
-    	
-    	List<User> participants = userRepository.findParticipantsByCongressIdAndRole(congressId, role);
-		
-		List<UserResponseDTO> result = participants.stream()
-				.map(userMapper::toUserResponseDTO)
-				.toList();
-		
-		return result;
-	}
-    
-    @Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un usuario por su ID:
-	public boolean existsById(Long userId) {
-		return userRepository.existsById(userId);
-	}
-
-    @Override
-    public UserResponseDTO getAuthenticatedUser() {
-
-        User user = getAuthenticatedUserEntity(); // método privado
-
-        return userMapper.toUserResponseDTO(user);
-    }
-    
-    
     @Override
     public MessageResponseDTO changePassword(ChangePasswordRequestDTO request){
 
@@ -211,9 +212,25 @@ public class UserServiceImpl implements UserService {
         return new MessageResponseDTO("Password changed successfully");
     }
 
-    ///PRIVADOS
+    ///----------------------------------------------------------BOOLEAN----------------------------------------------------------///
+   
+    /// Determinar si existe un usuario por su ID:
+    @Override
+	@Transactional(readOnly = true)
+	public boolean existsById(Long userId) {
+		return userRepository.existsById(userId);
+	}
+
+    ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
+    
     private User getAuthenticatedUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {
+
+            throw new InvalidCredentialsException("Usuario no autenticado");
+        }
+
         return (User) authentication.getPrincipal();
     }
 
@@ -238,6 +255,4 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
-    
 }

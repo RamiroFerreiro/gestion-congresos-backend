@@ -44,6 +44,8 @@ public class AuthServiceImpl implements AuthService {
     private final AuthMapper authMapper;
     private final JwtService jwtService;
     private final EmailService emailService;
+
+    ///----------------------------------------------------------LOGIN ----------------------------------------------------------///
     
     @Override
     public LoginResponseDTO login(LoginRequestDTO request) {
@@ -67,12 +69,14 @@ public class AuthServiceImpl implements AuthService {
         return response;            
     }
 
+    ///----------------------------------------------------------CHANGE PASSWORD----------------------------------------------------------///
+    
     @Override
     public MessageResponseDTO forgotPassword(ForgotPasswordRequestDTO request) {
         
         ///Traer el usuario por mail
         User user = userRepository.findByEmail(request.getEmail())
-        .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+        .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
         Optional<PasswordResetToken> existingToken = passwordResetTokenRepository.findByUser(user);
 
@@ -93,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
         emailService.sendPasswordResetEmail(user, passwordResetToken.getToken());
 
         return MessageResponseDTO.builder()
-            .message("Si el mail existe, el link de recuperación de contraseña a sido enviado.")
+            .message("Si el mail existe, el link de recuperación de contraseña ha sido enviado.")
             .build();
     }
 
@@ -119,7 +123,8 @@ public class AuthServiceImpl implements AuthService {
         return MessageResponseDTO.builder().message("Contraseña recuperada correctamente.").build();
     }
 
-    ///PRIVADOS
+    ///---------------------------------------------------------- PRIVADOS ----------------------------------------------------------///
+    
     private void validatePasswordConfirmation(String newPassword, String confirmPassword){
         if (!newPassword.equals(confirmPassword)) {
 
