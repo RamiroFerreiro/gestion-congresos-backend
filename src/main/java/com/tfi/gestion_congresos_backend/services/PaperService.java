@@ -39,4 +39,7 @@ public interface PaperService {
     // Crear Autor en paper (C)
     List<AuthorResponseDTO> addAuthorToPaper(Long paperId, Long userId);
 
+    // Remover Autor en paper (D)
+    List<AuthorResponseDTO> removeAuthorFromPaper(Long paperId, Long userId);
+
 }

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -237,6 +238,47 @@ public class PaperServiceImpl implements PaperService {
                 .build();
 
         paper.getAuthors().add(newPaperAuthor); // gracias al cascade = ALL de Paper, se persiste solo
+
+        Paper savedPaper = paperRepository.save(paper);
+
+        return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
+    }
+
+    @Override
+    @Transactional
+    public List<AuthorResponseDTO> removeAuthorFromPaper(Long paperId, Long userId) {
+
+        Paper paper = getPaperByPaperId(paperId);
+
+        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED) {
+            throw new ArgumentNotValidException(
+                "No se pueden eliminar autores de un Paper en estado " + paper.getStatus() +
+                ". Solo se permite en NOT_SUBMITTED.");
+        }
+
+        PaperAuthor toRemove = paper.getAuthors().stream()
+                .filter(pa -> pa.getAuthor().getUserId().equals(userId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "El usuario con ID " + userId + " no es autor de este Paper"));
+
+        // El creador (orden 1) nunca puede eliminarse — así garantizamos mínimo 1 autor siempre
+        if (toRemove.getAuthorOrder() == 1) {
+            throw new ArgumentNotValidException(
+                "No se puede eliminar al autor del Paper. El Paper debe tener al menos un autor.");
+        }
+
+        paper.getAuthors().remove(toRemove); // orphanRemoval = true -> Hibernate borra la fila sola
+
+        // Reordenar: compactar authorOrder sin huecos, preservando el orden relativo entre los que quedan
+        List<PaperAuthor> remaining = paper.getAuthors().stream()
+                .sorted(Comparator.comparingInt(PaperAuthor::getAuthorOrder))
+                .toList();
+
+        int order = 1;
+        for (PaperAuthor pa : remaining) {
+            pa.setAuthorOrder(order++);
+        }
 
         Paper savedPaper = paperRepository.save(paper);
 

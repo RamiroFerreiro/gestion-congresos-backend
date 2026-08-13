@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,5 +77,14 @@ public class PaperController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paperService.addAuthorToPaper(paperId, userId));
+    }
+
+    /// Eliminar un autor de un Paper (solo en NOT_SUBMITTED, nunca al autor con orden 1):
+    @DeleteMapping("/{paperId}/authors/{userId}")
+    public ResponseEntity<List<AuthorResponseDTO>> removeAuthorFromPaper(
+            @PathVariable Long paperId,
+            @PathVariable Long userId) {
+
+        return ResponseEntity.ok(paperService.removeAuthorFromPaper(paperId, userId));
     }
 }
