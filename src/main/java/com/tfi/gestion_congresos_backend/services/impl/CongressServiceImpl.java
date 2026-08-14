@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
@@ -104,15 +105,21 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Desactivar un congreso:
-	public void disableCongress(Long congressId) {
+	public MessageResponseDTO disableCongress(Long congressId) {
 	    changeCongressStatus(congressId, false);
+	    
+	    // Devolver mensaje de respuesta:
+	 	return new MessageResponseDTO("Congreso desactivado con éxito");
 	}
 
 	@Override
 	@Transactional
 	/// Activar un congreso:
-	public void enableCongress(Long congressId) {
+	public MessageResponseDTO enableCongress(Long congressId) {
 	    changeCongressStatus(congressId, true);
+	    
+	    // Devolver mensaje de respuesta:
+	 	return new MessageResponseDTO("Congreso activado con éxito");
 	}
 	 
 	@Override
@@ -152,7 +159,7 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Agregar un participante a un congreso:
-	public void addParticipantToCongress(Long congressId, Long participantId) {
+	public MessageResponseDTO addParticipantToCongress(Long congressId, Long participantId) {
 		// Buscar congreso:
 		Congress congress = getCongressByCongressId(congressId);
 		
@@ -167,6 +174,9 @@ public class CongressServiceImpl implements CongressService {
 		// Añadir el participante al congreso:
 		congress.getParticipants().add(participant);
 		congressRepository.save(congress);
+		
+		// Devolver mensaje de respuesta:
+		return new MessageResponseDTO("Participante agregado con éxito");
 	}
 	
 	@Transactional
@@ -174,6 +184,10 @@ public class CongressServiceImpl implements CongressService {
 	private void changeCongressStatus(Long congressId, boolean targetStatus) {
 	    Congress congress = congressRepository.findById(congressId)
 	            				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));
+	   
+	    if (congress.isEnabled() == targetStatus) {
+	    	throw new ResourceAlreadyExistsException("El congreso ya se encontraba en ese estado");
+	    }
 
 	    congress.setEnabled(targetStatus);
 	    

@@ -3,8 +3,12 @@ package com.tfi.gestion_congresos_backend.controllers;
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +46,14 @@ public class PaperController {
 
 
     /// Obtener trabajos de un congreso:
+    @Operation(
+            summary = "Obtener todos los trabajos de un congreso",
+            description = "Obtiene la lista de todos los trabajos de un congreso."
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Trabajos obtenidos correctamente"
+    )
     @GetMapping
 	public ResponseEntity<List<PaperResponseDTO>> getPapersByCongress(@RequestParam Long congressId) {
 		
@@ -49,12 +61,30 @@ public class PaperController {
 	}
     
     /// Asignar un evaluador a un trabajo:
+    @Operation(
+            summary = "Asignar un evaluador a un trabajo",
+            description = "Otorga un evaluador a un trabajo existente."
+    )
+    @ApiResponses({
+    		@ApiResponse(
+    				responseCode = "200",
+    				description = "Evaluador asignado correctamente"
+    		),
+    		@ApiResponse(
+    				responseCode = "400",
+    				description = "El trabajo y el evaluador no pertenecen al mismo congreso"
+    		),
+    		@ApiResponse(
+                    responseCode = "409",
+                    description = "Conflicto al asignar el evaluador. Razones posibles:\n" +
+                                  "- El trabajo ya tiene asignado un evaluador diferente.\n" +
+                                  "- El evaluador seleccionado ya estaba asignado a este trabajo."
+            )
+    })
     @PatchMapping("/{paperId}/reviewers/{reviewerId}")
-    public ResponseEntity<Void> assingReviewerToPaper(@PathVariable Long paperId, @PathVariable Long reviewerId) {
+    public ResponseEntity<MessageResponseDTO> assingReviewerToPaper(@PathVariable Long paperId, @PathVariable Long reviewerId) {
     	
-    	paperService.assignReviewerToPaper(paperId, reviewerId);
-    	
-    	return ResponseEntity.noContent().build();
+    	return ResponseEntity.ok(paperService.assignReviewerToPaper(paperId, reviewerId));
     }
 
     /// Crear Paper -> nace en estado NOT_SUBMITTED

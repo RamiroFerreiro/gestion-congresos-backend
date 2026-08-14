@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.services;
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 
 import java.util.List;
@@ -28,7 +29,7 @@ public interface PaperService {
     List<PaperResponseDTO> getPapersByCongressId(Long congressId);
     
     /// Asignar un evaluador a un trabajo:
-    void assignReviewerToPaper(Long paperId, Long reviewerId);
+    MessageResponseDTO assignReviewerToPaper(Long paperId, Long reviewerId);
 
     // Crear paper (C)
     PaperResponseDTO createPaper(PaperRequestDTO dto);

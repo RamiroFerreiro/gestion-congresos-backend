@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.services.impl;
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
@@ -95,7 +96,7 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional
     /// Asignar un evaluador a un trabajo:
-    public void assignReviewerToPaper(Long paperId, Long reviewerId) {
+    public MessageResponseDTO assignReviewerToPaper(Long paperId, Long reviewerId) {
     	// Buscar paper:
     	Paper paper = getPaperByPaperId(paperId);
     	
@@ -130,6 +131,9 @@ public class PaperServiceImpl implements PaperService {
     	// Asignar evaluador al paper:
     	paper.setUserReviewer(reviewer);
     	paperRepository.save(paper);
+    	
+    	// Devolver mensaje de respuesta:
+    	return new MessageResponseDTO("Evaluador asignado con éxito");
     }
 
     @Override

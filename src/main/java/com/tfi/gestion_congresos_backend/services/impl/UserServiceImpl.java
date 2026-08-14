@@ -209,7 +209,7 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(user);
 
-        return new MessageResponseDTO("Password changed successfully");
+        return new MessageResponseDTO("Contraseña cambiada con éxito");
     }
 
     ///----------------------------------------------------------BOOLEAN----------------------------------------------------------///
