@@ -6,15 +6,15 @@ Backend desarrollado con **Spring Boot** para el sistema de gestión de congreso
 
 # Tecnologías utilizadas
 
-* Java 21
-* Spring Boot 3.5.16
-* Spring Web
-* Spring Data JPA
-* Spring Security
-* MySQL 8
-* Maven
-* Lombok
-* Docker (opcional)
+- Java 21
+- Spring Boot 3.5.16
+- Spring Web
+- Spring Data JPA
+- Spring Security
+- MySQL 8
+- Maven
+- Lombok
+- Docker (opcional)
 
 ---
 
@@ -22,14 +22,14 @@ Backend desarrollado con **Spring Boot** para el sistema de gestión de congreso
 
 Antes de ejecutar el proyecto es necesario tener instalado:
 
-* JDK 21
-* Maven 3.9 o superior
-* MySQL 8.x (si se ejecuta sin Docker)
+- JDK 21
+- Maven 3.9 o superior
+- MySQL 8.x (si se ejecuta sin Docker)
 
 o bien
 
-* Docker Desktop
-* Docker Compose
+- Docker Desktop
+- Docker Compose
 
 ---
 
@@ -52,6 +52,8 @@ Ejemplo:
 DB_URL=jdbc:mysql://localhost:3306/gestion_congresos
 DB_USERNAME=gestion_congresos_user
 DB_PASSWORD=********
+JWT_SECRET=ClaveLoSuficiementeLargaDeMasDe32Bytes
+JWT_EXPIRATION=86400000
 ```
 
 Estas variables pueden definirse mediante un archivo `.env` o desde el sistema operativo.
@@ -93,8 +95,6 @@ docker compose up --build
 ---
 
 # Arquitectura Actual
-
-
 
 ---
 

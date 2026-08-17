@@ -1,12 +1,30 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
-
-import com.tfi.gestion_congresos_backend.dtos.UserRequest;
-import com.tfi.gestion_congresos_backend.dtos.UserResponse;
+import org.springframework.transaction.annotation.Transactional;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
+import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
+import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
+import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
+import com.tfi.gestion_congresos_backend.repository.CongressRepository;
+import com.tfi.gestion_congresos_backend.repository.RoleRepository;
 import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,23 +32,225 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
+    private final CongressRepository congressRepository;
+
+    ///----------------------------------------------------------GET----------------------------------------------------------///
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public List<UserResponseDTO> getAllUsers(){
+        
+        List<User> users = userRepository.findAll();
+
+        //stream para transformar List<User> en List<UserResponse> 
+        List<UserResponseDTO> result = users.stream()
+                                    .map(userMapper::toUserResponseDTO)
+                                    .toList();
+
+        return result;
+    }
+
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public UserResponseDTO getUserById(Long userId){
+
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException( "Usuario no encontrado con ID: " + userId));
+        
+        UserResponseDTO result = userMapper.toUserResponseDTO(user);
+
+        return result;
+    }
+
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    @Transactional(readOnly = true)
+    public User getUserByUserId(Long userId){
+
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+
+        return user;
+    }
 
     @Override
-    public UserResponse createUser(UserRequest request) {
+	@Transactional(readOnly = true)
+	/// Obtener participantes de un congreso con determinado rol:
+	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
+		
+    	// Validar existencia del congreso:
+        if (!congressRepository.existsById(congressId)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
+        }
+    	
+    	List<User> participants = userRepository.findParticipantsByCongressIdAndRole(congressId, role);
+		
+		List<UserResponseDTO> result = participants.stream()
+				.map(userMapper::toUserResponseDTO)
+				.toList();
+		
+		return result;
+	}
 
-        User user = User.builder()
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .email(request.getEmail())
-                .build();
+    @Override
+    public UserResponseDTO getAuthenticatedUser() {
 
-        User savedUser = userRepository.save(user);
+        User user = getAuthenticatedUserEntity(); // método privado
 
-        return UserResponse.builder()
-                .id(savedUser.getId())
-                .firstName(savedUser.getFirstName())
-                .lastName(savedUser.getLastName())
-                .email(savedUser.getEmail())
-                .build();
+        return userMapper.toUserResponseDTO(user);
+    }
+
+    ///----------------------------------------------------------CREATE----------------------------------------------------------///
+
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public UserResponseDTO createUser(UserRequestDTO request){
+
+        //verificamos que no esté registrado el mail
+        if(userRepository.existsByEmail(request.getEmail())){
+            throw new ResourceAlreadyExistsException( "Ya existe un usuario con ese email.");
+        }
+
+        //mapeamos DTO a entidad
+        User user = userMapper.toEntity(request);
+
+        //buscamos el rol, si existe, lo seteamos
+        Role role = roleRepository.findById(request.getRoleId()).orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
+        user.setRole(role);
+
+        //activamos al usuario
+        user.setEnabled(true);
+        
+        //Encriptamos la contraseña y la guardamos
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user = userRepository.save(user);
+
+        //retorno de entidad a DTO
+        UserResponseDTO result = userMapper.toUserResponseDTO(user);
+        return result;
+    }
+
+    ///----------------------------------------------------------DELETE----------------------------------------------------------///
+    
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public void deleteUser(Long userId) {
+    
+        User user = userRepository.findById(userId).orElseThrow(() ->
+                    new ResourceNotFoundException( "Usuario no encontrado con ID: " + userId));
+
+        user.setEnabled(false);
+
+        userRepository.save(user);
+    }
+
+    ///----------------------------------------------------------UPDATE----------------------------------------------------------///
+    
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO) {
+
+        ///Se busca el usuario, si no existe lanza excepción
+        User user = userRepository.findById(userId).orElseThrow(() -> 
+                    new ResourceNotFoundException("Usuario no encontrado"));
+
+        ///Si el mail se modificó por uno que ya existe lanza excepción
+        if (!user.getEmail().equals(userRequestDTO.getEmail()) && userRepository.existsByEmail(userRequestDTO.getEmail())) {
+
+            throw new ResourceAlreadyExistsException("Ya existe un usuario con ese email.");
+        }
+
+        ///Se busca el rol, si no existe lanza excepción
+        Role role = roleRepository.findById(userRequestDTO.getRoleId()).orElseThrow(() ->
+                    new ResourceNotFoundException("Rol no encontrado"));
+
+        ///Actualiza la entidad con los datos del DTO
+        userMapper.updateUserFromDto(userRequestDTO, user);
+
+        ///Seteamos el role
+        user.setRole(role);
+
+        ///Guardamos en la bd y devolvemos el DTO
+        user = userRepository.save(user);
+        UserResponseDTO result = userMapper.toUserResponseDTO(user);
+
+        return result;
+    }
+
+    @Transactional
+    @Override
+    public UserResponseDTO updateUserRole(Long userId, RoleName newRoleName) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+
+        Role role = roleRepository.findByName(newRoleName)
+                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado: " + newRoleName));
+
+        user.setRole(role);
+
+        User updatedUser = userRepository.save(user);
+
+        return userMapper.toUserResponseDTO(updatedUser);
+    }
+    
+    @Override
+    public MessageResponseDTO changePassword(ChangePasswordRequestDTO request){
+
+        User user = getAuthenticatedUserEntity();
+        
+        validateCurrentPassword(user, request);
+        validatePasswordConfirmation(request);
+        validateNewPassword(user, request);
+        
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        userRepository.save(user);
+
+        return new MessageResponseDTO("Contraseña cambiada con éxito");
+    }
+
+    ///----------------------------------------------------------BOOLEAN----------------------------------------------------------///
+   
+    /// Determinar si existe un usuario por su ID:
+    @Override
+	@Transactional(readOnly = true)
+	public boolean existsById(Long userId) {
+		return userRepository.existsById(userId);
+	}
+
+    ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
+    
+    private User getAuthenticatedUserEntity() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {
+
+            throw new InvalidCredentialsException("Usuario no autenticado");
+        }
+
+        return (User) authentication.getPrincipal();
+    }
+
+    private void validateCurrentPassword(User user, ChangePasswordRequestDTO request){
+        if (!passwordEncoder.matches(request.getCurrentPassword(),user.getPassword())) {
+
+            throw new ArgumentNotValidException("La contraseña actual es incorrecta");
+        }
+    }
+
+    private void validatePasswordConfirmation(ChangePasswordRequestDTO request){
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+
+            throw new ArgumentNotValidException("Las contraseñas no coinciden");
+        }
+    }
+
+    private void validateNewPassword(User user, ChangePasswordRequestDTO request){
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+
+            throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
+        }
     }
 }
