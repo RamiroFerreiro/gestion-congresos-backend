@@ -19,5 +19,4 @@ public interface UserMapper {
 
     ///usamos mappingtarget para que actualice y mantengan los campos que no se envían por DTO
     void updateUserFromDto(UpdateUserRequestDTO dto, @MappingTarget User user);
-
 }

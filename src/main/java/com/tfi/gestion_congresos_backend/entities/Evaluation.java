@@ -33,11 +33,10 @@ public class Evaluation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "paper_id", nullable = false)
     private Paper paper;
-    
+
     @Column(name = "evaluation_date")
     private LocalDateTime evaluationDate;
 
     @Column(name = "evaluated_version", nullable = false)
 	private String evaluatedVersion;
-	
 }

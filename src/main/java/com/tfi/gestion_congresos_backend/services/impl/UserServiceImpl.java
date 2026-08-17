@@ -22,7 +22,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -254,5 +253,4 @@ public class UserServiceImpl implements UserService {
             throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
         }
     }
-
 }

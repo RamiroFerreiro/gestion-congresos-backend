@@ -41,7 +41,4 @@ public interface UserService {
     ///BOOLEAN
     
     boolean existsById(Long userId);
-
-    
-    
 }
