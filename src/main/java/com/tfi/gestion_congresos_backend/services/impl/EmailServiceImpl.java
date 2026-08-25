@@ -13,7 +13,9 @@ import lombok.*;
 @Service
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
-    
+
+    private static final String TOKEN_EXPIRATION_MESSAGE = "Este enlace caducará en 30 minutos.";
+
     private final JavaMailSender mailSender;
 
     @Value("${MAIL_USERNAME}")
@@ -25,25 +27,60 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendPasswordResetEmail(User user, String token) {
 
-        
-        String resetLink = frontendUrl + "/reset-password?token=" + token;
+        String resetLink = buildLink("/reset-password", token);
 
-        SimpleMailMessage message = new SimpleMailMessage();
-
-        message.setFrom(from);
-        message.setTo(user.getEmail());
-        message.setSubject("Password Recovery");
-
-        message.setText(
-                "Hola " + user.getFirstName() + ",\n\n" +
+        String text = "Hola " + user.getFirstName() + ",\n\n" +
                 "Recibimos una solicitud para restablecer tu contraseña.\n\n" +
                 "Ingresa al siguiente enlace para crear una nueva contraseña:\n\n" +
                 resetLink + "\n\n" +
-                "Este enlace caducará en 30 minutos.\n\n" +
-                "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo."
-        );
+                TOKEN_EXPIRATION_MESSAGE + "\n\n" +
+                "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.";
+
+        sendEmail(user.getEmail(), "Password Recovery", text);
+    }
+
+    @Override
+    public void sendCurrentEmailChangeVerificationEmail(User user, String token) {
+
+        String verificationLink = buildLink("/confirm-email-change", token);
+
+        String text = "Hola " + user.getFirstName() + ",\n\n" +
+                "Recibimos una solicitud para cambiar el email de tu cuenta.\n\n" +
+                "Para continuar con el cambio, confirma que tienes acceso a este correo:\n\n" +
+                verificationLink + "\n\n" +
+                TOKEN_EXPIRATION_MESSAGE + "\n\n" +
+                "Si no solicitaste este cambio, puedes ignorar este correo.";
+
+        sendEmail(user.getEmail(), "Confirmación de cambio de email", text);
+    }
+
+    @Override
+    public void sendNewEmailChangeVerificationEmail(String newEmail, User user, String token) {
+
+        String verificationLink = buildLink("/confirm-new-email", token);
+
+        String text = "Hola " + user.getFirstName() + ",\n\n" +
+                "Se ha solicitado asociar este correo a tu cuenta.\n\n" +
+                "Confirma el cambio ingresando al siguiente enlace:\n\n" +
+                verificationLink + "\n\n" +
+                TOKEN_EXPIRATION_MESSAGE;
+
+        sendEmail(newEmail, "Confirmación de nuevo email", text);
+    }
+
+    private String buildLink(String path, String token) {
+        return frontendUrl + path + "?token=" + token;
+    }
+
+    private void sendEmail(String to, String subject, String text) {
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        
+        message.setFrom(from);
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(text);
 
         mailSender.send(message);
     }
-    
 }

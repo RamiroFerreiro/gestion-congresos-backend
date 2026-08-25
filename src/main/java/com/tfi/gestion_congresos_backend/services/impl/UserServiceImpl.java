@@ -1,12 +1,16 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
 import org.springframework.transaction.annotation.Transactional;
+
+import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
@@ -15,12 +19,18 @@ import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsExceptio
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
+import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
+import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,6 +46,8 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final CongressRepository congressRepository;
+    private final EmailChangeTokenRepository emailChangeTokenRepository;
+    private final EmailService emailService;
 
     ///----------------------------------------------------------GET----------------------------------------------------------///
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
@@ -211,6 +223,47 @@ public class UserServiceImpl implements UserService {
         return new MessageResponseDTO("Contraseña cambiada con éxito");
     }
 
+    @Override
+    public MessageResponseDTO changeEmail(ChangeEmailRequestDTO request) {
+        
+        User user = getAuthenticatedUserEntity();
+
+        // Validar contraseña actual
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("La contraseña actual no es válida.");
+        }
+
+        // Verificar que el nuevo email no esté utilizado
+        if (userRepository.existsByEmail(request.getNewEmail())) {
+            throw new ResourceAlreadyExistsException("El email ya está registrado.");
+        }
+        
+        Optional<EmailChangeToken> existingToken = emailChangeTokenRepository.findByUser(user);
+
+        EmailChangeToken emailChangeToken;
+
+        if (existingToken.isPresent()) {
+            emailChangeToken = existingToken.get();
+        } else {
+            emailChangeToken = new EmailChangeToken();
+        }
+        
+        emailChangeToken.setUser(user);
+        emailChangeToken.setNewEmail(request.getNewEmail());
+        emailChangeToken.setToken(UUID.randomUUID().toString());
+        emailChangeToken.setExpirationDate(DateUtils.now().plusMinutes(30));
+        emailChangeToken.setStatus(EmailChangeStatus.PENDING_CURRENT_EMAIL);
+
+
+        emailChangeTokenRepository.save(emailChangeToken);
+
+
+        emailService.sendCurrentEmailChangeVerificationEmail(user,emailChangeToken.getToken());
+
+        return MessageResponseDTO.builder()
+            .message("Se ha enviado un enlace de confirmación a tu email actual.").build();
+    }
+
     ///----------------------------------------------------------BOOLEAN----------------------------------------------------------///
    
     /// Determinar si existe un usuario por su ID:
@@ -222,7 +275,8 @@ public class UserServiceImpl implements UserService {
 
     ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
     
-    private User getAuthenticatedUserEntity() {
+    public User getAuthenticatedUserEntity() {
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         
         if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {

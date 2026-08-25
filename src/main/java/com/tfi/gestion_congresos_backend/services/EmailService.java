@@ -6,4 +6,8 @@ public interface EmailService {
 
     void sendPasswordResetEmail(User user, String token);
 
+    void sendCurrentEmailChangeVerificationEmail(User user, String token);
+    
+    void sendNewEmailChangeVerificationEmail(String newEmail, User user, String token);
+
 }

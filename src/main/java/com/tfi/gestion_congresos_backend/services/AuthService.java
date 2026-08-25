@@ -1,10 +1,12 @@
 package com.tfi.gestion_congresos_backend.services;
 
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ForgotPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ResetPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface AuthService {
 
@@ -13,5 +15,7 @@ public interface AuthService {
     MessageResponseDTO forgotPassword(ForgotPasswordRequestDTO request);
 
     MessageResponseDTO resetPassword(ResetPasswordRequestDTO request);
+
+    MessageResponseDTO confirmEmailChange(String token);
 
 }

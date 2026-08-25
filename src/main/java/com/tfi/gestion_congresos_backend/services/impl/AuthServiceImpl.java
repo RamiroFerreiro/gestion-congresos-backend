@@ -9,25 +9,32 @@ import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ForgotPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ResetPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
 import com.tfi.gestion_congresos_backend.entities.PasswordResetToken;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
+import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.AuthMapper;
+import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
+import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import jakarta.transaction.Transactional;
 
+import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.security.JwtService;
@@ -40,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
     private final JwtService jwtService;
@@ -101,6 +109,8 @@ public class AuthServiceImpl implements AuthService {
             .build();
     }
 
+    ///----------------------------------------------------------RESET PASSWORD----------------------------------------------------------///
+     
     @Transactional
     @Override
     public MessageResponseDTO resetPassword(ResetPasswordRequestDTO request) {
@@ -121,6 +131,31 @@ public class AuthServiceImpl implements AuthService {
         passwordResetTokenRepository.delete(passwordResetToken);
 
         return MessageResponseDTO.builder().message("Contraseña recuperada correctamente.").build();
+    }
+     ///----------------------------------------------------------CONFIRM MAIL----------------------------------------------------------///
+     
+    @Transactional
+    @Override
+    public MessageResponseDTO confirmEmailChange(String token) {
+
+        EmailChangeToken emailChangeToken = emailChangeTokenRepository.findByToken(token)
+                    .orElseThrow(() -> new ResourceNotFoundException("El token de cambio de email no es válido."));
+
+        validateTokenExpiration(emailChangeToken.getExpirationDate());
+
+        String message = "";
+        // PRIMERA ETAPA
+        if (emailChangeToken.getStatus() == EmailChangeStatus.PENDING_CURRENT_EMAIL) {
+
+            message = confirmNewEmail(emailChangeToken);
+            
+            // SEGUNDA ETAPA
+        }else if (emailChangeToken.getStatus() == EmailChangeStatus.PENDING_NEW_EMAIL) {
+                
+            message = saveNewEmail(emailChangeToken);
+        }
+
+        return MessageResponseDTO.builder().message(message).build();
     }
 
     ///---------------------------------------------------------- PRIVADOS ----------------------------------------------------------///
@@ -147,5 +182,39 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    private String confirmNewEmail(EmailChangeToken emailChangeToken){
+
+        emailChangeToken.setToken(UUID.randomUUID().toString());
+
+        emailChangeToken.setExpirationDate(DateUtils.now().plusMinutes(30));
+
+        emailChangeToken.setStatus(EmailChangeStatus.PENDING_NEW_EMAIL);
+
+        emailService.sendNewEmailChangeVerificationEmail(
+                    emailChangeToken.getNewEmail(),
+                    emailChangeToken.getUser(),
+                    emailChangeToken.getToken()
+        );
+
+        String message = "El email actual fue verificado. " +
+                        "Se ha enviado un enlace de confirmación " +
+                        "al nuevo email.";
+        return message;
+    }
+
+    private String saveNewEmail(EmailChangeToken emailChangeToken){
+
+        User user = emailChangeToken.getUser();
+
+        user.setEmail(emailChangeToken.getNewEmail());
+
+        userRepository.save(user);
+
+        emailChangeTokenRepository.delete(emailChangeToken);
+
+        String message = "El email fue cambiado correctamente.";
+        
+        return message;
+    }
 
 }

@@ -1,11 +1,13 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -100,9 +102,6 @@ public class UserController {
 
         return ResponseEntity.ok(userService.getAuthenticatedUser());
     }
-
-
-
     ///----------------------------------------------------------POSTS----------------------------------------------------------///
     @Operation(
             summary = "Crear un usuario",
@@ -234,5 +233,34 @@ public class UserController {
 
         return ResponseEntity.ok(userService.changePassword(request));
     }
+
+    @Operation(
+            summary = "Cambiar email",
+            description = "Permite al usuario autenticado cambiar su email."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Email de recuperación enviado correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Los datos enviados no son válidos"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "El usuario no se encuentra autenticado o la contraseña es incorrecta"
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ya existe un usuario con el email indicado"
+            )
+    })
+    @PatchMapping("/change-email")
+    public ResponseEntity<MessageResponseDTO> changeEmail(@Valid @RequestBody ChangeEmailRequestDTO request) {
+
+        return ResponseEntity.ok(userService.changeEmail(request));
+    }
+
 }
 

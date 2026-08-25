@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.services;
 import java.util.List;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
@@ -22,6 +23,8 @@ public interface UserService {
 
     UserResponseDTO getAuthenticatedUser();
 
+    User getAuthenticatedUserEntity();
+
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
     List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
@@ -37,7 +40,9 @@ public interface UserService {
     UserResponseDTO updateUserRole(Long userId, RoleName newRoleName);
 
     MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
-    
+
+    MessageResponseDTO changeEmail(ChangeEmailRequestDTO request);
+
     ///BOOLEAN
     
     boolean existsById(Long userId);

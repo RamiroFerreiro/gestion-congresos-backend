@@ -59,6 +59,7 @@ public class AuthController {
         
         return ResponseEntity.ok(authService.login(request));
     }
+
     @Operation(
             summary = "Solicitar recuperación de contraseña",
             description = "Inicia el proceso de recuperación de contraseña para un usuario mediante su dirección de email."
@@ -82,6 +83,31 @@ public class AuthController {
     public ResponseEntity<MessageResponseDTO> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request) {
 
         return ResponseEntity.ok(authService.forgotPassword(request));
+    }
+
+    @Operation(
+            summary = "Confirmar y cambiar mail",
+            description = "Permite establecer una nueva contraseña utilizando un token de recuperación válido."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "El email actual fue verificado. Se ha enviado un enlace de confirmación al nuevo email o" +
+                                "el email se restablecido correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "El token ha expirado"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No se encontró el token de recuperación"
+            )
+    })
+    @PostMapping("/confirm-new-email")
+    public ResponseEntity<MessageResponseDTO> confirmEmailChange(@Valid @RequestBody String request) {
+
+        return ResponseEntity.ok(authService.confirmEmailChange(request));
     }
 
     ///----------------------------------------------------------PATCH----------------------------------------------------------///
