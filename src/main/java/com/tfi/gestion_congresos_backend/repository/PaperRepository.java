@@ -19,4 +19,5 @@ public interface PaperRepository extends JpaRepository<Paper, Long> {
    @Query("SELECT DISTINCT p FROM Paper p LEFT JOIN FETCH p.authors pa LEFT JOIN FETCH pa.author LEFT JOIN FETCH p.congress c LEFT JOIN FETCH p.userReviewer WHERE c.congressId = :congressId ORDER BY pa.authorOrder ASC")
     List<Paper> findByCongressIdWithDetails(@Param("congressId") Long congressId);
 
+    boolean existsByCode(String code);
 }

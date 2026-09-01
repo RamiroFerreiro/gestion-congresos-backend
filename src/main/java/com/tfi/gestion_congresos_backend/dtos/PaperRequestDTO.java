@@ -4,6 +4,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data @Builder @AllArgsConstructor @NoArgsConstructor
 public class PaperRequestDTO {
@@ -11,17 +12,14 @@ public class PaperRequestDTO {
     @NotBlank(message = "El título es obligatorio")
     private String title;
 
-    @NotBlank(message = "El código es obligatorio")
-    private String code;
-
     @NotBlank(message = "El área temática es obligatoria")
     private String thematicArea;
 
     @NotBlank(message = "El resumen es obligatorio")
     private String summary;
-
-    @NotBlank(message = "Las palabras clave son obligatorias")
-    private String keywords;
+    
+    @NotEmpty(message = "Debe ingresar al menos una palabra clave")
+    private Set<@NotBlank(message = "La palabra clave no puede estar vacía") String> keywords;
 
     @NotNull(message = "La fecha de presentación es obligatoria")
     @Future(message = "La fecha de presentación debe ser futura")

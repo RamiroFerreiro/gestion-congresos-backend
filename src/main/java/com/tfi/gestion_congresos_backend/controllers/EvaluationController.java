@@ -3,6 +3,11 @@ package com.tfi.gestion_congresos_backend.controllers;
 import com.tfi.gestion_congresos_backend.dtos.EvaluationRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.EvaluationResponseDTO;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -15,24 +20,49 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/evaluations")
 @RequiredArgsConstructor
+@Tag(name = "Evaluations", description = "Operaciones relacionadas con la evaluación de trabajos (Papers)")
 public class EvaluationController {
 
     private final EvaluationService evaluationService;
 
-    ///GET
-    ///Traer el historial de evaluaciones de un Paper específico
+    ///----------------------------------------------------------GETS----------------------------------------------------------///
+    @Operation(
+            summary = "Obtener historial de evaluaciones de un trabajo",
+            description = "Obtiene la lista de evaluaciones asociadas a un Paper específico, ordenadas por fecha descendente."
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Evaluaciones obtenidas correctamente"
+    )
     @GetMapping("/paper/{paperId}")
     public ResponseEntity<List<EvaluationResponseDTO>> getEvaluationsByPaperId(@PathVariable Long paperId) {
         return ResponseEntity.ok(evaluationService.getEvaluationsByPaperId(paperId));
     }
 
-    ///POST
-    ///Crear una nueva evaluación para un Paper
+    ///----------------------------------------------------------POSTS----------------------------------------------------------///
+    @Operation(
+            summary = "Crear una evaluación",
+            description = "Crea una nueva evaluación para un Paper, aplicando el snapshot de la versión actual del trabajo."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Evaluación creada correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Los datos enviados no son válidos"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No se encontró un Paper con el ID especificado"
+            )
+    })
     @PostMapping("/paper/{paperId}")
     public ResponseEntity<EvaluationResponseDTO> createEvaluation(
-            @PathVariable Long paperId, 
+            @PathVariable Long paperId,
             @Valid @RequestBody EvaluationRequestDTO request) {
-            
+
         return ResponseEntity.status(HttpStatus.CREATED).body(evaluationService.createEvaluation(paperId, request));
     }
 

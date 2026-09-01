@@ -4,15 +4,18 @@ import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 
 import java.util.List;
+import java.util.Set;
 
 // Se deben implementar metodos CRUD
 // (C): Crean un nuevo registro en la BD
 // (R): Lee un registro existente en la BD
 // (U): Actualiza un registro existente en la BD
 // (D): Elimina un registro existente en la BD
+//
 
 public interface PaperService {
 
@@ -42,5 +45,15 @@ public interface PaperService {
 
     // Remover Autor en paper (D)
     List<AuthorResponseDTO> removeAuthorFromPaper(Long paperId, Long userId);
+
+    // Crear palabra clave en Paper (C)
+    Set<String> addKeywordToPaper(Long paperId, String keyword);
+
+    // Removerr palabra clave en Paper (R)
+    Set<String> removeKeywordFromPaper(Long paperId, String keyword);
+
+
+
+
 
 }

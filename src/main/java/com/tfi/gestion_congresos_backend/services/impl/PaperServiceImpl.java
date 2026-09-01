@@ -23,9 +23,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -36,245 +41,235 @@ public class PaperServiceImpl implements PaperService {
     private final CongressService congressService;
     private final UserService userService;
 
+    private static final int CODE_LENGTH = 6;
+
+    ///----------------------------------------------------------GETS----------------------------------------------------------///
+
     @Override
     @Transactional(readOnly = true)
-    // Recibe el ID del evaluador
     public List<PaperResponseDTO> getAssignedPapers(Long reviewerId) {
-    	// Validar existencia del evaluador:
         if (!userService.existsById(reviewerId)) {
             throw new ResourceNotFoundException("Evaluador no encontrado con el ID: " + reviewerId);
         }
-    	
-        // Consulta en la BD los papers filtrados por el ID del evaluador
         List<Paper> assignedPapers = paperRepository.findByUserReviewer_UserId(reviewerId);
-        // Convierte la lista de entidades Paper a lista de DTOs y la retorna
         return paperMapper.toPaperResponseDTOList(assignedPapers);
     }
-    
+
     @Override
     @Transactional(readOnly = true)
-    /// Obtener un paper por su ID:
     public PaperResponseDTO getPaperById(Long paperId) {
-    	Paper paper = paperRepository.findById(paperId).orElseThrow(() ->
-        new ResourceNotFoundException("Trabajo no encontrado con ID: " + paperId));
-
-    	PaperResponseDTO result = paperMapper.toPaperResponseDTO(paper);
-
-    	return result;
+        return paperMapper.toPaperResponseDTO(getPaperByPaperId(paperId));
     }
-    
+
     @Override
     @Transactional(readOnly = true)
-    /// Obtener una entidad paper por su ID:
     public Paper getPaperByPaperId(Long paperId) {
-    	Paper paper = paperRepository.findById(paperId).orElseThrow(() ->
-        new ResourceNotFoundException("Trabajo no encontrado con ID: " + paperId));
-
-    	return paper;
+        return paperRepository.findById(paperId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con ID: " + paperId));
     }
-    
+
     @Override
     @Transactional(readOnly = true)
-    /// Obtener todos los trabajos de un congreso por su ID:
     public List<PaperResponseDTO> getPapersByCongressId(Long congressId) {
-    	
-    	// Validar existencia del congreso:
         if (!congressService.existsById(congressId)) {
             throw new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId);
         }
-    	
-    	List<Paper> papers = paperRepository.findByCongressIdWithDetails(congressId);
-		
-		
-		List<PaperResponseDTO> result = papers.stream()
-				.map(paperMapper::toPaperResponseDTO)
-				.toList();
-		
-		return result;
+        List<Paper> papers = paperRepository.findByCongressIdWithDetails(congressId);
+        return papers.stream().map(paperMapper::toPaperResponseDTO).toList();
     }
-    
-    @Override
-    @Transactional
-    /// Asignar un evaluador a un trabajo:
-    public MessageResponseDTO assignReviewerToPaper(Long paperId, Long reviewerId) {
-    	// Buscar paper:
-    	Paper paper = getPaperByPaperId(paperId);
-    	
-    	// Verificar que ya no tenga un evaluador asignado:
-    	User paperReviewer = paper.getUserReviewer();
-    	if (paperReviewer != null) {
-    	    // Intento de asignarle otro evaluador:
-    	    if (!paperReviewer.getUserId().equals(reviewerId)) {
-    	        throw new ResourceAlreadyExistsException(
-    	            "El trabajo con ID " + paperId + " ya tiene asignado un evaluador (" + paperReviewer.getFirstName() + " " + paperReviewer.getLastName()+ ")."
-    	        );
-    	    } 
-    	    // Intento de asignarle exactamente el mismo:
-    	    else {
-    	        throw new ResourceAlreadyExistsException(
-    	            "El evaluador con ID " + reviewerId + " ya está asignado a este trabajo."
-    	        );
-    	    }
-    	}
-    	
-    	// Buscar evaluador:
-    	User reviewer = userService.getUserByUserId(reviewerId);
-    	
-    	// Comparar si pertenecen al mismo congreso:
-    	Congress congress = paper.getCongress();
-    	
-    	boolean isParticipantInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(congress.getCongressId(), reviewerId, RoleName.EVALUATOR);
-    	if (!isParticipantInCongress) {
-    		throw new ArgumentNotValidException("El evaluador con ID " + reviewerId + " no pertenece al mismo congreso que el trabajo con ID " + paperId + ".");
-    	}
-    	
-    	// Asignar evaluador al paper:
-    	paper.setUserReviewer(reviewer);
-    	paperRepository.save(paper);
-    	
-    	// Devolver mensaje de respuesta:
-    	return new MessageResponseDTO("Evaluador asignado con éxito");
-    }
+
+    ///----------------------------------------------------------CREATE----------------------------------------------------------///
 
     @Override
     @Transactional
     public PaperResponseDTO createPaper(PaperRequestDTO dto) {
 
-        // Validar que cada Expositor esté inscripto como tal en el congreso
-        for (Long authorId : dto.getAuthorUserIds()) {
-            User auth = userService.getUserByUserId(authorId);
-            boolean isAuthorInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
-                    dto.getCongressId(), authorId, auth.getRole().getName());
-            if (!isAuthorInCongress) {
-                throw new ArgumentNotValidException(
-                    "El usuario con ID " + authorId + " no está inscripto como Expositor en el congreso con ID " + dto.getCongressId());
-            }
-        }
-
         Congress congress = congressService.getCongressByCongressId(dto.getCongressId());
 
+        validateCongressEnabled(congress);
+        validateThematicArea(congress, dto.getThematicArea());
+        validatePresentationDateWithinWindow(congress, dto.getPresentationDate());
+        validateMaxAuthors(congress, dto.getAuthorUserIds().size());
+
         Paper paper = paperMapper.toEntity(dto);
+        paper.setCode(generatePaperCode());
         paper.setVersion("1.0");
         paper.setStatus(PaperStatus.NOT_SUBMITTED);
         paper.setCongress(congress);
+        paper.setAuthors(new ArrayList<>());
+        paper.setKeywords(new HashSet<>());
 
-        Paper savedPaper = paperRepository.save(paper);
-
-        // Resolver autores y armar PaperAuthor con orden
-        List<PaperAuthor> authors = new ArrayList<>();
-        int order = 1;
+        // Todo se arma EN MEMORIA, sobre el mismo objeto paper — nada se persiste todavía
         for (Long authorId : dto.getAuthorUserIds()) {
             User author = userService.getUserByUserId(authorId);
-            authors.add(PaperAuthor.builder()
-                    .paper(savedPaper)
-                    .author(author)
-                    .authorOrder(order++)
-                    .build());
+            addAuthorInternal(paper, author);
         }
-        savedPaper.setAuthors(authors);
 
-        Paper finalPaper = paperRepository.save(savedPaper);
-        return paperMapper.toPaperResponseDTO(finalPaper);
+        for (String keyword : dto.getKeywords()){
+            addKeywordInternal(paper,keyword);
+        }
+
+        // UN SOLO save al final: cascade=ALL inserta Paper + PaperAuthors + keywords juntos
+        Paper savedPaper = paperRepository.save(paper);
+
+        return paperMapper.toPaperResponseDTO(savedPaper);
     }
 
-    @Override
-    @Transactional
-    public PaperResponseDTO submitPaper(Long paperId) {
-        Paper paper = getPaperByPaperId(paperId); 
-
-        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED
-                && paper.getStatus() != PaperStatus.NEEDS_REVISION) {
-            throw new ArgumentNotValidException(
-                "No se puede enviar un Paper en estado " + paper.getStatus() +
-                ". Solo se permite desde NOT_SUBMITTED o NEEDS_REVISION.");
-        }
-
-        if (paper.getAuthors() == null || paper.getAuthors().isEmpty()) {
-            throw new ArgumentNotValidException("El Paper debe tener al menos un autor antes de enviarlo a revisión");
-        }
-
-        paper.setStatus(PaperStatus.UNDER_EVALUATION);
-        Paper saved = paperRepository.save(paper);
-        return paperMapper.toPaperResponseDTO(saved);
-    }
+    ///----------------------------------------------------------AUTHORS----------------------------------------------------------///
 
     @Override
     @Transactional
     public List<AuthorResponseDTO> addAuthorToPaper(Long paperId, Long userId) {
-
-        Paper paper = getPaperByPaperId(paperId); 
-
-        // Regla de negocio: solo se puede agregar autores antes del primer envío
-        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED) {
-            throw new ArgumentNotValidException(
-                "No se pueden agregar autores a un Paper en estado " + paper.getStatus() +
-                ". Solo se permite en NOT_SUBMITTED.");
-        }
+        Paper paper = getPaperByPaperId(paperId);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
         User user = userService.getUserByUserId(userId);
-
-        // Validar que el usuario tenga rol AUTHOR en el congreso de este Paper
-        Long congressId = paper.getCongress().getCongressId();
-        boolean isAuthorInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
-                congressId, userId, RoleName.EXPOSITOR);
-        
-        // En caso que sea admin se puede inscribir igualmente
-        if (!isAuthorInCongress && user.getRole().getName() != RoleName.ADMINISTRATOR) {
-            throw new ArgumentNotValidException(
-                "El usuario con ID " + userId + " no está inscripto como autor en el congreso con ID " + congressId);
-        }
-
-        // Evitar duplicados: que no sea ya autor de este mismo Paper
-        boolean alreadyAuthor = paper.getAuthors().stream()
-                .anyMatch(pa -> pa.getAuthor().getUserId().equals(userId));
-        if (alreadyAuthor) {
-            throw new ResourceAlreadyExistsException(
-                "El usuario con ID " + userId + " ya es autor de este Paper");
-        }
-
-        // Calcular el próximo orden (siguiente al último existente)
-        int nextOrder = paper.getAuthors().size() + 1;
-
-        PaperAuthor newPaperAuthor = PaperAuthor.builder()
-                .paper(paper)
-                .author(user)
-                .authorOrder(nextOrder)
-                .build();
-
-        paper.getAuthors().add(newPaperAuthor); // gracias al cascade = ALL de Paper, se persiste solo
+        addAuthorInternal(paper, user);
 
         Paper savedPaper = paperRepository.save(paper);
-
         return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
     }
 
     @Override
     @Transactional
     public List<AuthorResponseDTO> removeAuthorFromPaper(Long paperId, Long userId) {
+        Paper paper = getPaperByPaperId(paperId);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
+        removeAuthorInternal(paper, userId);
+
+        Paper savedPaper = paperRepository.save(paper);
+        return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
+    }
+
+    @Override
+    @Transactional
+    public MessageResponseDTO assignReviewerToPaper(Long paperId, Long reviewerId) {
         Paper paper = getPaperByPaperId(paperId);
 
-        if (paper.getStatus() != PaperStatus.NOT_SUBMITTED) {
-            throw new ArgumentNotValidException(
-                "No se pueden eliminar autores de un Paper en estado " + paper.getStatus() +
-                ". Solo se permite en NOT_SUBMITTED.");
+        User paperReviewer = paper.getUserReviewer();
+        if (paperReviewer != null) {
+            if (!paperReviewer.getUserId().equals(reviewerId)) {
+                throw new ResourceAlreadyExistsException(
+                    "El trabajo con ID " + paperId + " ya tiene asignado un evaluador (" +
+                    paperReviewer.getFirstName() + " " + paperReviewer.getLastName() + ")."
+                );
+            } else {
+                throw new ResourceAlreadyExistsException(
+                    "El evaluador con ID " + reviewerId + " ya está asignado a este trabajo."
+                );
+            }
         }
 
+        User reviewer = userService.getUserByUserId(reviewerId);
+        Congress congress = paper.getCongress();
+
+        boolean isParticipantInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
+                congress.getCongressId(), reviewerId, RoleName.EVALUATOR);
+        if (!isParticipantInCongress) {
+            throw new ArgumentNotValidException(
+                "El evaluador con ID " + reviewerId + " no pertenece al mismo congreso que el trabajo con ID " + paperId + ".");
+        }
+
+        paper.setUserReviewer(reviewer);
+        paperRepository.save(paper);
+
+        return new MessageResponseDTO("Evaluador asignado con éxito");
+    }
+
+    ///----------------------------------------------------------KEYWORDS----------------------------------------------------------///
+
+    @Override
+    @Transactional
+    public Set<String> addKeywordToPaper(Long paperId, String keyword) {
+        Paper paper = getPaperByPaperId(paperId);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
+
+        addKeywordInternal(paper, keyword);
+
+        Paper savedPaper = paperRepository.save(paper);
+        return savedPaper.getKeywords();
+    }
+
+    @Override
+    @Transactional
+    public Set<String> removeKeywordFromPaper(Long paperId, String keyword) {
+        Paper paper = getPaperByPaperId(paperId);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
+
+        removeKeywordInternal(paper, keyword);
+
+        Paper savedPaper = paperRepository.save(paper);
+        return savedPaper.getKeywords();
+    }
+
+    ///----------------------------------------------------------SUBMIT----------------------------------------------------------///
+
+    @Override
+    @Transactional
+    public PaperResponseDTO submitPaper(Long paperId) {
+        Paper paper = getPaperByPaperId(paperId);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
+
+        if (paper.getAuthors() == null || paper.getAuthors().isEmpty()) {
+            throw new ArgumentNotValidException("El Paper debe tener al menos un autor antes de enviarlo a revisión");
+        }
+
+        validateKeywordCountMin(paper.getCongress(), paper.getKeywords().size());
+
+        paper.setStatus(PaperStatus.UNDER_EVALUATION);
+        Paper saved = paperRepository.save(paper);
+        return paperMapper.toPaperResponseDTO(saved);
+    }
+
+    ///----------------------------------------------------------LÓGICA INTERNA (sin @Transactional, sin fetch, sin save)----------------------------------------------------------///
+    // Estos métodos SOLO operan sobre un Paper ya cargado en memoria. No buscan nada en la DB,
+    // no abren transacción propia, no guardan. Los llama tanto createPaper (varias veces, en memoria,
+    // antes del primer save) como los endpoints públicos de add/remove (una vez, después de fetchear).
+
+    private void addAuthorInternal(Paper paper, User user) {
+        Congress congress = paper.getCongress();
+
+        validateMaxAuthors(congress, paper.getAuthors().size() + 1);
+
+        boolean isAuthorInCongress = congressService.existsByCongressIdAndUserIdAndRoleName(
+                congress.getCongressId(), user.getUserId(), RoleName.EXPOSITOR);
+        if (!isAuthorInCongress && user.getRole().getName() != RoleName.ADMINISTRATOR) {
+            throw new ArgumentNotValidException(
+                "El usuario con ID " + user.getUserId() + " no está inscripto como autor en el congreso con ID " + congress.getCongressId());
+        }
+
+        boolean alreadyAuthor = paper.getAuthors().stream()
+                .anyMatch(pa -> pa.getAuthor().getUserId().equals(user.getUserId()));
+        if (alreadyAuthor) {
+            throw new ResourceAlreadyExistsException(
+                "El usuario con ID " + user.getUserId() + " ya es autor de este Paper");
+        }
+
+        int nextOrder = paper.getAuthors().size() + 1;
+        PaperAuthor newPaperAuthor = PaperAuthor.builder()
+                .paper(paper)
+                .author(user)
+                .authorOrder(nextOrder)
+                .build();
+
+        paper.getAuthors().add(newPaperAuthor);
+    }
+
+    private void removeAuthorInternal(Paper paper, Long userId) {
         PaperAuthor toRemove = paper.getAuthors().stream()
                 .filter(pa -> pa.getAuthor().getUserId().equals(userId))
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
                     "El usuario con ID " + userId + " no es autor de este Paper"));
 
-        // El creador (orden 1) nunca puede eliminarse — así garantizamos mínimo 1 autor siempre
         if (toRemove.getAuthorOrder() == 1) {
             throw new ArgumentNotValidException(
-                "No se puede eliminar al autor del Paper. El Paper debe tener al menos un autor.");
+                "No se puede eliminar al autor creador del Paper. El Paper debe tener siempre al menos un autor.");
         }
 
-        paper.getAuthors().remove(toRemove); // orphanRemoval = true -> Hibernate borra la fila sola
+        paper.getAuthors().remove(toRemove);
 
-        // Reordenar: compactar authorOrder sin huecos, preservando el orden relativo entre los que quedan
         List<PaperAuthor> remaining = paper.getAuthors().stream()
                 .sorted(Comparator.comparingInt(PaperAuthor::getAuthorOrder))
                 .toList();
@@ -283,10 +278,121 @@ public class PaperServiceImpl implements PaperService {
         for (PaperAuthor pa : remaining) {
             pa.setAuthorOrder(order++);
         }
-
-        Paper savedPaper = paperRepository.save(paper);
-
-        return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
     }
 
+    private void addKeywordInternal(Paper paper, String keyword) {
+        Congress congress = paper.getCongress();
+
+        validateKeywordNotDuplicated(paper.getKeywords(), keyword);
+        validateKeywordCountMax(congress, paper.getKeywords().size() + 1);
+        validateKeywordRepetitionInTitle(congress, paper.getTitle(), keyword);
+
+        paper.getKeywords().add(keyword);
+    }
+
+    private void removeKeywordInternal(Paper paper, String keyword) {
+        String actualKeyword = paper.getKeywords().stream()
+                .filter(k -> k.equalsIgnoreCase(keyword))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "La palabra clave '" + keyword + "' no existe en este Paper"));
+
+        if (paper.getKeywords().size() <= 1) {
+            throw new ArgumentNotValidException(
+                "No se puede eliminar la última palabra clave. El Paper debe tener al menos una.");
+        }
+
+        paper.getKeywords().remove(actualKeyword);
+    }
+
+    ///----------------------------------------------------------VALIDACIONES / HELPERS----------------------------------------------------------///
+
+    private void validatePaperEditableState(Paper paper, PaperStatus... allowedStates) {
+        boolean isAllowed = Arrays.stream(allowedStates).anyMatch(s -> s == paper.getStatus());
+        if (!isAllowed) {
+            throw new ArgumentNotValidException(
+                "No se puede realizar esta acción con el Paper en estado " + paper.getStatus() +
+                ". Estados permitidos: " + Arrays.toString(allowedStates));
+        }
+    }
+
+    private void validateMaxAuthors(Congress congress, int totalAuthorsAfterOperation) {
+        Integer max = congress.getMaxNumberOfAuthors();
+        if (max != null && totalAuthorsAfterOperation > max) {
+            throw new ArgumentNotValidException(
+                "El congreso '" + congress.getName() + "' permite un máximo de " + max +
+                " autores por trabajo. Cantidad solicitada: " + totalAuthorsAfterOperation + ".");
+        }
+    }
+
+    private String generatePaperCode() {
+        String code;
+        do {
+            code = generateRandomNumericCode(CODE_LENGTH);
+        } while (paperRepository.existsByCode(code));
+        return code;
+    }
+
+    private String generateRandomNumericCode(int length) {
+        int max = (int) Math.pow(10, length) - 1;
+        int randomNumber = new Random().nextInt(max + 1);
+        return String.format("%0" + length + "d", randomNumber);
+    }
+
+    private void validateCongressEnabled(Congress congress) {
+        if (!congress.isEnabled()) {
+            throw new ArgumentNotValidException(
+                "El congreso '" + congress.getName() + "' está deshabilitado. No se pueden cargar trabajos.");
+        }
+    }
+
+    private void validateThematicArea(Congress congress, String thematicArea) {
+        boolean isValid = congress.getThematicAreas().stream()
+                .anyMatch(area -> area.equalsIgnoreCase(thematicArea));
+        if (!isValid) {
+            throw new ArgumentNotValidException(
+                "El área temática '" + thematicArea + "' no es válida para el congreso '" + congress.getName() + "'.");
+        }
+    }
+
+    private void validatePresentationDateWithinWindow(Congress congress, LocalDateTime presentationDate) {
+        if (presentationDate.isBefore(congress.getPresentationStartDate())
+                || presentationDate.isAfter(congress.getPresentationEndDate())) {
+            throw new ArgumentNotValidException(
+                "La fecha de presentación debe estar entre " + congress.getPresentationStartDate() +
+                " y " + congress.getPresentationEndDate() + " para el congreso '" + congress.getName() + "'.");
+        }
+    }
+
+    private void validateKeywordNotDuplicated(Set<String> existingKeywords, String newKeyword) {
+        boolean isDuplicate = existingKeywords.stream().anyMatch(k -> k.equalsIgnoreCase(newKeyword));
+        if (isDuplicate) {
+            throw new ArgumentNotValidException(
+                "La palabra clave '" + newKeyword + "' ya fue agregada a este Paper (no se permiten duplicados, sin importar mayúsculas/minúsculas).");
+        }
+    }
+
+    private void validateKeywordRepetitionInTitle(Congress congress, String title, String keyword) {
+        if (!congress.isKeywordRepetition() && title != null && title.toLowerCase().contains(keyword.toLowerCase())) {
+            throw new ArgumentNotValidException(
+                "El congreso '" + congress.getName() + "' no permite que las palabras clave aparezcan repetidas en el título. La palabra '" + keyword + "' aparece en el título.");
+        }
+    }
+
+    private void validateKeywordCountMax(Congress congress, int totalAfterOperation) {
+        Integer max = congress.getMaxKeywords();
+        if (max != null && totalAfterOperation > max) {
+            throw new ArgumentNotValidException(
+                "El congreso '" + congress.getName() + "' permite un máximo de " + max + " palabras clave.");
+        }
+    }
+
+    private void validateKeywordCountMin(Congress congress, int totalKeywords) {
+        Integer min = congress.getMinKeywords();
+        if (min != null && totalKeywords < min) {
+            throw new ArgumentNotValidException(
+                "El congreso '" + congress.getName() + "' requiere un mínimo de " + min +
+                " palabras clave para poder enviar el trabajo. Actualmente tiene " + totalKeywords + ".");
+        }
+    }
 }

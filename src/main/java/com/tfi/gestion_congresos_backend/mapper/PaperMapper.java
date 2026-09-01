@@ -38,11 +38,13 @@ public interface PaperMapper {
 
     // Mapeo desde PaperRequestDTO -> Paper 
     @Mapping(target = "paperId", ignore = true)
-    @Mapping(target = "version", ignore = true)      // se setea server-side, nunca del DTO
-    @Mapping(target = "status", ignore = true)        // se setea server-side (NOT_SUBMITTED)
-    @Mapping(target = "congress", ignore = true)      // se resuelve en el service vía congressId
-    @Mapping(target = "userReviewer", ignore = true)  // no se asigna en la creación
-    @Mapping(target = "authors", ignore = true)        // se arma a mano en el service
+    @Mapping(target = "code", ignore = true)            //se genera en el service
+    @Mapping(target = "version", ignore = true)         // se setea server-side, nunca del DTO
+    @Mapping(target = "status", ignore = true)          // se setea server-side (NOT_SUBMITTED)
+    @Mapping(target = "congress", ignore = true)        // se resuelve en el service vía congressId
+    @Mapping(target = "userReviewer", ignore = true)    // no se asigna en la creación
+    @Mapping(target = "authors", ignore = true)         // se arma a mano en el service
+    @Mapping(target = "keywords", ignore = true)        //se agrega vía addKeywordToPaper
     Paper toEntity(PaperRequestDTO dto);
 
     

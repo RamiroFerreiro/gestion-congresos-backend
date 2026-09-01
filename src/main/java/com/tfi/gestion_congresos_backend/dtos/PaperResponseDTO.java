@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
@@ -22,7 +23,7 @@ public class PaperResponseDTO {
     private String version;
     private PaperStatus status;
     private String summary;
-    private String keywords;
+    private Set<String> keywords;
     private LocalDateTime presentationDate;
     
     private Long congressId;

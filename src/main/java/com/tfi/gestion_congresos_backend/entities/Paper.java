@@ -2,12 +2,16 @@ package com.tfi.gestion_congresos_backend.entities;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -58,8 +62,14 @@ public class Paper {
 	@Column(name = "summary", nullable = false)
 	private String summary;
 	
-	@Column(name = "keywords", nullable = false)
-	private String keywords;
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(
+		name = "paper_keywords",
+		joinColumns = @JoinColumn(name = "papers_id")
+	)
+	@Column(name = "keyword")
+	@Builder.Default
+	private Set<String> keywords = new HashSet<>();
 	
 	@Column(name = "presentation_date", nullable = false)
 	private LocalDateTime presentationDate;
