@@ -4,10 +4,14 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
+
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -18,6 +22,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -92,4 +97,29 @@ public class Congress {
 	)
 	@Builder.Default
 	private Set<User> participants = new HashSet<>();
+
+	///-----nuevo----
+	
+	@Column(name = "is_free", nullable = false)
+    private boolean isFree;
+
+	@Column(name = "is_single_blind", nullable = false)
+    private boolean isSingleBlind;
+
+	@EqualsAndHashCode.Include
+	@Column(name = "code", nullable = false, unique = true)
+	private String code;
+
+	@Enumerated(EnumType.STRING)
+    @Column(name = "evaluation_release_mode", nullable = false)
+    private EvaluationReleaseMode evaluationReleaseMode; // Enum: BATCH, IMMEDIATE
+
+	@Column(name = "scheduled_evaluation_release_date")
+    private LocalDateTime scheduledEvaluationReleaseDate;
+
+	@Column(name = "last_evaluation_release_date")
+    private LocalDateTime lastEvaluationReleaseDate;
+	
+    @Column(name = "contact_mail", nullable = false)
+    private String contactMail;
 }

@@ -27,7 +27,7 @@ public class Evaluation {
     private LocalDateTime newDeadline;
 
     @Enumerated(EnumType.STRING)
-    @Column (name= "new_status")
+    @Column (name = "new_status")
     private PaperStatus newStatus;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -39,4 +39,11 @@ public class Evaluation {
 
     @Column(name = "evaluated_version", nullable = false)
 	private String evaluatedVersion;
+
+    ///----------nuevo----------
+    @Column(name = "is_released", nullable = false)
+    private boolean isReleased;
+
+    @Column(name = "released_at")
+    private LocalDateTime releasedAt;
 }

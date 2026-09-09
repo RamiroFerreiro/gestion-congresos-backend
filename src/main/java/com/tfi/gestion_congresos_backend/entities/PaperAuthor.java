@@ -42,4 +42,11 @@ public class PaperAuthor {
 
     @Column(name = "author_order", nullable = false)
     private int authorOrder;
+
+    ///-----------nuevo---------
+    @Column(name = "is_main_author", nullable = false)
+    private boolean isMainAuthor;
+
+    @Column(name = "is_presentator", nullable = false)
+    private boolean isPresentator;
 }

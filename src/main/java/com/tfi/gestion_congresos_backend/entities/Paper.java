@@ -59,7 +59,7 @@ public class Paper {
 	@Column(name = "thematic_area", nullable = false)
 	private String thematicArea;
 	
-	@Column(name = "summary", nullable = false)
+	@Column(name = "summary", columnDefinition = "TEXT", nullable = false)
 	private String summary;
 	
 	@ElementCollection(fetch = FetchType.LAZY)
@@ -90,4 +90,12 @@ public class Paper {
     @OrderBy("authorOrder ASC")
     @Builder.Default
     private List<PaperAuthor> authors = new ArrayList<>();
+
+	// ---------nuevo---------
+	@Column(name = "pay", nullable = false)
+    private boolean pay;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "congress_paper_type_id", nullable = false)
+    private CongressPaperType congressPaperType;
 }
