@@ -273,7 +273,7 @@ public class UserServiceImpl implements UserService {
 		return userRepository.existsById(userId);
 	}
 
-    ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
+    
     
     public User getAuthenticatedUserEntity() {
 
@@ -286,6 +286,8 @@ public class UserServiceImpl implements UserService {
 
         return (User) authentication.getPrincipal();
     }
+
+    ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
 
     private void validateCurrentPassword(User user, ChangePasswordRequestDTO request){
         if (!passwordEncoder.matches(request.getCurrentPassword(),user.getPassword())) {

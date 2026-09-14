@@ -13,7 +13,7 @@ import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "evaluations")
-public class Evaluation {
+public class Evaluation extends AuditableEntity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

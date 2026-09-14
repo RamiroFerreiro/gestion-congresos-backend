@@ -40,7 +40,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "papers")
-public class Paper {
+public class Paper extends AuditableEntity{
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
