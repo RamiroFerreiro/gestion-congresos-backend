@@ -161,7 +161,7 @@ public class AuthServiceImpl implements AuthService {
     ///---------------------------------------------------------- PRIVADOS ----------------------------------------------------------///
     
     private void validatePasswordConfirmation(String newPassword, String confirmPassword){
-        if (!newPassword.equals(confirmPassword)) {
+        if (newPassword == null || !newPassword.equals(confirmPassword)) {
 
             throw new ArgumentNotValidException("Las contraseñas no coinciden");
         }

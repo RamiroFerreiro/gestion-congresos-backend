@@ -39,7 +39,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public List<RoleResponseDTO> getRegisterableRoles() {
-
+        
         List<RoleName> registerableNames = List.of(RoleName.EXPOSITOR, RoleName.LISTENER);
 
         return roleRepository.findByNameIn(registerableNames)

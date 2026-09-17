@@ -4,6 +4,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.RoleResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
@@ -23,6 +24,7 @@ import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
 import com.tfi.gestion_congresos_backend.services.EmailService;
+import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.apache.coyote.BadRequestException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -48,6 +51,7 @@ public class UserServiceImpl implements UserService {
     private final CongressRepository congressRepository;
     private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final EmailService emailService;
+    private final RoleService roleService;
 
     ///----------------------------------------------------------GET----------------------------------------------------------///
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
@@ -117,19 +121,37 @@ public class UserServiceImpl implements UserService {
     ///----------------------------------------------------------CREATE----------------------------------------------------------///
 
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Transactional
     @Override
     public UserResponseDTO createUser(UserRequestDTO request){
+
+        //Validar que coincidan las contraseña, lanza excepcion
+        validatePasswordConfirmation(request.getPassword(), request.getConfirmPassword());
 
         //verificamos que no esté registrado el mail
         if(userRepository.existsByEmail(request.getEmail())){
             throw new ResourceAlreadyExistsException( "Ya existe un usuario con ese email.");
         }
 
+        //Buscamos el rol, si no existe lanza excepción
+        Role role = roleRepository.findById(request.getRoleId())
+            .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
+        
+        //Traemos la lista de roles permitidos (DTOs)
+        List<RoleResponseDTO> allowedRoles = roleService.getRegisterableRoles();
+
+        //Verificamos si algún DTO de la lista coincide con el ID seleccionado
+        boolean isRoleAllowed = allowedRoles.stream() .anyMatch(allowedRole -> allowedRole.getRoleId().equals(role.getRoleId()));
+
+        //Lanzamos excepcion en caso de que el rol no sea permitido
+        if (!isRoleAllowed) {
+            throw new ArgumentNotValidException("No tienes permisos para registrarte con el rol seleccionado.");
+        }
+
         //mapeamos DTO a entidad
         User user = userMapper.toEntity(request);
-
-        //buscamos el rol, si existe, lo seteamos
-        Role role = roleRepository.findById(request.getRoleId()).orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
+        
+        //lo seteamos
         user.setRole(role);
 
         //activamos al usuario
@@ -168,21 +190,8 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId).orElseThrow(() -> 
                     new ResourceNotFoundException("Usuario no encontrado"));
 
-        ///Si el mail se modificó por uno que ya existe lanza excepción
-        if (!user.getEmail().equals(userRequestDTO.getEmail()) && userRepository.existsByEmail(userRequestDTO.getEmail())) {
-
-            throw new ResourceAlreadyExistsException("Ya existe un usuario con ese email.");
-        }
-
-        ///Se busca el rol, si no existe lanza excepción
-        Role role = roleRepository.findById(userRequestDTO.getRoleId()).orElseThrow(() ->
-                    new ResourceNotFoundException("Rol no encontrado"));
-
         ///Actualiza la entidad con los datos del DTO
         userMapper.updateUserFromDto(userRequestDTO, user);
-
-        ///Seteamos el role
-        user.setRole(role);
 
         ///Guardamos en la bd y devolvemos el DTO
         user = userRepository.save(user);
@@ -213,9 +222,9 @@ public class UserServiceImpl implements UserService {
 
         User user = getAuthenticatedUserEntity();
         
-        validateCurrentPassword(user, request);
-        validatePasswordConfirmation(request);
-        validateNewPassword(user, request);
+        validateCurrentPassword(user.getPassword(), request.getCurrentPassword());
+        validatePasswordConfirmation(request.getNewPassword(), request.getConfirmPassword());
+        validateNewPassword(user.getPassword(), request.getNewPassword());
         
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
 
@@ -290,22 +299,22 @@ public class UserServiceImpl implements UserService {
 
     ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
 
-    private void validateCurrentPassword(User user, ChangePasswordRequestDTO request){
-        if (!passwordEncoder.matches(request.getCurrentPassword(),user.getPassword())) {
+    private void validateCurrentPassword(String encodedUserPassword, String currentPassword){
+        if (!passwordEncoder.matches(currentPassword, encodedUserPassword)) {
 
             throw new ArgumentNotValidException("La contraseña actual es incorrecta");
         }
     }
 
-    private void validatePasswordConfirmation(ChangePasswordRequestDTO request){
-        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+     private void validatePasswordConfirmation(String newPassword, String confirmPassword){
+        if (newPassword == null || !newPassword.equals(confirmPassword)) {
 
             throw new ArgumentNotValidException("Las contraseñas no coinciden");
         }
     }
 
-    private void validateNewPassword(User user, ChangePasswordRequestDTO request){
-        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+    private void validateNewPassword(String encodedCurrentPassword, String newPassword){
+        if (passwordEncoder.matches(newPassword, encodedCurrentPassword)) {
 
             throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
         }
