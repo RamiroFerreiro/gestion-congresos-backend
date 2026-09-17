@@ -25,9 +25,12 @@ public class PaperRequestDTO {
     @Future(message = "La fecha de presentación debe ser futura")
     private LocalDateTime presentationDate;
 
-    @NotNull(message = "El congreso es obligatorio")
-    private Long congressId;
+    @NotBlank(message = "El código del congreso es obligatorio")
+    private String congressCode;  
 
     @NotEmpty(message = "El trabajo debe tener al menos un autor")
     private List<Long> authorUserIds;
+
+    @NotNull(message = "El tipo de trabajo es obligatorio")
+    private Long congressPaperTypeId;
 }

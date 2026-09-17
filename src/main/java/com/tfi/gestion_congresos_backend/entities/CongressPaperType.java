@@ -33,13 +33,13 @@ public class CongressPaperType {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "paper_type", nullable = false)
-    private PaperType paperType; // Enum: ABSTRACT, FULL_PAPER, etc.
+    private PaperType paperType; 
 
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
     @Column(name = "currency", length = 3, nullable = false)
-    private String currency; // Ejemplos: "ARS", "USD"
+    private String currency; 
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "congress_id", nullable = false)

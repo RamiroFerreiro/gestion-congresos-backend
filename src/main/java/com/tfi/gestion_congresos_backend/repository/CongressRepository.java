@@ -30,4 +30,16 @@ public interface CongressRepository extends JpaRepository<Congress, Long> {
 	
 	/// Determinar si existe un participante específico en un congreso determinado:
 	boolean existsByCongressIdAndParticipantsUserId(Long congressId, Long userId);
+
+	 /// Obtener un congreso con sus participantes asociados por code:
+    @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas WHERE c.code = :code")
+    Optional<Congress> findByCode(@Param("code") String code);
+
+    /// Determinar si existe un congreso por su code (derivado, Spring Data lo resuelve solo):
+    boolean existsByCode(String code);
+
+    /// Determinar si existe un usuario con determinado rol en un congreso, buscando por code:
+    @Query("SELECT COUNT(p) > 0 FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.code = :congressCode AND p.userId = :userId AND r.name = :role")
+    boolean existsByCongressCodeAndUserIdAndRole(String congressCode, Long userId, RoleName role);
+
 }

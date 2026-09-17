@@ -31,4 +31,10 @@ public interface CongressService {
 	boolean existsById(Long congressId);
 	
 	MessageResponseDTO addParticipantToCongress(Long congressId, Long participantId);
+
+	Congress getCongressByCode(String code);
+
+	boolean existsByCode(String code);
+	
+	boolean existsByCongressCodeAndUserIdAndRoleName(String congressCode, Long userId, RoleName role);
 }

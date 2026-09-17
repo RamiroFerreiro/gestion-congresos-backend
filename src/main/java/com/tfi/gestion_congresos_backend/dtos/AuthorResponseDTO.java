@@ -1,5 +1,7 @@
 package com.tfi.gestion_congresos_backend.dtos;
 
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,4 +22,6 @@ public class AuthorResponseDTO {
 	private String institution;
 	private String country;
 	private int authorOrder;
+	private boolean isMainAuthor;
+	private PaperAuthorStatus status;
 }

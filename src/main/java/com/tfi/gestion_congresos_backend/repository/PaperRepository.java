@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PaperRepository extends JpaRepository<Paper, Long> {
@@ -20,4 +21,6 @@ public interface PaperRepository extends JpaRepository<Paper, Long> {
     List<Paper> findByCongressIdWithDetails(@Param("congressId") Long congressId);
 
     boolean existsByCode(String code);
+
+    Optional<Paper> findByCode(String code);
 }

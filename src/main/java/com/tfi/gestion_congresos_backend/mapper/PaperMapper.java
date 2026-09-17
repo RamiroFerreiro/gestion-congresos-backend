@@ -30,6 +30,8 @@ public interface PaperMapper {
     @Mapping(target = "institution", source = "author.institution")
     @Mapping(target = "country", source = "author.country")
     @Mapping(target = "authorOrder", source = "authorOrder")
+    @Mapping(target = "isMainAuthor", source = "mainAuthor")   
+    @Mapping(target = "status", source = "status")
     AuthorResponseDTO toAuthorResponseDTO(PaperAuthor paperAuthor);
 
 

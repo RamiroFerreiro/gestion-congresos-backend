@@ -27,32 +27,45 @@ public interface PaperService {
     
     /// Obtener una entidad paper por su ID:
     Paper getPaperByPaperId(Long paperId);
-    
-    /// Obtener todos los trabajos de un congreso por su ID:
-    List<PaperResponseDTO> getPapersByCongressId(Long congressId);
-    
-    /// Asignar un evaluador a un trabajo:
-    MessageResponseDTO assignReviewerToPaper(Long paperId, Long reviewerId);
+
+    /// Obtener todos los trabajos de un congreso por su Codigo (R)
+    List<PaperResponseDTO> getPapersByCongressCode(String congressCode);
+
+    /// Obtener un paper por su Codigo (R)
+    PaperResponseDTO getPaperByCode(String code);
+
+    /// Obtener una entidad paper por su Codigo (R)
+    Paper getPaperEntityByCode(String code);
+
+    /// Asignar un evaluador a un trabajo (C)
+    MessageResponseDTO assignReviewerToPaper(String paperCode, Long reviewerId);
 
     // Crear paper (C)
     PaperResponseDTO createPaper(PaperRequestDTO dto);
-    
+
+
     // Enviar paper (U)
-    PaperResponseDTO submitPaper(Long paperId);
-    
+    PaperResponseDTO submitPaper(String paperCode);
     // Crear Autor en paper (C)
-    List<AuthorResponseDTO> addAuthorToPaper(Long paperId, Long userId);
+    List<AuthorResponseDTO> addAuthorToPaper(String paperCode, Long userId);
 
     // Remover Autor en paper (D)
-    List<AuthorResponseDTO> removeAuthorFromPaper(Long paperId, Long userId);
+    List<AuthorResponseDTO> removeAuthorFromPaper(String paperCode, Long userId);
+    
+    // Solitar unirte a un paper (C)
+    List<AuthorResponseDTO> requestToJoinPaper(String paperCode, Long userId);
 
+    // Aceptar solicitud de union a un paper (U)
+    List<AuthorResponseDTO> acceptAuthorRequest(String paperCode, Long userId);
+
+    // Rechazar solicitud de union a un paper (U)
+    List<AuthorResponseDTO> rejectAuthorRequest(String paperCode, Long userId);
+    
     // Crear palabra clave en Paper (C)
-    Set<String> addKeywordToPaper(Long paperId, String keyword);
+    Set<String> addKeywordToPaper(String paperCode, String keyword);
 
-    // Removerr palabra clave en Paper (R)
-    Set<String> removeKeywordFromPaper(Long paperId, String keyword);
-
-
+    // Removerr palabra clave en Paper (R)  
+    Set<String> removeKeywordFromPaper(String paperCode, String keyword);
 
 
 

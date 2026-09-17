@@ -271,4 +271,27 @@ public class CongressServiceImpl implements CongressService {
 	        );
 	    }
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	/// Obtener una entidad congreso con sus participantes por su code:
+	public Congress getCongressByCode(String code) {
+		return congressRepository.findByCode(code)
+				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	/// Determinar si existe un congreso por su code:
+	public boolean existsByCode(String code) {
+		return congressRepository.existsByCode(code);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	/// Determinar si existe un usuario de determinado rol en un congreso, buscando por code:
+	public boolean existsByCongressCodeAndUserIdAndRoleName(String congressCode, Long userId, RoleName role) {
+		return congressRepository.existsByCongressCodeAndUserIdAndRole(congressCode, userId, role);
+	}
+
 }
