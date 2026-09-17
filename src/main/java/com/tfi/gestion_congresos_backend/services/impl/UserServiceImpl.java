@@ -6,6 +6,7 @@ import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.RoleResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
@@ -166,6 +167,50 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+
+    @Transactional
+    @Override
+    public UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request) {
+
+        // Validar que el email no exista previamente
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new ResourceAlreadyExistsException("Ya existe un usuario registrado con el email: " + request.getEmail());
+        }
+
+        // Buscar el rol, si no existe lanza excepción
+        Role role = roleRepository.findById(request.getRoleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + request.getRoleId()));
+
+        // Generar contraseña temporal segura de 10 caracteres
+        String temporaryPassword = generateRandomPassword();
+
+        System.out.println("HOLA1");
+
+        // Mapear DTO a Entidad mediante MapStruct
+        User user = userMapper.toEntity(request);
+
+        System.out.println("HOLA2");
+
+        // Asignar manualmente los campos procesados (rol y contraseña encriptada)
+        user.setRole(role);
+        user.setPassword(passwordEncoder.encode(temporaryPassword));
+
+         System.out.println("HOLA3");
+
+        // Persistir en la base de datos
+        User savedUser = userRepository.save(user);
+
+        // Enviar e-mail con la contraseña temporal
+        emailService.sendTemporaryPasswordEmail(savedUser, temporaryPassword);
+
+        return userMapper.toUserResponseDTO(savedUser);
+    }
+
+    // Método privado para la generación de la contraseña temporal
+    private String generateRandomPassword() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    }
+
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
     
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
@@ -319,4 +364,6 @@ public class UserServiceImpl implements UserService {
             throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
         }
     }
+
+    
 }

@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
@@ -12,6 +13,12 @@ import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
+
+    /// CREATE
+    
+    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
+
+    UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request);
 
     ///GET
 
@@ -24,8 +31,6 @@ public interface UserService {
     UserResponseDTO getAuthenticatedUser();
 
     User getAuthenticatedUserEntity();
-
-    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
     List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
 

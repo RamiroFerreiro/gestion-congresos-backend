@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -103,6 +105,23 @@ public class UserController {
         return ResponseEntity.ok(userService.getAuthenticatedUser());
     }
     ///----------------------------------------------------------POSTS----------------------------------------------------------///
+    @Operation(
+            summary = "Alta de usuario por Administrador",
+            description = "Permite a un administrador crear un usuario con datos mínimos. Genera una contraseña provisoria y la envía por e-mail."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Usuario creado y correo enviado correctamente"),
+            @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos o e-mail ya existente"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos de administrador")
+    })
+    @PostMapping("/admin/create")
+    public ResponseEntity<UserResponseDTO> adminCreateUser(@Valid @RequestBody AdminCreateUserRequestDTO request) {
+        UserResponseDTO response = userService.adminCreateUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
+
     @Operation(
             summary = "Crear un usuario",
             description = "Registra un nuevo usuario en el sistema."

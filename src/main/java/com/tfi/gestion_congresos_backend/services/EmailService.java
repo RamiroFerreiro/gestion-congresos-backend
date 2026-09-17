@@ -10,4 +10,6 @@ public interface EmailService {
     
     void sendNewEmailChangeVerificationEmail(String newEmail, User user, String token);
 
+    void sendTemporaryPasswordEmail(User user, String temporaryPassword);
+
 }

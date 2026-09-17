@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -68,11 +69,30 @@ public class EmailServiceImpl implements EmailService {
         sendEmail(newEmail, "Confirmación de nuevo email", text);
     }
 
+    @Override
+    public void sendTemporaryPasswordEmail(User user, String temporaryPassword) {
+
+        String loginLink = frontendUrl + "/login";
+
+        String text = "Hola " + user.getFirstName() + ",\n\n" +
+                "Un administrador ha creado tu cuenta en la plataforma.\n\n" +
+                "Tus credenciales de acceso son las siguientes:\n" +
+                "Email: " + user.getEmail() + "\n" +
+                "Contraseña provisoria: " + temporaryPassword + "\n\n" +
+                "Ingresa al siguiente enlace para iniciar sesión:\n" +
+                loginLink + "\n\n" +
+                "Por razones de seguridad, se te solicitará cambiar esta contraseña en tu primer ingreso.";
+
+        sendEmail(user.getEmail(), "Bienvenido - Acceso a tu cuenta", text);
+    }
+
+
     private String buildLink(String path, String token) {
         return frontendUrl + path + "?token=" + token;
     }
 
-    private void sendEmail(String to, String subject, String text) {
+    @Async
+    protected void sendEmail(String to, String subject, String text) {
 
         SimpleMailMessage message = new SimpleMailMessage();
         
