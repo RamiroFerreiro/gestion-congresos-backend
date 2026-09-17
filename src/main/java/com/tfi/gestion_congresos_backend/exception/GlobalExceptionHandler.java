@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.exception;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -10,11 +11,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.tfi.gestion_congresos_backend.dtos.ErrorResponseDTO;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-       
+
     /// 400 - Argumento o lógica de negocio inválida:
     @ExceptionHandler(ArgumentNotValidException.class)
     public ResponseEntity<ErrorResponseDTO> handleArgumentNotValid(ArgumentNotValidException ex) {

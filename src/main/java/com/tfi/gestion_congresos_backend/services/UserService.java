@@ -37,7 +37,7 @@ public interface UserService {
 
     UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
 
-    UserResponseDTO updateUserRole(Long userId, RoleName newRoleName);
+    UserResponseDTO updateUserRole(Long userId, Long roleID);
 
     MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
 

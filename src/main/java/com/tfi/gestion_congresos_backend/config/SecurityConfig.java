@@ -12,6 +12,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 import com.tfi.gestion_congresos_backend.security.JwtAuthenticationFilter;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.*;;
 
 ///Clase de configuración spring security
@@ -49,7 +50,18 @@ public class SecurityConfig {
                         
                 )
                 // agregamos el filtro 
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+
+                //control sin token
+                .exceptionHandling(exception -> exception
+                    .authenticationEntryPoint((request, response, authException) -> {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"status\": 401, \"error\": \"Unauthorized\", \"message\": \"Token de acceso no proporcionado o no válido.\"}");
+                    })
+                );
+                
 
         return http.build();
     }

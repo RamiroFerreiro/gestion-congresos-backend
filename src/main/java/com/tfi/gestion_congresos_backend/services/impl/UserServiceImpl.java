@@ -191,17 +191,18 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Transactional
     @Override
-    public UserResponseDTO updateUserRole(Long userId, RoleName newRoleName) {
+    public UserResponseDTO updateUserRole(Long userId, Long roleId) {
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
 
-        Role role = roleRepository.findByName(newRoleName)
-                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado: " + newRoleName));
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + roleId));
 
         user.setRole(role);
-
         User updatedUser = userRepository.save(user);
 
         return userMapper.toUserResponseDTO(updatedUser);

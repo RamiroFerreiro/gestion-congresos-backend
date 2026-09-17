@@ -1,5 +1,7 @@
 package com.tfi.gestion_congresos_backend.dtos;
 
+import com.tfi.gestion_congresos_backend.enums.RoleName;
+
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,8 +14,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UpdateUserRoleRequestDTO {
-
-    @NotNull(message = "El ID del rol es obligatorio")
+public class RoleResponseDTO {
+    
     private Long roleId;
+    private RoleName name;
+    
 }
