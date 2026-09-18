@@ -230,8 +230,10 @@ public class UserController {
     }
 
     @Operation(
-            summary = "Cambiar contraseña",
-            description = "Permite al usuario autenticado cambiar su contraseña."
+            summary = "Cambiar o actualizar contraseña",
+            description = "Permite al usuario autenticado cambiar su contraseña actual por una nueva. " +
+                          "Este mismo endpoint atiende tanto el cambio voluntario desde el perfil como el primer ingreso obligatorio " +
+                          "tras la asignación de una contraseña provisoria por un administrador (desactivando el indicador mustChangePassword)."
     )
     @ApiResponses({
             @ApiResponse(

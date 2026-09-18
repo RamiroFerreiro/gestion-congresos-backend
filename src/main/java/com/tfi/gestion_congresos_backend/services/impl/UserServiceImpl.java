@@ -157,6 +157,7 @@ public class UserServiceImpl implements UserService {
 
         //activamos al usuario
         user.setEnabled(true);
+        user.setMustChangePassword(false);
         
         //Encriptamos la contraseña y la guardamos
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -184,18 +185,13 @@ public class UserServiceImpl implements UserService {
         // Generar contraseña temporal segura de 10 caracteres
         String temporaryPassword = generateRandomPassword();
 
-        System.out.println("HOLA1");
-
         // Mapear DTO a Entidad mediante MapStruct
         User user = userMapper.toEntity(request);
-
-        System.out.println("HOLA2");
 
         // Asignar manualmente los campos procesados (rol y contraseña encriptada)
         user.setRole(role);
         user.setPassword(passwordEncoder.encode(temporaryPassword));
-
-         System.out.println("HOLA3");
+        user.setMustChangePassword(true);
 
         // Persistir en la base de datos
         User savedUser = userRepository.save(user);
@@ -272,6 +268,7 @@ public class UserServiceImpl implements UserService {
         validateNewPassword(user.getPassword(), request.getNewPassword());
         
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false); 
 
         userRepository.save(user);
 

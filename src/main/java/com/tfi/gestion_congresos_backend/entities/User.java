@@ -55,6 +55,9 @@ public class User extends AuditableEntity{
     
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
+
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "roles_id", nullable = false)

@@ -19,7 +19,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "congress_bank_details")
-public class CongressBankDetail {
+public class CongressBankDetail extends AuditableEntity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -26,7 +26,7 @@ public interface UserMapper {
     @Mapping(target = "role", ignore = true) // Se asigna manualmente en el Service por el roleId
     @Mapping(target = "password", ignore = true) // Se asigna la contraseña temporal encriptada
     @Mapping(target = "enabled", constant = "true")
-    //@Mapping(target = "mustChangePassword", constant = "true")
+    @Mapping(target = "mustChangePassword", constant = "true")
     @Mapping(target = "dni", constant = "0L")
     @Mapping(target = "institution", constant = "PENDIENTE")
     @Mapping(target = "country", constant = "PENDIENTE")
