@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Permitir explícitamente todas las peticiones OPTIONS preflight
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        
+                
                         .requestMatchers("/api/auth/**").permitAll() // Rutas públicas de autenticación
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Registro de usuarios
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()  // Swagger / OpenAPI
@@ -61,6 +61,7 @@ public class SecurityConfig {
                         response.getWriter().write("{\"status\": 401, \"error\": \"Unauthorized\", \"message\": \"Token de acceso no proporcionado o no válido.\"}");
                     })
                 );
+            
                 
 
         return http.build();
