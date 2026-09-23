@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 
 import com.tfi.gestion_congresos_backend.dtos.CongressBankDetailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.CongressBankDetailResponseDTO;
@@ -21,4 +22,9 @@ public interface CongressBankDetailMapper {
     // Mapeamos explícitamente el ID del congreso desde la relación
     @Mapping(target = "congressId", source = "congress.congressId")
     CongressBankDetailResponseDTO toCongressBankDetailResponseDTO(CongressBankDetail congressBankDetail);
+
+    // Mapea los datos del RequestDTO directamente sobre la entidad persistida
+    @Mapping(target = "congressBankDetailsId", ignore = true)
+    @Mapping(target = "congress", ignore = true)
+    void updateEntityFromDto(CongressBankDetailRequestDTO dto, @MappingTarget CongressBankDetail entity);
 }

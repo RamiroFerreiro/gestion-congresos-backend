@@ -18,7 +18,7 @@ public interface UserMapper {
     
     User toEntity(UserRequestDTO dto);
 
-    ///usamos mappingtarget para que actualice y mantengan los campos que no se envían por DTO
+    ///Usamos mappingtarget para que actualice y mantengan los campos que no se envían por DTO
     void updateUserFromDto(UpdateUserRequestDTO dto, @MappingTarget User user);
 
     // Mapeo desde el DTO administrativo a la Entidad User
