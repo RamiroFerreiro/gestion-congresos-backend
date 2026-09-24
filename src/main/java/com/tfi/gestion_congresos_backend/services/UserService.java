@@ -27,22 +27,26 @@ public interface UserService {
     UserResponseDTO getUserById(Long userId);
 
     User getUserByUserId(Long userId);
+    
+    UserResponseDTO getUserByCode(String code);
+
+    User getUserByUserCode(String code);
 
     UserResponseDTO getAuthenticatedUser();
 
     User getAuthenticatedUserEntity();
 
-    List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
+    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role);
 
     ///DELETE
 
-    void deleteUser(Long userId);
+    void deleteUser(String code);
 
     ///UPDATE
 
-    UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
+    UserResponseDTO updateUser(String code, UpdateUserRequestDTO userRequestDTO);
 
-    UserResponseDTO updateUserRole(Long userId, Long roleID);
+    UserResponseDTO updateUserRole(String code, Long roleID);
 
     MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
 
@@ -50,5 +54,5 @@ public interface UserService {
 
     ///BOOLEAN
     
-    boolean existsById(Long userId);
+    boolean existsByCode(String code);
 }

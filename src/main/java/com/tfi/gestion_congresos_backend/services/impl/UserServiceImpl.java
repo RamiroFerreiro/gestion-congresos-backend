@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 
 import org.apache.coyote.BadRequestException;
@@ -53,6 +54,8 @@ public class UserServiceImpl implements UserService {
     private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final EmailService emailService;
     private final RoleService roleService;
+    
+    private static final int CODE_LENGTH = 6;
 
     ///----------------------------------------------------------GET----------------------------------------------------------///
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
@@ -91,18 +94,41 @@ public class UserServiceImpl implements UserService {
 
         return user;
     }
+    
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    public UserResponseDTO getUserByCode(String code){
+    	
+    	User user = userRepository.findByCode(code).orElseThrow(() ->
+    	new ResourceNotFoundException( "Usuario no encontrado con código: " + code));
+    	
+    	UserResponseDTO result = userMapper.toUserResponseDTO(user);
+    	
+    	return result;
+    }
+    
+    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Override
+    @Transactional(readOnly = true)
+    public User getUserByUserCode(String code){
+    	
+    	User user = userRepository.findByCode(code).orElseThrow(() ->
+    	new ResourceNotFoundException("Usuario no encontrado con código: " + code));
+    	
+    	return user;
+    }
 
     @Override
 	@Transactional(readOnly = true)
 	/// Obtener participantes de un congreso con determinado rol:
-	public List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role) {
+	public List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role) {
 		
     	// Validar existencia del congreso:
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con el ID: " + congressId);
+        if (!congressRepository.existsByCode(code)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con el código: " + code);
         }
     	
-    	List<User> participants = userRepository.findParticipantsByCongressIdAndRole(congressId, role);
+    	List<User> participants = userRepository.findParticipantsByCongressCodeAndRole(code, role);
 		
 		List<UserResponseDTO> result = participants.stream()
 				.map(userMapper::toUserResponseDTO)
@@ -154,6 +180,9 @@ public class UserServiceImpl implements UserService {
         
         //lo seteamos
         user.setRole(role);
+        
+        //generamos el código del usuario:
+        user.setCode(generateUserCode());
 
         //activamos al usuario
         user.setEnabled(true);
@@ -211,10 +240,10 @@ public class UserServiceImpl implements UserService {
     
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
-    public void deleteUser(Long userId) {
+    public void deleteUser(String code) {
     
-        User user = userRepository.findById(userId).orElseThrow(() ->
-                    new ResourceNotFoundException( "Usuario no encontrado con ID: " + userId));
+        User user = userRepository.findByCode(code).orElseThrow(() ->
+                    new ResourceNotFoundException( "Usuario no encontrado con código: " + code));
 
         user.setEnabled(false);
 
@@ -225,10 +254,10 @@ public class UserServiceImpl implements UserService {
     
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Override
-    public UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO) {
+    public UserResponseDTO updateUser(String code, UpdateUserRequestDTO userRequestDTO) {
 
         ///Se busca el usuario, si no existe lanza excepción
-        User user = userRepository.findById(userId).orElseThrow(() -> 
+        User user = userRepository.findByCode(code).orElseThrow(() -> 
                     new ResourceNotFoundException("Usuario no encontrado"));
 
         ///Actualiza la entidad con los datos del DTO
@@ -244,10 +273,10 @@ public class UserServiceImpl implements UserService {
     //@PreAuthorize("hasRole('ADMINISTRATOR')")
     @Transactional
     @Override
-    public UserResponseDTO updateUserRole(Long userId, Long roleId) {
+    public UserResponseDTO updateUserRole(String code, Long roleId) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
+        User user = userRepository.findByCode(code)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con código: " + code));
 
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + roleId));
@@ -321,8 +350,8 @@ public class UserServiceImpl implements UserService {
     /// Determinar si existe un usuario por su ID:
     @Override
 	@Transactional(readOnly = true)
-	public boolean existsById(Long userId) {
-		return userRepository.existsById(userId);
+	public boolean existsByCode(String code) {
+		return userRepository.existsByCode(code);
 	}
 
     
@@ -361,6 +390,22 @@ public class UserServiceImpl implements UserService {
             throw new ArgumentNotValidException("La contraseña nueva debe ser diferente a la actual");
         }
     }
+    
+    /// Genera un código de usuario no duplicado:
+  	private String generateUserCode() {
+          String code;
+          do {
+              code = generateRandomNumericCode(CODE_LENGTH);
+          } while (userRepository.existsByCode(code));
+          return code;
+      }
+
+  	/// Genera un código numérico aleatorio de la longitud indicada:
+	private String generateRandomNumericCode(int length) {
+	    int max = (int) Math.pow(10, length) - 1;
+	    int randomNumber = new Random().nextInt(max + 1);
+	    return String.format("%0" + length + "d", randomNumber);
+	}
 
     
 }

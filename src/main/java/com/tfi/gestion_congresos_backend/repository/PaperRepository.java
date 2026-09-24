@@ -13,8 +13,8 @@ import java.util.Optional;
 @Repository
 public interface PaperRepository extends JpaRepository<Paper, Long> {
 
-    /// Busca todos los trabajos asignados al ID de un evaluador
-    List<Paper> findByUserReviewer_UserId(Long reviewerId);
+    /// Busca todos los trabajos asignados al código de un evaluador
+    List<Paper> findByUserReviewer_Code(String reviewerCode);
     
     /// Busca todos los papers de un congreso por su ID:
    @Query("SELECT DISTINCT p FROM Paper p LEFT JOIN FETCH p.authors pa LEFT JOIN FETCH pa.author LEFT JOIN FETCH p.congress c LEFT JOIN FETCH p.userReviewer WHERE c.congressId = :congressId ORDER BY pa.authorOrder ASC")

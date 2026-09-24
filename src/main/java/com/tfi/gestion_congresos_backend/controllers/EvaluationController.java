@@ -34,9 +34,9 @@ public class EvaluationController {
             responseCode = "200",
             description = "Evaluaciones obtenidas correctamente"
     )
-    @GetMapping("/paper/{paperId}")
-    public ResponseEntity<List<EvaluationResponseDTO>> getEvaluationsByPaperId(@PathVariable Long paperId) {
-        return ResponseEntity.ok(evaluationService.getEvaluationsByPaperId(paperId));
+    @GetMapping("/paper/{paperCode}")
+    public ResponseEntity<List<EvaluationResponseDTO>> getEvaluationsByPaperCode(@PathVariable String paperCode) {
+        return ResponseEntity.ok(evaluationService.getEvaluationsByPaperCode(paperCode));
     }
 
     ///----------------------------------------------------------POSTS----------------------------------------------------------///
@@ -55,15 +55,15 @@ public class EvaluationController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "No se encontró un Paper con el ID especificado"
+                    description = "No se encontró un Paper con el código especificado"
             )
     })
-    @PostMapping("/paper/{paperId}")
+    @PostMapping("/paper/{paperCode}")
     public ResponseEntity<EvaluationResponseDTO> createEvaluation(
-            @PathVariable Long paperId,
+            @PathVariable String paperCode,
             @Valid @RequestBody EvaluationRequestDTO request) {
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(evaluationService.createEvaluation(paperId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(evaluationService.createEvaluation(paperCode, request));
     }
 
 }

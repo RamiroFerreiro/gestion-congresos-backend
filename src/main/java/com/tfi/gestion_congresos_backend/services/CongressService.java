@@ -2,8 +2,8 @@ package com.tfi.gestion_congresos_backend.services;
 
 import java.util.List;
 
-import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
@@ -20,21 +20,23 @@ public interface CongressService {
 	
 	CongressResponseDTO createCongress(CongressRequestDTO congressRequestDTO);
 	
-	MessageResponseDTO disableCongress(Long congressId);
+	MessageResponseDTO disableCongress(String code);
 	
-	MessageResponseDTO enableCongress(Long congressId);
+	MessageResponseDTO enableCongress(String code);
 	
-	CongressResponseDTO updateCongress(Long congressId, CongressRequestDTO congressRequestDTO);
+	CongressResponseDTO updateCongress(String code, CongressRequestDTO congressRequestDTO);
 	
 	boolean existsByCongressIdAndUserIdAndRoleName(Long congressId, Long userId, RoleName role);
 	
 	boolean existsById(Long congressId);
 	
-	MessageResponseDTO addParticipantToCongress(Long congressId, Long participantId);
+	MessageResponseDTO addParticipantToCongress(String code, String participantCode);
 
 	Congress getCongressByCode(String code);
+	
+	CongressResponseDTO getCongressDTOByCode(String code);
 
 	boolean existsByCode(String code);
 	
-	boolean existsByCongressCodeAndUserIdAndRoleName(String congressCode, Long userId, RoleName role);
+	boolean existsByCongressCodeAndUserCodeAndRoleName(String congressCode, String userCode, RoleName role);
 }

@@ -35,11 +35,11 @@ public class PaperController {
         )
         @ApiResponses({
                 @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
-                @ApiResponse(responseCode = "404", description = "No se encontró un evaluador con el ID especificado")
+                @ApiResponse(responseCode = "404", description = "No se encontró un evaluador con el código especificado")
         })
-        @GetMapping("/reviewer/{reviewerId}")
-        public ResponseEntity<List<PaperResponseDTO>> getAssignedPapers(@PathVariable Long reviewerId) {
-                return ResponseEntity.ok(paperService.getAssignedPapers(reviewerId));
+        @GetMapping("/reviewer/{reviewerCode}")
+        public ResponseEntity<List<PaperResponseDTO>> getAssignedPapers(@PathVariable String reviewerCode) {
+                return ResponseEntity.ok(paperService.getAssignedPapers(reviewerCode));
         }
 
         @Operation(
@@ -93,10 +93,10 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró el Paper o el usuario"),
                 @ApiResponse(responseCode = "409", description = "El usuario ya tiene una relación con este Paper")
         })
-        @PostMapping("/{paperCode}/authors/{userId}")
+        @PostMapping("/{paperCode}/authors/{userCode}")
         public ResponseEntity<List<AuthorResponseDTO>> addAuthorToPaper(
-                @PathVariable String paperCode, @PathVariable Long userId) {
-                return ResponseEntity.status(HttpStatus.CREATED).body(paperService.addAuthorToPaper(paperCode, userId));
+                @PathVariable String paperCode, @PathVariable String userCode) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(paperService.addAuthorToPaper(paperCode, userCode));
         }
 
         @Operation(
@@ -109,10 +109,10 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró el Paper o el usuario"),
                 @ApiResponse(responseCode = "409", description = "El usuario ya tiene una relación (pendiente o aceptada) con este Paper")
         })
-        @PostMapping("/{paperCode}/authors/requests/{userId}")
+        @PostMapping("/{paperCode}/authors/requests/{userCode}")
         public ResponseEntity<List<AuthorResponseDTO>> requestToJoinPaper(
-                @PathVariable String paperCode, @PathVariable Long userId) {
-                return ResponseEntity.status(HttpStatus.CREATED).body(paperService.requestToJoinPaper(paperCode, userId));
+                @PathVariable String paperCode, @PathVariable String userCode) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(paperService.requestToJoinPaper(paperCode, userCode));
         }
 
         @Operation(
@@ -140,10 +140,10 @@ public class PaperController {
                 @ApiResponse(responseCode = "400", description = "El Paper no está en NOT_SUBMITTED, se intentó eliminar al autor principal, o el usuario está PENDING (usar reject)"),
                 @ApiResponse(responseCode = "404", description = "No se encontró el Paper, o el usuario no tiene relación con este Paper")
         })
-        @DeleteMapping("/{paperCode}/authors/{userId}")
+        @DeleteMapping("/{paperCode}/authors/{userCode}")
         public ResponseEntity<List<AuthorResponseDTO>> removeAuthorFromPaper(
-                @PathVariable String paperCode, @PathVariable Long userId) {
-                return ResponseEntity.ok(paperService.removeAuthorFromPaper(paperCode, userId));
+                @PathVariable String paperCode, @PathVariable String userCode) {
+                return ResponseEntity.ok(paperService.removeAuthorFromPaper(paperCode, userCode));
         }
 
         @Operation(
@@ -172,10 +172,10 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró el Paper o el evaluador"),
                 @ApiResponse(responseCode = "409", description = "El Paper ya tiene un evaluador asignado, u otro conflicto de asignación")
         })
-        @PatchMapping("/{paperCode}/reviewers/{reviewerId}")
+        @PatchMapping("/{paperCode}/reviewers/{reviewerCode}")
         public ResponseEntity<MessageResponseDTO> assingReviewerToPaper(
-                @PathVariable String paperCode, @PathVariable Long reviewerId) {
-                return ResponseEntity.ok(paperService.assignReviewerToPaper(paperCode, reviewerId));
+                @PathVariable String paperCode, @PathVariable String reviewerCode) {
+                return ResponseEntity.ok(paperService.assignReviewerToPaper(paperCode, reviewerCode));
         }
 
         @Operation(
@@ -201,10 +201,10 @@ public class PaperController {
                 @ApiResponse(responseCode = "400", description = "El Paper ya no está en NOT_SUBMITTED, o se superó el máximo de autores"),
                 @ApiResponse(responseCode = "404", description = "No existe una solicitud pendiente de ese usuario")
         })
-        @PatchMapping("/{paperCode}/authors/requests/{userId}/accept")
+        @PatchMapping("/{paperCode}/authors/requests/{userCode}/accept")
         public ResponseEntity<List<AuthorResponseDTO>> acceptAuthorRequest(
-                @PathVariable String paperCode, @PathVariable Long userId) {
-                return ResponseEntity.ok(paperService.acceptAuthorRequest(paperCode, userId));
+                @PathVariable String paperCode, @PathVariable String userCode) {
+                return ResponseEntity.ok(paperService.acceptAuthorRequest(paperCode, userCode));
         }
 
         @Operation(
@@ -216,9 +216,9 @@ public class PaperController {
                 @ApiResponse(responseCode = "400", description = "El Paper ya no está en NOT_SUBMITTED"),
                 @ApiResponse(responseCode = "404", description = "No existe una solicitud pendiente de ese usuario")
         })
-        @PatchMapping("/{paperCode}/authors/requests/{userId}/reject")
+        @PatchMapping("/{paperCode}/authors/requests/{userCode}/reject")
         public ResponseEntity<List<AuthorResponseDTO>> rejectAuthorRequest(
-                @PathVariable String paperCode, @PathVariable Long userId) {
-                return ResponseEntity.ok(paperService.rejectAuthorRequest(paperCode, userId));
+                @PathVariable String paperCode, @PathVariable String userCode) {
+                return ResponseEntity.ok(paperService.rejectAuthorRequest(paperCode, userCode));
         }
 }

@@ -1,7 +1,9 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.congress;
 
 import java.time.LocalDateTime;
 import java.util.Set;
+
+import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
@@ -64,4 +66,17 @@ public class CongressRequestDTO {
 	
 	@NotEmpty(message = "Debe especificar al menos un área temática")
 	private Set<String> thematicAreas;
+	
+	private boolean isFree;
+	
+	private boolean isSingleBlind;
+	
+	@NotNull(message = "El modo de publicación de evalauciones es obligatorio")
+	private EvaluationReleaseMode evaluationReleaseMode;
+	
+    @Future(message = "La fecha de publicación de evaluaciones debe ser una fecha futura")
+	private LocalDateTime scheduledEvaluationReleaseDate;
+	
+	@NotBlank(message = "El email de contacto del congreso no puede estar vacío")
+	private String contactMail;
 }

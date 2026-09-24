@@ -29,7 +29,7 @@ public interface CongressRepository extends JpaRepository<Congress, Long> {
 	boolean existsByCongressIdAndUserIdAndRole(Long congressId, Long userId, RoleName role);
 	
 	/// Determinar si existe un participante específico en un congreso determinado:
-	boolean existsByCongressIdAndParticipantsUserId(Long congressId, Long userId);
+	boolean existsByCodeAndParticipantsCode(String code, String participantCode);
 
 	 /// Obtener un congreso con sus participantes asociados por code:
     @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas WHERE c.code = :code")
@@ -39,7 +39,7 @@ public interface CongressRepository extends JpaRepository<Congress, Long> {
     boolean existsByCode(String code);
 
     /// Determinar si existe un usuario con determinado rol en un congreso, buscando por code:
-    @Query("SELECT COUNT(p) > 0 FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.code = :congressCode AND p.userId = :userId AND r.name = :role")
-    boolean existsByCongressCodeAndUserIdAndRole(String congressCode, Long userId, RoleName role);
+    @Query("SELECT COUNT(p) > 0 FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.code = :congressCode AND p.code = :userCode AND r.name = :role")
+    boolean existsByCongressCodeAndUserCodeAndRole(String congressCode, String userCode, RoleName role);
 
 }

@@ -2,12 +2,13 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Random;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.tfi.gestion_congresos_backend.dtos.CongressRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.User;
@@ -29,6 +30,8 @@ public class CongressServiceImpl implements CongressService {
 	private final CongressRepository congressRepository;
 	private final CongressMapper congressMapper;
 	private final UserService userService;
+	
+	private static final int CODE_LENGTH = 6;
 	
 	@Override
 	@Transactional(readOnly = true)
@@ -92,6 +95,9 @@ public class CongressServiceImpl implements CongressService {
 		 
 		Congress congress = congressMapper.toEntity(congressRequestDTO);
 		
+		// Generamos un código para el congreso:
+		congress.setCode(generateCongressCode());
+		
 		// Activamos el congreso:
 		congress.setEnabled(true);
 		
@@ -105,8 +111,8 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Desactivar un congreso:
-	public MessageResponseDTO disableCongress(Long congressId) {
-	    changeCongressStatus(congressId, false);
+	public MessageResponseDTO disableCongress(String code) {
+	    changeCongressStatus(code, false);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso desactivado con éxito");
@@ -115,8 +121,8 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Activar un congreso:
-	public MessageResponseDTO enableCongress(Long congressId) {
-	    changeCongressStatus(congressId, true);
+	public MessageResponseDTO enableCongress(String code) {
+	    changeCongressStatus(code, true);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso activado con éxito");
@@ -125,10 +131,10 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Actualizar un congreso:
-	public CongressResponseDTO updateCongress(Long congressId, CongressRequestDTO congressRequestDTO) {
+	public CongressResponseDTO updateCongress(String code, CongressRequestDTO congressRequestDTO) {
 		 
-		Congress congress = congressRepository.findByCongressId(congressId)
-				 								.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));
+		Congress congress = congressRepository.findByCode(code)
+				 								.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
 		 
 		// Validación de fechas del congreso:
 		validateCongressDates(congressRequestDTO);
@@ -159,16 +165,16 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional
 	/// Agregar un participante a un congreso:
-	public MessageResponseDTO addParticipantToCongress(Long congressId, Long participantId) {
+	public MessageResponseDTO addParticipantToCongress(String code, String participantCode) {
 		// Buscar congreso:
-		Congress congress = getCongressByCongressId(congressId);
+		Congress congress = getCongressByCode(code);
 		
 		// Buscar participante:
-		User participant = userService.getUserByUserId(participantId);
+		User participant = userService.getUserByUserCode(participantCode);
 		
 		// Validar que el participante no esté inscripto previamente en el congreso:
-		if (congressRepository.existsByCongressIdAndParticipantsUserId(congressId, participantId)) {
-			throw new ResourceAlreadyExistsException("El participante con ID " + participantId + " ya está inscripto en el congreso con ID " + congressId + ".");
+		if (congressRepository.existsByCodeAndParticipantsCode(code, participantCode)) {
+			throw new ResourceAlreadyExistsException("El participante con código " + participantCode + " ya está inscripto en el congreso con código " + code + ".");
 		}
 		
 		// Añadir el participante al congreso:
@@ -181,9 +187,9 @@ public class CongressServiceImpl implements CongressService {
 	
 	@Transactional
 	/// Cambiar de estado un congreso:
-	private void changeCongressStatus(Long congressId, boolean targetStatus) {
-	    Congress congress = congressRepository.findById(congressId)
-	            				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));
+	private void changeCongressStatus(String code, boolean targetStatus) {
+	    Congress congress = congressRepository.findByCode(code)
+	            				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
 	   
 	    if (congress.isEnabled() == targetStatus) {
 	    	throw new ResourceAlreadyExistsException("El congreso ya se encontraba en ese estado");
@@ -271,6 +277,22 @@ public class CongressServiceImpl implements CongressService {
 	        );
 	    }
 	}
+	
+	/// Genera un código de congreso no duplicado:
+	private String generateCongressCode() {
+        String code;
+        do {
+            code = generateRandomNumericCode(CODE_LENGTH);
+        } while (congressRepository.existsByCode(code));
+        return code;
+    }
+
+	/// Genera un código numérico aleatorio de la longitud indicada:
+    private String generateRandomNumericCode(int length) {
+        int max = (int) Math.pow(10, length) - 1;
+        int randomNumber = new Random().nextInt(max + 1);
+        return String.format("%0" + length + "d", randomNumber);
+    }
 
 	@Override
 	@Transactional(readOnly = true)
@@ -278,6 +300,19 @@ public class CongressServiceImpl implements CongressService {
 	public Congress getCongressByCode(String code) {
 		return congressRepository.findByCode(code)
 				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	/// Obtener un congreso en DTO con sus participantes por su code:
+	public CongressResponseDTO getCongressDTOByCode(String code) {
+		 
+		Congress congress = congressRepository.findByCode(code)
+												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));;
+		 
+		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
+		 
+		return result;
 	}
 
 	@Override
@@ -290,8 +325,8 @@ public class CongressServiceImpl implements CongressService {
 	@Override
 	@Transactional(readOnly = true)
 	/// Determinar si existe un usuario de determinado rol en un congreso, buscando por code:
-	public boolean existsByCongressCodeAndUserIdAndRoleName(String congressCode, Long userId, RoleName role) {
-		return congressRepository.existsByCongressCodeAndUserIdAndRole(congressCode, userId, role);
+	public boolean existsByCongressCodeAndUserCodeAndRoleName(String congressCode, String userCode, RoleName role) {
+		return congressRepository.existsByCongressCodeAndUserCodeAndRole(congressCode, userCode, role);
 	}
 
 }

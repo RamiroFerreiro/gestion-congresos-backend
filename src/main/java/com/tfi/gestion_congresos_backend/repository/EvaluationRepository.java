@@ -8,5 +8,5 @@ import java.util.List;
 @Repository
 public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
     // Te trae las evaluaciones de un paper ordenadas por fecha descendente
-    List<Evaluation> findByPaper_PaperIdOrderByEvaluationDateDesc(Long paperId);
+    List<Evaluation> findByPaper_CodeOrderByEvaluationDateDesc(String paperCode);
 }

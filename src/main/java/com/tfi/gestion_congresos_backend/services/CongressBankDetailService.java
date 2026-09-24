@@ -5,13 +5,13 @@ import com.tfi.gestion_congresos_backend.dtos.CongressBankDetailResponseDTO;
 
 public interface CongressBankDetailService {
 
-    CongressBankDetailResponseDTO create(Long congressId, CongressBankDetailRequestDTO request);
+    CongressBankDetailResponseDTO create(String congressCode, CongressBankDetailRequestDTO request);
 
-    CongressBankDetailResponseDTO getByCongressId(Long congressId);
+    CongressBankDetailResponseDTO getByCongressCode(String congressCode);
     
-    CongressBankDetailResponseDTO update(Long congressId, CongressBankDetailRequestDTO request);
+    CongressBankDetailResponseDTO update(String congressCode, CongressBankDetailRequestDTO request);
 
-    void delete(Long congressId);
+    void delete(String congressCode);
 
-    boolean existsByCongressId(Long congressId);
+    boolean existsByCongressCode(String congressCode);
 } 

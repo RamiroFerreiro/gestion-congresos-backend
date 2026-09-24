@@ -7,10 +7,10 @@ import java.util.List;
 public interface EvaluationService {
     
     // Método para obtener el historial de evaluaciones de un paper
-    List<EvaluationResponseDTO> getEvaluationsByPaperId(Long paperId);
+    List<EvaluationResponseDTO> getEvaluationsByPaperCode(String paperCode);
     
     // Metodo para crear una nueva evaluacion
-    public EvaluationResponseDTO createEvaluation(Long paperId, EvaluationRequestDTO requestDTO);
+    public EvaluationResponseDTO createEvaluation(String paperCode, EvaluationRequestDTO requestDTO);
 
 
 }

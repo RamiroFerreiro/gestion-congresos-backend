@@ -67,8 +67,8 @@ public class UserController {
     }
 
     @Operation(
-            summary = "Obtener un usuario por ID",
-            description = "Obtiene la información de un usuario a partir de su identificador."
+            summary = "Obtener un usuario por código",
+            description = "Obtiene la información de un usuario a partir de su código."
     )
     @ApiResponses({
             @ApiResponse(
@@ -77,13 +77,13 @@ public class UserController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "No se encontró un usuario con el ID especificado"
+                    description = "No se encontró un usuario con el código especificado"
             )
     })
-    @GetMapping("/{userId}")
-    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long userId){
+    @GetMapping("/{code}")
+    public ResponseEntity<UserResponseDTO> getUserByCode(@PathVariable String code){
 
-        return ResponseEntity.ok(userService.getUserById(userId));
+        return ResponseEntity.ok(userService.getUserByCode(code));
     }
 
     @Operation(
@@ -164,13 +164,13 @@ public class UserController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "No se encontró un usuario con el ID especificado"
+                    description = "No se encontró un usuario con el código especificado"
             )
     })
-    @DeleteMapping("/{userId}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
+    @DeleteMapping("/{code}")
+    public ResponseEntity<Void> deleteUser(@PathVariable String code) {
 
-        userService.deleteUser(userId);
+        userService.deleteUser(code);
 
         return ResponseEntity.noContent().build();
     }
@@ -179,7 +179,7 @@ public class UserController {
     ///----------------------------------------------------------PUT----------------------------------------------------------///
     @Operation(
             summary = "Actualizar un usuario",
-            description = "Actualiza la información de un usuario existente a partir de su identificador."
+            description = "Actualiza la información de un usuario existente a partir de su código."
     )
     @ApiResponses({
             @ApiResponse(
@@ -199,10 +199,10 @@ public class UserController {
                     description = "Ya existe un usuario con el email indicado"
             )
     })
-    @PutMapping("/{userId}")
-    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Long userId, @Valid @RequestBody UpdateUserRequestDTO request) {
+    @PutMapping("/{code}")
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable String code, @Valid @RequestBody UpdateUserRequestDTO request) {
 
-        return ResponseEntity.ok(userService.updateUser(userId, request));
+        return ResponseEntity.ok(userService.updateUser(code, request));
     }
 
     ///----------------------------------------------------------PATCH----------------------------------------------------------///
@@ -224,10 +224,10 @@ public class UserController {
                     description = "El rol enviado no es válido"
             )
     })
-    @PatchMapping("/{userId}/role")
-    public ResponseEntity<UserResponseDTO> updateUserRole(@PathVariable Long userId, @Valid @RequestBody UpdateUserRoleRequestDTO request) {
+    @PatchMapping("/{code}/role")
+    public ResponseEntity<UserResponseDTO> updateUserRole(@PathVariable String code, @Valid @RequestBody UpdateUserRoleRequestDTO request) {
 
-        return ResponseEntity.ok(userService.updateUserRole(userId, request.getRoleId()));
+        return ResponseEntity.ok(userService.updateUserRole(code, request.getRoleId()));
     }
 
     @Operation(

@@ -29,11 +29,11 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     
     @Transactional
     @Override
-    public CongressBankDetailResponseDTO create(Long congressId, CongressBankDetailRequestDTO request) {
+    public CongressBankDetailResponseDTO create(String congressCode, CongressBankDetailRequestDTO request) {
 
         //Validar que el congreso exista
-        Congress congress = congressRepository.findById(congressId)
-                .orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con id: " + congressId));
+        Congress congress = congressRepository.findByCode(congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode));
 
         //Validar que el congreso sea de pago
         if (Boolean.TRUE.equals(congress.isFree())) {
@@ -41,7 +41,7 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
         }
 
         //Validar que no existan datos bancarios registrados previamente
-        if (bankDetailRepository.existsByCongress_CongressId(congressId)) {
+        if (bankDetailRepository.existsByCongress_Code(congressCode)) {
             throw new ResourceAlreadyExistsException("El congreso ya cuenta con datos bancarios registrados");
         }
 
@@ -60,16 +60,16 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     
     @Override
     @Transactional(readOnly = true)
-    public CongressBankDetailResponseDTO getByCongressId(Long congressId) {
+    public CongressBankDetailResponseDTO getByCongressCode(String congressCode) {
         
         // Validar que el congreso existe
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con id: " + congressId);
+        if (!congressRepository.existsByCode(congressCode)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
         }
 
         //Buscar los datos bancarios asociados al congreso
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_CongressId(congressId)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con id: " + congressId));
+        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
 
         //Mapear a ResponseDTO
         return bankDetailMapper.toCongressBankDetailResponseDTO(bankDetail);
@@ -77,28 +77,28 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
 
     @Override
     @Transactional(readOnly = true)
-    public boolean existsByCongressId(Long congressId) {
+    public boolean existsByCongressCode(String congressCode) {
         
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con id: " + congressId);
+        if (!congressRepository.existsByCode(congressCode)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
         }
-        return bankDetailRepository.existsByCongress_CongressId(congressId);
+        return bankDetailRepository.existsByCongress_Code(congressCode);
     }
 
     ///----------------------------------------------------------UPDATE----------------------------------------------------------///
     
     @Override
     @Transactional
-    public CongressBankDetailResponseDTO update(Long congressId, CongressBankDetailRequestDTO request) {
+    public CongressBankDetailResponseDTO update(String congressCode, CongressBankDetailRequestDTO request) {
 
         // Validar que el congreso existe
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con id: " + congressId);
+        if (!congressRepository.existsByCode(congressCode)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
         }
 
         // Buscar los datos bancarios asociados al congreso
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_CongressId(congressId)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con id: " + congressId));
+        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
 
         // Modificar la entidad existente con los datos nuevos
         bankDetailMapper.updateEntityFromDto(request, bankDetail);
@@ -114,16 +114,16 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     
     @Override
     @Transactional
-    public void delete(Long congressId) {
+    public void delete(String congressCode) {
 
         //Validar que el congreso existe
-        if (!congressRepository.existsById(congressId)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con id: " + congressId);
+        if (!congressRepository.existsByCode(congressCode)) {
+            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
         }
 
         //Buscar los datos bancarios asociados
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_CongressId(congressId)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con id: " + congressId));
+        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
 
         //Eliminar la entidad
         bankDetailRepository.delete(bankDetail);

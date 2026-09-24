@@ -50,11 +50,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaperResponseDTO> getAssignedPapers(Long reviewerId) {
-        if (!userService.existsById(reviewerId)) {
-            throw new ResourceNotFoundException("Evaluador no encontrado con el ID: " + reviewerId);
+    public List<PaperResponseDTO> getAssignedPapers(String reviewerCode) {
+        if (!userService.existsByCode(reviewerCode)) {
+            throw new ResourceNotFoundException("Evaluador no encontrado con el código: " + reviewerCode);
         }
-        List<Paper> assignedPapers = paperRepository.findByUserReviewer_UserId(reviewerId);
+        List<Paper> assignedPapers = paperRepository.findByUserReviewer_Code(reviewerCode);
         return paperMapper.toPaperResponseDTOList(assignedPapers);
     }
 
@@ -149,11 +149,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public List<AuthorResponseDTO> requestToJoinPaper(String paperCode, Long userId) {
+    public List<AuthorResponseDTO> requestToJoinPaper(String paperCode, String userCode) {
         Paper paper = getPaperEntityByCode(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        User user = userService.getUserByUserId(userId);
+        User user = userService.getUserByUserCode(userCode);
         addAuthorInternal(paper, user, false, false);
 
         Paper savedPaper = paperRepository.save(paper);
@@ -162,11 +162,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public List<AuthorResponseDTO> acceptAuthorRequest(String paperCode, Long userId) {
+    public List<AuthorResponseDTO> acceptAuthorRequest(String paperCode, String userCode) {
         Paper paper = getPaperEntityByCode(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        PaperAuthor request = findPendingRequest(paper, userId);
+        PaperAuthor request = findPendingRequest(paper, userCode);
         validateMaxAuthors(paper.getCongress(), countAccepted(paper) + 1);
 
         request.setStatus(PaperAuthorStatus.ACCEPTED);
@@ -178,11 +178,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public List<AuthorResponseDTO> rejectAuthorRequest(String paperCode, Long userId) {
+    public List<AuthorResponseDTO> rejectAuthorRequest(String paperCode, String userCode) {
         Paper paper = getPaperEntityByCode(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        PaperAuthor request = findPendingRequest(paper, userId);
+        PaperAuthor request = findPendingRequest(paper, userCode);
         paper.getAuthors().remove(request);
 
         Paper savedPaper = paperRepository.save(paper);
@@ -191,11 +191,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public List<AuthorResponseDTO> addAuthorToPaper(String paperCode, Long userId) {
+    public List<AuthorResponseDTO> addAuthorToPaper(String paperCode, String userCode) {
         Paper paper = getPaperEntityByCode(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        User user = userService.getUserByUserId(userId);
+        User user = userService.getUserByUserCode(userCode);
         if (user.getRole().getName() != RoleName.ADMINISTRATOR) {
             throw new ArgumentNotValidException(
                 "Este endpoint es exclusivo para agregar administradores sin pasar por el flujo de solicitud. " +
@@ -210,11 +210,11 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public List<AuthorResponseDTO> removeAuthorFromPaper(String paperCode, Long userId) {
+    public List<AuthorResponseDTO> removeAuthorFromPaper(String paperCode, String userCode) {
         Paper paper = getPaperEntityByCode(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        removeAuthorInternal(paper, userId);
+        removeAuthorInternal(paper, userCode);
 
         Paper savedPaper = paperRepository.save(paper);
         return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
@@ -222,30 +222,30 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public MessageResponseDTO assignReviewerToPaper(String paperCode, Long reviewerId) {
+    public MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode) {
         Paper paper = getPaperEntityByCode(paperCode);
 
         User paperReviewer = paper.getUserReviewer();
         if (paperReviewer != null) {
-            if (!paperReviewer.getUserId().equals(reviewerId)) {
+            if (!paperReviewer.getCode().equals(reviewerCode)) {
                 throw new ResourceAlreadyExistsException(
                     "El trabajo con código " + paperCode + " ya tiene asignado un evaluador (" +
                     paperReviewer.getFirstName() + " " + paperReviewer.getLastName() + ")."
                 );
             } else {
                 throw new ResourceAlreadyExistsException(
-                    "El evaluador con ID " + reviewerId + " ya está asignado a este trabajo."
+                    "El evaluador con código " + reviewerCode + " ya está asignado a este trabajo."
                 );
             }
         }
 
-        User reviewer = userService.getUserByUserId(reviewerId);
+        User reviewer = userService.getUserByUserCode(reviewerCode);
         Congress congress = paper.getCongress();
 
-        boolean isParticipantInCongress = congressService.existsByCongressCodeAndUserIdAndRoleName(congress.getCode(), reviewerId, RoleName.EVALUATOR);
+        boolean isParticipantInCongress = congressService.existsByCongressCodeAndUserCodeAndRoleName(congress.getCode(), reviewerCode, RoleName.EVALUATOR);
         if (!isParticipantInCongress) {
             throw new ArgumentNotValidException(
-                "El evaluador con ID " + reviewerId + " no pertenece al mismo congreso que el trabajo con código " + paperCode + ".");
+                "El evaluador con código " + reviewerCode + " no pertenece al mismo congreso que el trabajo con código " + paperCode + ".");
         }
 
         paper.setUserReviewer(reviewer);
@@ -305,7 +305,7 @@ public class PaperServiceImpl implements PaperService {
     private void addAuthorInternal(Paper paper, User user, boolean isMainAuthor, boolean immediateAccept) {
         Congress congress = paper.getCongress();
 
-        boolean isAuthorInCongress = congressService.existsByCongressCodeAndUserIdAndRoleName(congress.getCode(), user.getUserId(), RoleName.EXPOSITOR);
+        boolean isAuthorInCongress = congressService.existsByCongressCodeAndUserCodeAndRoleName(congress.getCode(), user.getCode(), RoleName.EXPOSITOR);
         if (!isAuthorInCongress && user.getRole().getName() != RoleName.ADMINISTRATOR) {
             throw new ArgumentNotValidException(
                 "El usuario con ID " + user.getUserId() + " no está inscripto como EXPOSITOR en el congreso con código " + congress.getCode());
@@ -342,12 +342,12 @@ public class PaperServiceImpl implements PaperService {
         paper.getAuthors().add(newPaperAuthor);
     }
 
-    private void removeAuthorInternal(Paper paper, Long userId) {
+    private void removeAuthorInternal(Paper paper, String userCode) {
         PaperAuthor toRemove = paper.getAuthors().stream()
-                .filter(pa -> pa.getAuthor().getUserId().equals(userId))
+                .filter(pa -> pa.getAuthor().getCode().equals(userCode))
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
-                    "El usuario con ID " + userId + " no tiene relación con este Paper"));
+                    "El usuario con código " + userCode + " no tiene relación con este Paper"));
 
         if (toRemove.isMainAuthor()) {
             throw new ArgumentNotValidException(
@@ -372,12 +372,12 @@ public class PaperServiceImpl implements PaperService {
         }
     }
 
-    private PaperAuthor findPendingRequest(Paper paper, Long userId) {
+    private PaperAuthor findPendingRequest(Paper paper, String userCode) {
         return paper.getAuthors().stream()
-                .filter(pa -> pa.getAuthor().getUserId().equals(userId) && pa.getStatus() == PaperAuthorStatus.PENDING)
+                .filter(pa -> pa.getAuthor().getCode().equals(userCode) && pa.getStatus() == PaperAuthorStatus.PENDING)
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
-                    "No existe una solicitud pendiente del usuario con ID " + userId + " para este Paper"));
+                    "No existe una solicitud pendiente del usuario con código " + userCode + " para este Paper"));
     }
 
     private long countAccepted(Paper paper) {

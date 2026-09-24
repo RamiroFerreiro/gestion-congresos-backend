@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface CongressBankDetailRepository extends JpaRepository<CongressBankDetail, Long>{
     
-    boolean existsByCongress_CongressId(Long congressId);
+    boolean existsByCongress_Code(String congressCode);
 
-    Optional<CongressBankDetail> findByCongress_CongressId(Long congressId);
+    Optional<CongressBankDetail> findByCongress_Code(String congressCode);
 }

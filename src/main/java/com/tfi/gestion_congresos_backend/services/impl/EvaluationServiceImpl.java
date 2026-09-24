@@ -31,9 +31,9 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EvaluationResponseDTO> getEvaluationsByPaperId(Long paperId) {
+    public List<EvaluationResponseDTO> getEvaluationsByPaperCode(String paperCode) {
 
-        List<Evaluation> evaluations = evaluationRepository.findByPaper_PaperIdOrderByEvaluationDateDesc(paperId);
+        List<Evaluation> evaluations = evaluationRepository.findByPaper_CodeOrderByEvaluationDateDesc(paperCode);
         
         return evaluations.stream()
                 .map(evaluationMapper::toResponseDTO)
@@ -43,10 +43,10 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     @Override
     @Transactional
-    public EvaluationResponseDTO createEvaluation(Long paperId, EvaluationRequestDTO requestDTO) {
+    public EvaluationResponseDTO createEvaluation(String paperCode, EvaluationRequestDTO requestDTO) {
         // Buscar el Paper
-        Paper paper = paperRepository.findById(paperId)
-                .orElseThrow(() -> new RuntimeException("Paper no encontrado con ID: " + paperId));
+        Paper paper = paperRepository.findByCode(paperCode)
+                .orElseThrow(() -> new RuntimeException("Paper no encontrado con código: " + paperCode));
 
         // Mapear los datos que vienen del DTO (feedback, newDeadline, newStatus)
         Evaluation evaluation = evaluationMapper.toEntity(requestDTO);

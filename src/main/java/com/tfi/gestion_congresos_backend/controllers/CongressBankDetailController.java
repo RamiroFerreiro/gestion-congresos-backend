@@ -50,18 +50,18 @@ public class CongressBankDetailController {
                     description = "El congreso ya posee datos bancarios asociados"
             )
     })
-    @PostMapping("/{congressId}")
+    @PostMapping("/{congressCode}")
     public ResponseEntity<CongressBankDetailResponseDTO> createBankDetail(
-            @PathVariable Long congressId, @Valid @RequestBody CongressBankDetailRequestDTO request) {
+            @PathVariable String congressCode, @Valid @RequestBody CongressBankDetailRequestDTO request) {
 
-        return ResponseEntity.ok(bankDetailService.create(congressId, request));
+        return ResponseEntity.ok(bankDetailService.create(congressCode, request));
     }
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
 
     @Operation(
             summary = "Obtener datos bancarios de un congreso",
-            description = "Devuelve los datos bancarios registrados para un congreso específico por su ID."
+            description = "Devuelve los datos bancarios registrados para un congreso específico por su código."
     )
     @ApiResponses({
             @ApiResponse(
@@ -73,10 +73,10 @@ public class CongressBankDetailController {
                     description = "Congreso o datos bancarios no encontrados"
             )
     })
-    @GetMapping("/{congressId}")
-    public ResponseEntity<CongressBankDetailResponseDTO> getBankDetailByCongressId(@PathVariable Long congressId) {
+    @GetMapping("/{congressCode}")
+    public ResponseEntity<CongressBankDetailResponseDTO> getBankDetailByCongressId(@PathVariable String congressCode) {
 
-        return ResponseEntity.ok(bankDetailService.getByCongressId(congressId));
+        return ResponseEntity.ok(bankDetailService.getByCongressCode(congressCode));
     }
 
     @Operation(summary = "Verificar si un congreso posee datos bancarios cargados")
@@ -86,9 +86,9 @@ public class CongressBankDetailController {
                     description = "Congreso no encontrado"
             )
     })
-    @GetMapping("/exists/{congressId}")
-    public ResponseEntity<Boolean> existsBankDetail(@PathVariable Long congressId) {
-        return ResponseEntity.ok(bankDetailService.existsByCongressId(congressId));
+    @GetMapping("/exists/{congressCode}")
+    public ResponseEntity<Boolean> existsBankDetail(@PathVariable String congressCode) {
+        return ResponseEntity.ok(bankDetailService.existsByCongressCode(congressCode));
     }
 
     ///----------------------------------------------------------PUT----------------------------------------------------------///
@@ -111,11 +111,11 @@ public class CongressBankDetailController {
                     description = "Congreso o datos bancarios no encontrados"
             )
     })
-    @PutMapping("/{congressId}")
+    @PutMapping("/{congressCode}")
     public ResponseEntity<CongressBankDetailResponseDTO> updateBankDetail(
-            @PathVariable Long congressId, @Valid CongressBankDetailRequestDTO request) {
+            @PathVariable String congressCode, @Valid CongressBankDetailRequestDTO request) {
 
-        return ResponseEntity.ok(bankDetailService.update(congressId, request));
+        return ResponseEntity.ok(bankDetailService.update(congressCode, request));
     }
 
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
@@ -134,10 +134,10 @@ public class CongressBankDetailController {
                     description = "Congreso o datos bancarios no encontrados"
             )
     })
-    @DeleteMapping("/{congressId}")
-    public ResponseEntity<Void> deleteBankDetail(@PathVariable(name = "congressId") Long congressId) {
+    @DeleteMapping("/{congressCode}")
+    public ResponseEntity<Void> deleteBankDetail(@PathVariable String congressCode) {
         
-        bankDetailService.delete(congressId);
+        bankDetailService.delete(congressCode);
         return ResponseEntity.noContent().build();
     }
 
