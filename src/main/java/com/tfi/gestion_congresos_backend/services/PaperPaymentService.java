@@ -6,6 +6,6 @@ import com.tfi.gestion_congresos_backend.dtos.PaperPaymentResponseDTO;
 
 public interface PaperPaymentService {
 
-    PaperPaymentResponseDTO uploadPayment(Long paperId, MultipartFile file);
+    PaperPaymentResponseDTO uploadPayment(String code, MultipartFile file);
     
 }

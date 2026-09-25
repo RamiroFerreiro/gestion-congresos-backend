@@ -37,6 +37,7 @@ import java.util.Random;
 import java.util.UUID;
 
 import org.apache.coyote.BadRequestException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -107,7 +108,7 @@ public class UserServiceImpl implements UserService {
     	return result;
     }
     
-    //@PreAuthorize("hasRole('ADMINISTRATOR')")
+
     @Override
     @Transactional(readOnly = true)
     public User getUserByUserCode(String code){
