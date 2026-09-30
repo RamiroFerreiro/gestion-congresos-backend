@@ -4,14 +4,17 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import org.springframework.security.access.AccessDeniedException;
 import com.tfi.gestion_congresos_backend.dtos.ErrorResponseDTO;
 
 @RestControllerAdvice
@@ -28,7 +31,11 @@ public class GlobalExceptionHandler {
     			.message(ex.getMessage())
     			.build();
     	
-    	return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    	// Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
     
     /// 400 - Fallo de validación de Bean Validation (@Valid en los DTOs):
@@ -46,7 +53,11 @@ public class GlobalExceptionHandler {
     			.message(errorMessage)
     			.build();
     	
-    	return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    	// Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
     
     /// 400 - Tipo de dato incorrecto en parámetros de URL (@PathVariable o @RequestParam):
@@ -71,7 +82,11 @@ public class GlobalExceptionHandler {
                 .message(customMessage)
                 .build();
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        // Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
     
     /// 401 - No se pudo completar la autenticación:
@@ -85,7 +100,11 @@ public class GlobalExceptionHandler {
     			.message(ex.getMessage())
     			.build();
     	
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        // Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     } 
     
     /// 403 - El usuario no cuenta con los permisos necesarios:
@@ -99,8 +118,30 @@ public class GlobalExceptionHandler {
     			.message(ex.getMessage())
     			.build();
     	
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        // Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     } 
+
+    /// 403 - Acceso denegado por Spring Security (@PreAuthorize):
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorResponseDTO> handleAccessDenied(AccessDeniedException ex) {
+
+        ErrorResponseDTO error = ErrorResponseDTO.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.FORBIDDEN.value())
+                .error("Forbidden")
+                .message("No tienes los permisos necesarios para acceder a este recurso.")
+                .build();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.FORBIDDEN);
+    }
     
     /// 404 - Recurso no encontrado:
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -113,11 +154,16 @@ public class GlobalExceptionHandler {
     			.message(ex.getMessage())
     			.build();
     	
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        // Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
 
     /// 409 - El recurso ya existe:
     @ExceptionHandler(ResourceAlreadyExistsException.class)
+    @ResponseBody
     public ResponseEntity<ErrorResponseDTO> handleResourceAlreadyExists(ResourceAlreadyExistsException ex){
     	
     	ErrorResponseDTO error = ErrorResponseDTO.builder()
@@ -127,7 +173,11 @@ public class GlobalExceptionHandler {
     			.message(ex.getMessage())
     			.build();
     	
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        // Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
     
     /// 500 - Error no controlado del servidor:
@@ -141,6 +191,10 @@ public class GlobalExceptionHandler {
     			.message("Ocurrió un error inesperado en el servidor.")
     			.build();
     	
-    	return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    	// Creamos las cabeceras forzando explícitamente APPLICATION_JSON
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
     }
 }

@@ -1,5 +1,6 @@
 package com.tfi.gestion_congresos_backend.services;
 
+import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface FileStorageService {
@@ -10,8 +11,7 @@ public interface FileStorageService {
      * @return Ruta o URI donde quedó almacenado el archivo.
      */
     String store(MultipartFile file, Long paperId);
-
-    // Métodos opcionales futuros para descarga o borrado:
-    // Resource loadAsResource(String filename);
-    // void delete(String filePath);
+    
+    Resource loadAsResource(String filePath);
+    void delete(String filePath);
 }
