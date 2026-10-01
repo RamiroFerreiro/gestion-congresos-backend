@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.tfi.gestion_congresos_backend.dtos.PaperPaymentResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.UpdatePaymentStatusDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.PaperPayment;
@@ -41,6 +42,8 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
     private final UserService userService;
     private final PaperService paperService;
 
+    ///-------------------------------------------CARGAR/ACTUALIZAR COMPROBANTE---------------------------------------------------------///
+
     @Override
     @Transactional
     public PaperPaymentResponseDTO uploadPayment(String code, MultipartFile file) {
@@ -52,10 +55,8 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         Paper paper = paperService.getPaperEntityByCode(code);
         Long paperId = paper.getPaperId();
 
-        //Validar que el usuario posea el rol EXPOSITOR, sino lanza excepción.
-        boolean isExpositor = (currentUser.getRole() != null) && (currentUser.getRole().getName() == RoleName.EXPOSITOR);
-        
-        if (!isExpositor) {
+        // Validar rol expositor
+        if (!isRole(currentUser, RoleName.EXPOSITOR)) {
             throw new UserDisabledException("Solo los usuarios con rol EXPOSITOR pueden subir comprobantes de pago.");
         }
         
@@ -73,16 +74,23 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         }
 
         //Almacenar el archivo físicamente en disco
+        //Traemos el comprobante, si existe borramos el archivo
         Optional<PaperPayment> existingPaymentOpt = paymentRepository.findByPaper_PaperId(paperId);
 
+        //Si existe un comprobante y su estado ya es APROBADO, bloqueamos la subida
+        if (existingPaymentOpt.isPresent() && existingPaymentOpt.get().getStatus() == PaymentStatus.APPROVED) {
+            throw new ArgumentNotValidException("El comprobante de pago para este trabajo ya ha sido APROBADO. No es posible modificarlo ni re-subir otro.");
+        }
+
+        //Si existía un comprobante previo (en PENDING_APPROVAL o REJECTED) y tiene ruta de archivo, lo eliminamos
         if (existingPaymentOpt.isPresent() && existingPaymentOpt.get().getFilePath() != null) {
             fileStorageService.delete(existingPaymentOpt.get().getFilePath());
         }
-        
-        //Almacenar el archivo físicamente en disco
+
+        //Guardamos el nuevo archivo
         String savedPath = fileStorageService.store(file, paperId);
 
-        //Obtener pago existente o instanciar uno nuevo si re-sube el comprobante
+        //Traer el comprobante existente o instanciar uno nuevo si re-sube el comprobante
         PaperPayment payment = existingPaymentOpt.orElseGet(() -> PaperPayment.builder().paper(paper).build());
 
         //Asignar datos del comprobante
@@ -99,47 +107,123 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         return paymentMapper.toResponseDTO(savedPayment);
     }
 
+    ///-------------------------------------------CONSULTAR ARCHIVO---------------------------------------------------------///
+
     @Override
     @Transactional(readOnly = true)
     public Resource getPaymentFile(String paperCode) {
 
         //Obtener usuario autenticado
-        User currentUser = userService.getAuthenticatedUserEntity();//verificado
+        User currentUser = userService.getAuthenticatedUserEntity();
 
         //Obtener Paper por código, sino existe lanza excepción
-        Paper paper = paperService.getPaperEntityByCode(paperCode);//verificado
+        Paper paper = paperService.getPaperEntityByCode(paperCode);
 
-        //Obtener ID y RoleName
-        Long paperId = paper.getPaperId();
-        RoleName userRole = (currentUser.getRole() != null) ? currentUser.getRole().getName() : null;
-        
-        // Validar permisos: Tiene que ser usuario ADMINISTRATOR o EXPOSITOR
-        boolean isAdmin = userRole == RoleName.ADMINISTRATOR;
-        boolean isExpositor = userRole == RoleName.EXPOSITOR;
+        //Validar acceso consolidado (ADMINISTRATOR o EXPOSITOR perteneciente al trabajo)
+        validateReadAccess(currentUser, paper);
 
-        if (!isAdmin && !isExpositor) {
-            throw new UserDisabledException("Su rol de usuario no tiene acceso a la consulta de comprobantes.");
-        }
-
-        //Si es EXPOSITOR, validar que pertenezca al grupo de autores de este trabajo en particular
-        if (isExpositor) {
-
-            // Si no es autor, el método privado lanza UserDisabledException automáticamente
-            getPaperAuthorByPaperIdAndUserId(paperId, currentUser.getUserId());
-        }
-
-        //Obtener registro del pago, sino lanza excepcion.
-        PaperPayment payment = paymentRepository.findByPaper_PaperId(paperId)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontró ningún comprobante subido para el trabajo: " + paperCode));
+        //Buscar el pago o lanzar 404
+        PaperPayment payment = getPaymentEntityByPaperId(paper.getPaperId(), paperCode);
 
         //Cargar recurso físico
         return fileStorageService.loadAsResource(payment.getFilePath());
     }
 
+    ///-------------------------------------------CONSULTAR INFORMACION DEL COMPROBANTE---------------------------------------------------------///
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaperPaymentResponseDTO getPaymentDetails(String paperCode) {
+
+        //Obtener usuario autenticado
+        User currentUser = userService.getAuthenticatedUserEntity();
+
+        //Obtener Paper o lanzar 404 si no existe
+        Paper paper = paperService.getPaperEntityByCode(paperCode);
+        
+        // Validar acceso consolidado (ADMINISTRATOR o EXPOSITOR perteneciente al trabajo)
+        validateReadAccess(currentUser, paper);
+
+        //Buscar el pago o lanzar 404
+        PaperPayment payment = getPaymentEntityByPaperId(paper.getPaperId(), paperCode);
+
+        //Mapear y retornar DTO
+        return paymentMapper.toResponseDTO(payment);
+    }
+
+    ///-------------------------------------------EVALUAR COMPROBANTE---------------------------------------------------------///
+
+    @Override
+    @Transactional
+    public PaperPaymentResponseDTO updatePaymentStatus(String paperCode, UpdatePaymentStatusDTO updateDTO) {
+
+        //Obtener usuario autenticado
+        User currentUser = userService.getAuthenticatedUserEntity();
+
+        //Validar que sea estrictamente ADMINISTRATOR
+        if (!isRole(currentUser, RoleName.ADMINISTRATOR)) {
+            throw new UserDisabledException("Solo los usuarios con rol ADMINISTRATOR pueden evaluar o cambiar el estado del comprobante.");
+        }
+
+        //Obtener el Paper, sino existe lanza excepción
+        Paper paper = paperService.getPaperEntityByCode(paperCode);
+
+        //Buscar el registro del pago
+        PaperPayment payment = getPaymentEntityByPaperId(paper.getPaperId(), paperCode);
+
+        //Regla de negocio: Si se rechaza, la observación es obligatoria
+        if (updateDTO.getStatus() == PaymentStatus.REJECTED && 
+        (updateDTO.getObservations() == null || updateDTO.getObservations().trim().isEmpty())) {
+            throw new ArgumentNotValidException("Debe ingresar una observación explicando el motivo del rechazo del comprobante.");
+        }
+
+        //Seteamos status y observations
+        payment.setStatus(updateDTO.getStatus());
+        payment.setObservations(updateDTO.getObservations());
+
+        //Guardar cambios 
+        PaperPayment updatedPayment = paymentRepository.save(payment);
+
+        return paymentMapper.toResponseDTO(updatedPayment);
+    }
 
     ///PRIVADOS
     private PaperAuthor getPaperAuthorByPaperIdAndUserId(Long paperId, Long userId) {
         return paperAuthorRepository.findByPaper_PaperIdAndAuthor_UserId(paperId, userId)
                 .orElseThrow(() -> new UserDisabledException("El usuario no forma parte de los autores de este trabajo."));
+    }
+
+    /**
+     * Verifica si el usuario posee un rol específico.
+     */
+    private boolean isRole(User user, RoleName roleName) {
+        return user.getRole() != null && user.getRole().getName() == roleName;
+    }
+
+
+    /**
+     * Valida si el usuario tiene acceso de lectura al comprobante.
+     * Permitido para ADMINISTRATOR globalmente, o EXPOSITOR si pertenece al grupo de autores.
+     */
+    private void validateReadAccess(User user, Paper paper) {
+
+        boolean isAdmin = isRole(user, RoleName.ADMINISTRATOR);
+        boolean isExpositor = isRole(user, RoleName.EXPOSITOR);
+
+        if (!isAdmin && !isExpositor) {
+            throw new UserDisabledException("Su rol de usuario no tiene acceso a la consulta de comprobantes.");
+        }
+
+        if (isExpositor) {
+            getPaperAuthorByPaperIdAndUserId(paper.getPaperId(), user.getUserId());
+        }
+    }
+
+    /**
+     * Busca la entidad de pago asociada al trabajo o lanza 404 si no existe.
+     */
+    private PaperPayment getPaymentEntityByPaperId(Long paperId, String paperCode) {
+        return paymentRepository.findByPaper_PaperId(paperId)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró ningún comprobante registrado para el trabajo: " + paperCode));
     }
 }

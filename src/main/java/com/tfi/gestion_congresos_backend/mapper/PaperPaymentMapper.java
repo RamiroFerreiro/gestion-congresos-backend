@@ -8,7 +8,8 @@ import com.tfi.gestion_congresos_backend.entities.PaperPayment;
 
 @Mapper(componentModel = "spring")
 public interface PaperPaymentMapper {
-    
-    @Mapping(target = "paperId", source = "paper.paperId")
+
+    @Mapping(source = "paper.code", target = "paperCode")
+    @Mapping(source = "paper.title", target = "paperTitle")
     PaperPaymentResponseDTO toResponseDTO(PaperPayment entity);
 }

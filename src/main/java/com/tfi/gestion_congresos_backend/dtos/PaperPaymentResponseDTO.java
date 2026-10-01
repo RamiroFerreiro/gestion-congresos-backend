@@ -12,14 +12,20 @@ import com.tfi.gestion_congresos_backend.enums.PaymentStatus;
 @Builder
 public class PaperPaymentResponseDTO {
 
+
     private Long paperPaymentId;
-    private Long paperId; 
+    private String paperCode;
+    private String paperTitle; 
+
+    ///Comprobante
     private BigDecimal amountPaid;
     private LocalDateTime uploadDate;
     private String fileName;
     private String filePath;
     private String observations;
     private PaymentStatus status;
+
+    ///Auditoría
     private LocalDateTime createdAt;
     private String createdBy;
 }

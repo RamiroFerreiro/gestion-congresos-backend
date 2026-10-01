@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.BAD_REQUEST);
     }
     
     /// 400 - Fallo de validación de Bean Validation (@Valid en los DTOs):
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.BAD_REQUEST);
     }
     
     /// 400 - Tipo de dato incorrecto en parámetros de URL (@PathVariable o @RequestParam):
@@ -86,7 +86,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.BAD_REQUEST);
     }
     
     /// 401 - No se pudo completar la autenticación:
@@ -104,7 +104,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.UNAUTHORIZED);
     } 
     
     /// 403 - El usuario no cuenta con los permisos necesarios:
@@ -122,7 +122,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.FORBIDDEN);
     } 
 
     /// 403 - Acceso denegado por Spring Security (@PreAuthorize):
@@ -177,7 +177,7 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.CONFLICT);
     }
     
     /// 500 - Error no controlado del servidor:
@@ -195,6 +195,6 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        return new ResponseEntity<>(error, headers, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(error, headers, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
