@@ -11,6 +11,4 @@ public interface EvaluationService {
     
     // Metodo para crear una nueva evaluacion
     public EvaluationResponseDTO createEvaluation(String paperCode, EvaluationRequestDTO requestDTO);
-
-
 }

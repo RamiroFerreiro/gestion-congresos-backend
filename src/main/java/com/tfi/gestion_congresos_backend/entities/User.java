@@ -50,9 +50,6 @@ public class User extends AuditableEntity{
     @Column(name = "dni", nullable = false)
     private Long dni;
     
-    @Column(name = "institution", nullable = false)
-    private String institution;
-    
     @Column(name = "country", nullable = false)
     private String country;
     
@@ -61,8 +58,5 @@ public class User extends AuditableEntity{
 
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roles_id", nullable = false)
-    private Role role;
+
 } 

@@ -1,6 +1,5 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -12,9 +11,7 @@ import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -48,9 +45,14 @@ public class CongressBankDetailController {
             @ApiResponse(
                     responseCode = "409",
                     description = "El congreso ya posee datos bancarios asociados"
+            ),
+            @ApiResponse(
+                responseCode = "500", 
+                description = "Error no controlado del servidor."
             )
     })
     @PostMapping("/{congressCode}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<CongressBankDetailResponseDTO> createBankDetail(
             @PathVariable String congressCode, @Valid @RequestBody CongressBankDetailRequestDTO request) {
 
@@ -71,6 +73,10 @@ public class CongressBankDetailController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Congreso o datos bancarios no encontrados"
+            ),
+            @ApiResponse(
+                responseCode = "500", 
+                description = "Error no controlado del servidor."
             )
     })
     @GetMapping("/{congressCode}")
@@ -79,14 +85,20 @@ public class CongressBankDetailController {
         return ResponseEntity.ok(bankDetailService.getByCongressCode(congressCode));
     }
 
+
     @Operation(summary = "Verificar si un congreso posee datos bancarios cargados")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "404",
                     description = "Congreso no encontrado"
+            ),
+            @ApiResponse(
+                responseCode = "500", 
+                description = "Error no controlado del servidor."
             )
     })
     @GetMapping("/exists/{congressCode}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Boolean> existsBankDetail(@PathVariable String congressCode) {
         return ResponseEntity.ok(bankDetailService.existsByCongressCode(congressCode));
     }
@@ -99,7 +111,7 @@ public class CongressBankDetailController {
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "200",
+                    responseCode = "201",
                     description = "Datos bancarios actualizados correctamente"
             ),
             @ApiResponse(
@@ -109,9 +121,14 @@ public class CongressBankDetailController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Congreso o datos bancarios no encontrados"
+            ),
+            @ApiResponse(
+                responseCode = "500", 
+                description = "Error no controlado del servidor."
             )
     })
     @PutMapping("/{congressCode}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<CongressBankDetailResponseDTO> updateBankDetail(
             @PathVariable String congressCode, @Valid CongressBankDetailRequestDTO request) {
 
@@ -121,26 +138,29 @@ public class CongressBankDetailController {
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
 
     @Operation(
-            summary = "Eliminar datos bancarios",
-            description = "Elimina los datos bancarios asociados a un congreso existente."
+        summary = "Eliminar datos bancarios",
+        description = "Elimina los datos bancarios asociados a un congreso existente."
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "204",
-                    description = "Datos bancarios eliminados correctamente"
+                responseCode = "204",
+                description = "Datos bancarios eliminados correctamente"
             ),
             @ApiResponse(
-                    responseCode = "404",
-                    description = "Congreso o datos bancarios no encontrados"
+                responseCode = "404",
+                description = "Congreso o datos bancarios no encontrados"
+            ),
+            @ApiResponse(
+                responseCode = "500", 
+                description = "Error no controlado del servidor."
             )
     })
     @DeleteMapping("/{congressCode}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<Void> deleteBankDetail(@PathVariable String congressCode) {
         
         bankDetailService.delete(congressCode);
         return ResponseEntity.noContent().build();
     }
 
-    
-    
 }

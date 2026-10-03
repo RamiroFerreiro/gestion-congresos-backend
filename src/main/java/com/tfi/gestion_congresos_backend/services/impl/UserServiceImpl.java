@@ -179,9 +179,6 @@ public class UserServiceImpl implements UserService {
         //mapeamos DTO a entidad
         User user = userMapper.toEntity(request);
         
-        //lo seteamos
-        user.setRole(role);
-        
         //generamos el código del usuario:
         user.setCode(generateUserCode());
 
@@ -219,7 +216,6 @@ public class UserServiceImpl implements UserService {
         User user = userMapper.toEntity(request);
 
         // Asignar manualmente los campos procesados (rol y contraseña encriptada)
-        user.setRole(role);
         user.setPassword(passwordEncoder.encode(temporaryPassword));
         user.setMustChangePassword(true);
 
@@ -282,7 +278,6 @@ public class UserServiceImpl implements UserService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + roleId));
 
-        user.setRole(role);
         User updatedUser = userRepository.save(user);
 
         return userMapper.toUserResponseDTO(updatedUser);

@@ -19,7 +19,6 @@ public class AuthorResponseDTO {
 	private String fullName;
 	private String email;
 	private Long dni;
-	private String institution;
 	private String country;
 	private int authorOrder;
 	private boolean isMainAuthor;

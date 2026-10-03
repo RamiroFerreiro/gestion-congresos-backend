@@ -189,6 +189,7 @@ public class PaperServiceImpl implements PaperService {
         return paperMapper.toAuthorResponseDTOList(savedPaper.getAuthors());
     }
 
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
     @Override
     @Transactional
     public List<AuthorResponseDTO> addAuthorToPaper(String paperCode, String userCode) {
@@ -196,12 +197,13 @@ public class PaperServiceImpl implements PaperService {
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
         User user = userService.getUserByUserCode(userCode);
+        /* 
         if (user.getRole().getName() != RoleName.ADMINISTRATOR) {
             throw new ArgumentNotValidException(
                 "Este endpoint es exclusivo para agregar administradores sin pasar por el flujo de solicitud. " +
                 "Para agregar autores EXPOSITOR, usá el flujo de solicitud (requestToJoinPaper).");
         }
-
+        */
         addAuthorInternal(paper, user, false, true);
 
         Paper savedPaper = paperRepository.save(paper);
@@ -302,14 +304,17 @@ public class PaperServiceImpl implements PaperService {
     ///----------------------------------------------------------LÓGICA INTERNA Y HELPERS----------------------------------------------------------///
     // (idénticos a la versión anterior — no dependen de ID vs code, operan sobre el objeto Paper ya resuelto)
 
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
     private void addAuthorInternal(Paper paper, User user, boolean isMainAuthor, boolean immediateAccept) {
         Congress congress = paper.getCongress();
 
+        /* 
         boolean isAuthorInCongress = congressService.existsByCongressCodeAndUserCodeAndRoleName(congress.getCode(), user.getCode(), RoleName.EXPOSITOR);
         if (!isAuthorInCongress && user.getRole().getName() != RoleName.ADMINISTRATOR) {
             throw new ArgumentNotValidException(
                 "El usuario con ID " + user.getUserId() + " no está inscripto como EXPOSITOR en el congreso con código " + congress.getCode());
         }
+        */
 
         boolean alreadyLinked = paper.getAuthors().stream()
                 .anyMatch(pa -> pa.getAuthor().getUserId().equals(user.getUserId()));

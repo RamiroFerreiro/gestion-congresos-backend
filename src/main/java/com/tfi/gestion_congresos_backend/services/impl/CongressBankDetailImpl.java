@@ -14,6 +14,7 @@ import com.tfi.gestion_congresos_backend.mapper.CongressBankDetailMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressBankDetailRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
+import com.tfi.gestion_congresos_backend.services.CongressService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class CongressBankDetailImpl implements CongressBankDetailService{
 
     private final CongressBankDetailRepository bankDetailRepository;
-    private final CongressRepository congressRepository;
+    private final CongressService congressService;
     private final CongressBankDetailMapper bankDetailMapper;
 
     ///----------------------------------------------------------CREATE----------------------------------------------------------///
@@ -31,9 +32,8 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     @Override
     public CongressBankDetailResponseDTO create(String congressCode, CongressBankDetailRequestDTO request) {
 
-        //Validar que el congreso exista
-        Congress congress = congressRepository.findByCode(congressCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode));
+        //Validar que el congreso exista, sino existe lanza excepción
+        Congress congress = congressService.getCongressByCode(congressCode);
 
         //Validar que el congreso sea de pago
         if (Boolean.TRUE.equals(congress.isFree())) {
@@ -61,27 +61,13 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     @Override
     @Transactional(readOnly = true)
     public CongressBankDetailResponseDTO getByCongressCode(String congressCode) {
-        
-        // Validar que el congreso existe
-        if (!congressRepository.existsByCode(congressCode)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
-        }
-
-        //Buscar los datos bancarios asociados al congreso
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
-
-        //Mapear a ResponseDTO
+        CongressBankDetail bankDetail = getBankDetailEntityByCongressCode(congressCode);
         return bankDetailMapper.toCongressBankDetailResponseDTO(bankDetail);
     }
 
     @Override
     @Transactional(readOnly = true)
     public boolean existsByCongressCode(String congressCode) {
-        
-        if (!congressRepository.existsByCode(congressCode)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
-        }
         return bankDetailRepository.existsByCongress_Code(congressCode);
     }
 
@@ -91,14 +77,8 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     @Transactional
     public CongressBankDetailResponseDTO update(String congressCode, CongressBankDetailRequestDTO request) {
 
-        // Validar que el congreso existe
-        if (!congressRepository.existsByCode(congressCode)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
-        }
-
         // Buscar los datos bancarios asociados al congreso
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
+        CongressBankDetail bankDetail = getBankDetailEntityByCongressCode(congressCode);
 
         // Modificar la entidad existente con los datos nuevos
         bankDetailMapper.updateEntityFromDto(request, bankDetail);
@@ -116,16 +96,19 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     @Transactional
     public void delete(String congressCode) {
 
-        //Validar que el congreso existe
-        if (!congressRepository.existsByCode(congressCode)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode);
-        }
-
         //Buscar los datos bancarios asociados
-        CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
-
+        CongressBankDetail bankDetail = getBankDetailEntityByCongressCode(congressCode);
         //Eliminar la entidad
         bankDetailRepository.delete(bankDetail);
     }
+
+    /**
+     * Recupera la entidad de datos bancarios asociada al código del congreso o lanza 404.
+     */
+    private CongressBankDetail getBankDetailEntityByCongressCode(String congressCode) {
+        return bankDetailRepository.findByCongress_Code(congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontraron datos bancarios para el congreso con código: " + congressCode));
+    }
 }
+
+

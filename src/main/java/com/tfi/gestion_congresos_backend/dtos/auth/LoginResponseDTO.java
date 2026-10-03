@@ -13,7 +13,6 @@ public class LoginResponseDTO {
     private String firstName;
     private String lastName;
     private String email;
-    private RoleName role;
     private String token;
     private boolean mustChangePassword;
 }

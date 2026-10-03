@@ -166,6 +166,8 @@ public class CongressServiceImpl implements CongressService {
 	@Transactional
 	/// Agregar un participante a un congreso:
 	public MessageResponseDTO addParticipantToCongress(String code, String participantCode) {
+
+		/* 
 		// Buscar congreso:
 		Congress congress = getCongressByCode(code);
 		
@@ -177,10 +179,15 @@ public class CongressServiceImpl implements CongressService {
 			throw new ResourceAlreadyExistsException("El participante con código " + participantCode + " ya está inscripto en el congreso con código " + code + ".");
 		}
 		
-		// Añadir el participante al congreso:
+		///ESTO SE ROMPE POR CAMBIAR EL MANY TO MANY DE CONGRESS A USER
+		/// AHORA ES ONE TO MANY A LA TABLE INTERMEDIA
+		/// AHORA LIST ANTES ERA SET
+
+		//Añadir el participante al congreso:
 		congress.getParticipants().add(participant);
 		congressRepository.save(congress);
 		
+		*/
 		// Devolver mensaje de respuesta:
 		return new MessageResponseDTO("Participante agregado con éxito");
 	}

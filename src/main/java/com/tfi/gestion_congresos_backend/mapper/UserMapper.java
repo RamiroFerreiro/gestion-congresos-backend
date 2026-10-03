@@ -13,7 +13,6 @@ import org.mapstruct.MappingTarget;
 public interface UserMapper {
 
     //cargamos el nombre del role en el DTO utilizando como fuente la entidad asociada
-    @Mapping(target = "role", source = "role.name")
     UserResponseDTO toUserResponseDTO(User user);
     
     User toEntity(UserRequestDTO dto);
@@ -23,12 +22,10 @@ public interface UserMapper {
 
     // Mapeo desde el DTO administrativo a la Entidad User
     @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "role", ignore = true) // Se asigna manualmente en el Service por el roleId
     @Mapping(target = "password", ignore = true) // Se asigna la contraseña temporal encriptada
     @Mapping(target = "enabled", constant = "true")
     @Mapping(target = "mustChangePassword", constant = "true")
     @Mapping(target = "dni", constant = "0L")
-    @Mapping(target = "institution", constant = "PENDIENTE")
     @Mapping(target = "country", constant = "PENDIENTE")
     User toEntity(AdminCreateUserRequestDTO dto);
 }

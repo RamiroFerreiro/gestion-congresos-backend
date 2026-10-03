@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.security;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -45,13 +46,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String userEmail = jwtService.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                User user = userRepository.findByEmailWithRole(userEmail).orElse(null);
+
+                User user = userRepository.findByEmail(userEmail).orElse(null);
 
                 if (user != null && jwtService.isTokenValid(jwt, user)) {
-                    List<GrantedAuthority> authorities = List.of(
-                            new SimpleGrantedAuthority("ROLE_" + user.getRole().getName().name())
-                    );
 
+                    
+                    // Como los roles ahora son contextuales por congreso, 
+                    // la lista de autoridades del token global puede ir vacía
+                    // o con una autoridad base de autenticación.
+                    List<GrantedAuthority> authorities = Collections.emptyList();
+                    
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(user, null, authorities);
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

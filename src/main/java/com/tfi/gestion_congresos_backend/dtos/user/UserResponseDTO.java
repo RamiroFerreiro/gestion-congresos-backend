@@ -17,7 +17,5 @@ public class UserResponseDTO {
     private String lastName;
     private String email;
     private Long dni;
-    private String institution;
     private String country;
-    private RoleName role;
 }

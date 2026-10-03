@@ -1,11 +1,14 @@
 package com.tfi.gestion_congresos_backend.entities;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -19,6 +22,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -82,6 +86,8 @@ public class Congress extends AuditableEntity {
         name = "congress_thematic_areas", // Nombre de la tabla secundaria.
         joinColumns = @JoinColumn(name = "congresses_id") // FK hacia la tabla congresses.
     )
+
+		
     @Column(name = "thematic_area") // Nombre de la columna que guarda cada String.
 	@Builder.Default
     private Set<String> thematicAreas = new HashSet<>();
@@ -89,14 +95,9 @@ public class Congress extends AuditableEntity {
 	@Column(name = "enabled", nullable = false)
 	private boolean enabled;
 	
-	@ManyToMany
-	@JoinTable(
-		name = "congress_participants",
-		joinColumns = @JoinColumn(name = "congresses_id"),
-		inverseJoinColumns = @JoinColumn(name = "users_id")
-	)
-	@Builder.Default
-	private Set<User> participants = new HashSet<>();
+	@OneToMany(mappedBy = "congress", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<CongressParticipant> participants = new ArrayList<>();
+	
 
 	///-----nuevo----
 	

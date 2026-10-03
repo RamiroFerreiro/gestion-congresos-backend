@@ -20,9 +20,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
     
     Optional<User> findByCode(String code);
 
+    /* 
     @Query("SELECT u FROM User u JOIN FETCH u.role WHERE u.email = :email")
     Optional<User> findByEmailWithRole(String email);
     
     @Query("SELECT DISTINCT p FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.code = :code AND (:role IS NULL OR r.name = :role)")
 	List<User> findParticipantsByCongressCodeAndRole(@Param("code") String code, @Param("role") RoleName role);   
+    */
+
+    /// Obtener usuarios de un congreso filtrados por rol
+    @Query("SELECT DISTINCT cp.user FROM CongressParticipant cp " +
+           "WHERE cp.congress.code = :code " +
+           "AND (:role IS NULL OR cp.role.name = :role)")
+    List<User> findParticipantsByCongressCodeAndRole(
+            @Param("code") String code, 
+            @Param("role") RoleName role
+    );
 }

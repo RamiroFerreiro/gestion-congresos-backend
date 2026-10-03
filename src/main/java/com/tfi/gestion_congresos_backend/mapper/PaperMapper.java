@@ -27,7 +27,6 @@ public interface PaperMapper {
     @Mapping(target = "fullName", expression = "java(paperAuthor.getAuthor() != null ? paperAuthor.getAuthor().getFirstName() + \" \" + paperAuthor.getAuthor().getLastName() : null)")
     @Mapping(target = "email", source = "author.email")
     @Mapping(target = "dni", source = "author.dni")
-    @Mapping(target = "institution", source = "author.institution")
     @Mapping(target = "country", source = "author.country")
     @Mapping(target = "authorOrder", source = "authorOrder")
     @Mapping(target = "isMainAuthor", source = "mainAuthor")   

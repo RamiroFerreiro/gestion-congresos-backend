@@ -44,6 +44,8 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
 
     ///-------------------------------------------CARGAR/ACTUALIZAR COMPROBANTE---------------------------------------------------------///
 
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
+
     @Override
     @Transactional
     public PaperPaymentResponseDTO uploadPayment(String code, MultipartFile file) {
@@ -55,10 +57,12 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         Paper paper = paperService.getPaperEntityByCode(code);
         Long paperId = paper.getPaperId();
 
+        /* 
         // Validar rol expositor
         if (!isRole(currentUser, RoleName.EXPOSITOR)) {
             throw new UserDisabledException("Solo los usuarios con rol EXPOSITOR pueden subir comprobantes de pago.");
         }
+        */
         
         //Verificar que el Paper esté en estado APROBADO
         if (paper.getStatus() != PaperStatus.ACCEPTED) {
@@ -152,24 +156,30 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
     }
 
     ///-------------------------------------------EVALUAR COMPROBANTE---------------------------------------------------------///
-
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
     @Override
     @Transactional
     public PaperPaymentResponseDTO updatePaymentStatus(String paperCode, UpdatePaymentStatusDTO updateDTO) {
 
         //Obtener usuario autenticado
         User currentUser = userService.getAuthenticatedUserEntity();
-
+        /* 
         //Validar que sea estrictamente ADMINISTRATOR
         if (!isRole(currentUser, RoleName.ADMINISTRATOR)) {
             throw new UserDisabledException("Solo los usuarios con rol ADMINISTRATOR pueden evaluar o cambiar el estado del comprobante.");
         }
+        */
 
         //Obtener el Paper, sino existe lanza excepción
         Paper paper = paperService.getPaperEntityByCode(paperCode);
 
         //Buscar el registro del pago
         PaperPayment payment = getPaymentEntityByPaperId(paper.getPaperId(), paperCode);
+
+        //REGLA DE NEGOCIO: Si el pago ya fue APROBADO, no se puede cambiar su estado
+        if (payment.getStatus() == PaymentStatus.APPROVED) {
+            throw new ArgumentNotValidException("El comprobante de pago ya fue APROBADO previamente y no se puede modificar su estado.");
+        }
 
         //Regla de negocio: Si se rechaza, la observación es obligatoria
         if (updateDTO.getStatus() == PaymentStatus.REJECTED && 
@@ -193,23 +203,28 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
                 .orElseThrow(() -> new UserDisabledException("El usuario no forma parte de los autores de este trabajo."));
     }
 
+
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
     /**
      * Verifica si el usuario posee un rol específico.
-     */
+     
     private boolean isRole(User user, RoleName roleName) {
         return user.getRole() != null && user.getRole().getName() == roleName;
     }
+    */
 
 
+    ///EL ROL NO ESTÁ MÁS EN LA ENTIDAD USER
     /**
      * Valida si el usuario tiene acceso de lectura al comprobante.
      * Permitido para ADMINISTRATOR globalmente, o EXPOSITOR si pertenece al grupo de autores.
      */
     private void validateReadAccess(User user, Paper paper) {
 
+        /* 
         boolean isAdmin = isRole(user, RoleName.ADMINISTRATOR);
         boolean isExpositor = isRole(user, RoleName.EXPOSITOR);
-
+        
         if (!isAdmin && !isExpositor) {
             throw new UserDisabledException("Su rol de usuario no tiene acceso a la consulta de comprobantes.");
         }
@@ -217,6 +232,7 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         if (isExpositor) {
             getPaperAuthorByPaperIdAndUserId(paper.getPaperId(), user.getUserId());
         }
+        */
     }
 
     /**
