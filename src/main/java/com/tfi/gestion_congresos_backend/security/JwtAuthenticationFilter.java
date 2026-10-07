@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 
 import io.jsonwebtoken.JwtException; // 👈 nuevo import
@@ -28,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final CongressParticipantRepository participantRepository; // <--- Inyectar el repositorio
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -52,10 +54,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (user != null && jwtService.isTokenValid(jwt, user)) {
 
                     
-                    // Como los roles ahora son contextuales por congreso, 
-                    // la lista de autoridades del token global puede ir vacía
-                    // o con una autoridad base de autenticación.
-                    List<GrantedAuthority> authorities = Collections.emptyList();
+                    // Cargar las autoridades desde los roles activos del usuario en la tabla intermedia
+                    List<SimpleGrantedAuthority> authorities = Collections.emptyList();
                     
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(user, null, authorities);

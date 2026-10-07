@@ -14,45 +14,51 @@ import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
 
-    /// CREATE
+    ///-----------------------------------------------------CREATE-----------------------------------------------------///
     
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
-    UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request);
+    UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request); //check
 
-    ///GET
+    ///-----------------------------------------------------GET-----------------------------------------------------///
 
+    ///Controllers
     List<UserResponseDTO> getAllUsers();
 
-    UserResponseDTO getUserById(Long userId);
+    List<UserResponseDTO> getUsersByCongress(String congressCode);
 
-    User getUserByUserId(Long userId);
-    
-    UserResponseDTO getUserByCode(String code);
-
-    User getUserByUserCode(String code);
+    UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode);
 
     UserResponseDTO getAuthenticatedUser();
 
-    User getAuthenticatedUserEntity();
+    //Auxiliares
+    UserResponseDTO getUserById(Long userId); 
 
-    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role);
+    User getUserByUserId(Long userId); 
 
-    ///DELETE
+    User getUserByUserCode(String code); 
 
-    void deleteUser(String code);
+    User getAuthenticatedUserEntity(); 
 
-    ///UPDATE
+    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role); //probar
 
-    UserResponseDTO updateUser(String code, UpdateUserRequestDTO userRequestDTO);
+    ///-----------------------------------------------------DELETE-----------------------------------------------------///
 
-    UserResponseDTO updateUserRole(String code, Long roleID);
+    void deleteUser(String userCode);
 
-    MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
+    ///-----------------------------------------------------UPDATE-----------------------------------------------------///
 
-    MessageResponseDTO changeEmail(ChangeEmailRequestDTO request);
+    UserResponseDTO updateUser(String userCode, UpdateUserRequestDTO userRequestDTO);
+
+    void updateUserRole(String congressCode, String userCode, RoleName newRole); 
+
+    MessageResponseDTO changePassword(ChangePasswordRequestDTO request); 
+
+    MessageResponseDTO changeEmail(ChangeEmailRequestDTO request); 
 
     ///BOOLEAN
-    
     boolean existsByCode(String code);
+
+
+    
 }

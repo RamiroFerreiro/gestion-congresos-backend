@@ -17,5 +17,4 @@ public interface AuthService {
     MessageResponseDTO resetPassword(ResetPasswordRequestDTO request);
 
     MessageResponseDTO confirmEmailChange(String token);
-
 }

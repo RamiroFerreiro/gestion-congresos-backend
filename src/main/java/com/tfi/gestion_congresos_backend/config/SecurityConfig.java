@@ -40,17 +40,17 @@ public class SecurityConfig {
                         // Permitir explícitamente todas las peticiones OPTIONS preflight
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
-                         /* 
+                         
                         .requestMatchers("/api/auth/**").permitAll() // Rutas públicas de autenticación
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Registro de usuarios
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()  // Swagger / OpenAPI
                         .anyRequest().authenticated() // El resto requiere autenticación
-                        */
-                        .anyRequest().permitAll()   
-                );
+                        
+                        //.anyRequest().permitAll()   
+                )
                 
                 // agregamos el filtro 
-                /* 
+                
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
                 //control sin token
@@ -61,7 +61,7 @@ public class SecurityConfig {
                         response.getWriter().write("{\"status\": 401, \"error\": \"Unauthorized\", \"message\": \"Token de acceso no proporcionado o no válido.\"}");
                     })
                 );
-                */
+                
                 
                 
 

@@ -59,4 +59,8 @@ public class User extends AuditableEntity{
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
 
+    @Column(name = "is_super_admin", nullable = false)
+    @Builder.Default
+    private boolean superAdmin = false;
+
 } 

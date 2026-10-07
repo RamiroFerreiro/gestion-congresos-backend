@@ -28,7 +28,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendPasswordResetEmail(User user, String token) {
 
-        String resetLink = buildLink("/reset-password", token);
+        String resetLink = buildLink("/auth/reset-password", token);
 
         String text = "Hola " + user.getFirstName() + ",\n\n" +
                 "Recibimos una solicitud para restablecer tu contraseña.\n\n" +

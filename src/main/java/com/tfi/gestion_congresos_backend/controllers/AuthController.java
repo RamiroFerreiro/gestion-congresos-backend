@@ -5,10 +5,8 @@ import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ResetPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.services.AuthService;
-import com.tfi.gestion_congresos_backend.services.UserService;
+
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -16,9 +14,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import java.util.List;
-import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,28 +27,15 @@ public class AuthController {
     ///----------------------------------------------------------POST----------------------------------------------------------///
 
     @Operation(
-            summary = "Iniciar sesión",
-            description = "Autentica un usuario mediante su email y contraseña y genera un token JWT."
+        summary = "Iniciar sesión",
+        description = "Autentica las credenciales de un usuario y devuelve sus datos de perfil junto con un token JWT de acceso."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Inicio de sesión exitoso"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Los datos enviados no son válidos"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "El email o la contraseña son incorrectos"
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "El usuario se encuentra deshabilitado"
-            )
+        @ApiResponse(responseCode = "200",description = "Autenticación exitosa. Retorna token JWT y perfil del usuario"),
+        @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos o faltantes"),
+        @ApiResponse(responseCode = "401", description = "El email o la contraseña son incorrectos"),
+        @ApiResponse(responseCode = "403", description = "El usuario se encuentra deshabilitado")
     })
-    @SecurityRequirement(name = "")
     @PostMapping
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request){
         
@@ -61,76 +43,58 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "Solicitar recuperación de contraseña",
-            description = "Inicia el proceso de recuperación de contraseña para un usuario mediante su dirección de email."
+        summary = "Solicitar recuperación de contraseña",
+        description = """
+            Envía un correo electrónico con un token de recuperación si la dirección ingresada corresponde a un usuario registrado y activo en el sistema.
+            
+            **Nota de Seguridad:** Responde siempre con status `200 OK` e idéntico mensaje genérico para evitar la enumeración de usuarios.
+            """
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Solicitud de recuperación procesada correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "El email proporcionado no tiene un formato válido"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró un usuario asociado al email proporcionado"
-            )
+        @ApiResponse(responseCode = "200", description = "Solicitud procesada correctamente (mensaje genérico)"),
+        @ApiResponse(responseCode = "400", description = "El formato de correo enviado es inválido")
     })
-    @SecurityRequirement(name = "")
     @PostMapping("/forgot-password")
     public ResponseEntity<MessageResponseDTO> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request) {
 
         return ResponseEntity.ok(authService.forgotPassword(request));
     }
-
+    
     @Operation(
-            summary = "Confirmar y cambiar mail",
-            description = "Permite establecer una nueva contraseña utilizando un token de recuperación válido."
+        summary = "Confirmar cambio de email",
+        description = """
+            Procesa el token de verificación de cambio de correo electrónico.
+            
+            - **Etapa 1 (PENDING_CURRENT_EMAIL):** Confirma la casilla actual y envía el segundo enlace a la nueva casilla.
+            - **Etapa 2 (PENDING_NEW_EMAIL):** Confirma la nueva casilla, actualiza la cuenta y finaliza el proceso.
+            """
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "El email actual fue verificado. Se ha enviado un enlace de confirmación al nuevo email o" +
-                                "el email se restablecido correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "El token ha expirado"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró el token de recuperación"
-            )
+        @ApiResponse(responseCode = "200", description = "Etapa verificada correctamente (mensaje informativo según el estado)"),
+        @ApiResponse(responseCode = "400", description = "El token enviado ha expirado o no es válido"),
+        @ApiResponse(responseCode = "404", description = "No se encontró el token de confirmación"),
+        @ApiResponse(responseCode = "409", description = "El nuevo email ya fue registrado por otro usuario antes de completar la confirmación")
     })
-    @PostMapping("/confirm-new-email")
-    public ResponseEntity<MessageResponseDTO> confirmEmailChange(@Valid @RequestBody String request) {
+    @GetMapping("/confirm-email-change")
+    public ResponseEntity<MessageResponseDTO> confirmEmailChange(@RequestParam String token) {
 
-        return ResponseEntity.ok(authService.confirmEmailChange(request));
+        return ResponseEntity.ok(authService.confirmEmailChange(token));
     }
 
     ///----------------------------------------------------------PATCH----------------------------------------------------------///
     
     @Operation(
-            summary = "Restablecer contraseña",
-            description = "Permite establecer una nueva contraseña utilizando un token de recuperación válido."
+        summary = "Restablecer contraseña",
+        description = """
+            Establece una nueva contraseña de acceso utilizando el token de recuperación recibido por correo electrónico.
+            Valida la fecha de expiración, que la nueva clave no coincida con la anterior y que coincida con la confirmación.
+            """
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Contraseña restablecida correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "La solicitud no es válida, el token ha expirado, las contraseñas no coinciden o la nueva contraseña coincide con la actual"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró el token de recuperación"
-            )
+        @ApiResponse(responseCode = "200", description = "Contraseña restablecida exitosamente  "),
+        @ApiResponse(responseCode = "400", description = "Las contraseñas no coinciden, la clave nueva es igual a la actual o el token ha expirado"),
+        @ApiResponse(responseCode = "404", description = "El token de recuperación no existe o es inválido")
     })
-    @SecurityRequirement(name = "")
     @PatchMapping("/reset-password")
     public ResponseEntity<MessageResponseDTO> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO request) {
 

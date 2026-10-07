@@ -23,9 +23,6 @@ public class UpdateUserRequestDTO {
     @Positive(message = "El DNI debe ser un número positivo.")
     private Long dni;
 
-    @NotBlank(message = "La institución es obligatoria.")
-    private String institution;
-
     @NotBlank(message = "El país es obligatorio.")
     private String country;
 
