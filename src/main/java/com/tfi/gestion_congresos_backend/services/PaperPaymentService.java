@@ -8,7 +8,7 @@ import com.tfi.gestion_congresos_backend.dtos.UpdatePaymentStatusDTO;
 
 public interface PaperPaymentService {
 
-    PaperPaymentResponseDTO uploadPayment(String code, MultipartFile file);
+    PaperPaymentResponseDTO uploadPayment(String paperCode, MultipartFile file);
 
     Resource getPaymentFile(String paperCode);
     

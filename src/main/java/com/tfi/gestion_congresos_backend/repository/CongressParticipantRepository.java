@@ -22,7 +22,7 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         AND p.role.name = :role 
         AND p.active = true
     """)
-    boolean isAdminOfCongress(
+    boolean hasRoleInCongress(
         @Param("userId") Long userId, 
         @Param("congressCode") String congressCode, 
         @Param("role") RoleName role

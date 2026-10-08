@@ -11,4 +11,5 @@ import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 public interface PaperAuthorRepository extends JpaRepository<PaperAuthor, Long> {
 
     Optional<PaperAuthor> findByPaper_PaperIdAndAuthor_UserId(Long paperId, Long userId);
+    boolean existsByPaper_PaperIdAndAuthor_UserId(Long paperId, Long userId);
 }

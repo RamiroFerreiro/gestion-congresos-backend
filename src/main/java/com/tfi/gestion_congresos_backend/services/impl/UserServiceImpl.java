@@ -93,45 +93,20 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserResponseDTO> getUsersByCongress(String congressCode) {
 
-        // 1. Obtener la entidad del usuario autenticado
+        // 1. Obtener el usuario autenticado
         User authenticatedUser = getAuthenticatedUserEntity();
 
-        List<User> users;
-
-        // 2. Si es Súper Admin, obtiene directamente los usuarios del congreso
-        if (securityEvaluator.isSuperAdmin(authenticatedUser)) {
-
-            users = participantRepository.findUsersByCongressCode(congressCode);
-
-        } else {
-
-            // 3. Si no es Súper Admin, valida que administre el congreso y recupera sus usuarios
-            users = participantRepository.findUsersByCongressAndAdmin(
-                    authenticatedUser.getUserId(),
-                    congressCode,
-                    RoleName.ADMINISTRATOR
-            );
-
-            // Si la lista vuelve vacía, comprobamos si no tiene usuarios o si es porque NO es Admin
-            if (users.isEmpty()) {
-
-                boolean isAdmin = participantRepository.isAdminOfCongress(
-                        authenticatedUser.getUserId(),
-                        congressCode,
-                        RoleName.ADMINISTRATOR
-                );
-
-                if (!isAdmin) {
-                    throw new UserDisabledException("No tienes permisos de administración sobre el congreso especificado.");
-                }
-            }
+        // 2. Validar autorización (Fail-Fast)
+        if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            throw new UserDisabledException("No tienes permisos de administración sobre el congreso especificado.");
         }
 
-        // 4. Mapear la lista de entidades a DTOs
-        return users.stream()
+        // 3. Buscar usuarios y mapear a DTOs
+        return participantRepository.findUsersByCongressCode(congressCode)
+                .stream()
                 .map(userMapper::toUserResponseDTO)
                 .toList();
-    }
+        }
 
     ///TRAER EL USUARIO DE UN DETERMINADO CONGRESO
     @Override
@@ -144,39 +119,21 @@ public class UserServiceImpl implements UserService {
         User targetUser = userRepository.findByCode(userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con código: " + userCode));
 
-
+        // 3. Validar que el usuario objetivo pertenezca al congreso (Aplica para TODOS)
+        boolean belongsToCongress = securityEvaluator.isParticipantOfCongress(targetUser, congressCode);
+        if (!belongsToCongress) {
+            throw new ResourceNotFoundException("El usuario no pertenece al congreso especificado.");
+        }
         
-        // 3. Evaluar si es él mismo (isSelf) o Súper Admin
+        // 4. Validar permisos de acceso (Self OR SuperAdmin OR AdminOfCongress)
         boolean isSelf = authenticatedUser.getCode().equals(userCode);
-        boolean isSuperAdmin = securityEvaluator.isSuperAdmin(authenticatedUser);
+        boolean canAccess = isSelf || securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode);
 
-        //Si NO es él mismo Y TAMPOCO es Súper Admin, validamos los permisos del Admin de Congreso
-        if (!isSelf && !isSuperAdmin) {
-           
-            //Paso A: Validar si el usuario autenticado es Administrador del congreso enviado por URL
-            boolean isAdmin = participantRepository.isAdminOfCongress(
-                    authenticatedUser.getUserId(),
-                    congressCode,
-                    RoleName.ADMINISTRATOR
-            );
-
-            if (!isAdmin) {
-                throw new UserDisabledException("No tienes permisos de administración sobre el congreso especificado.");
-            }
-
-            //Paso B: Validar si el usuario objetivo realmente pertenece a ese mismo congreso
-            boolean belongsToCongress = participantRepository.isUserParticipantOfCongress(
-                    targetUser.getUserId(),
-                    congressCode
-            );
-
-            if (!belongsToCongress) {
-                throw new ResourceNotFoundException("El usuario no pertenece al congreso especificado.");
-            }
-
+        if (!canAccess) {
+            throw new UserDisabledException("No tienes permisos para acceder a la información de este usuario.");
         }
 
-        // 6. Retornar el DTO
+        // 5. Mapear y retornar DTO
         return userMapper.toUserResponseDTO(targetUser);
     }
 
@@ -321,35 +278,23 @@ public class UserServiceImpl implements UserService {
         //1. Obtener la entidad del usuario autenticado
         User authenticatedUser = getAuthenticatedUserEntity();
 
-        //2. Buscar la entidad Role correspondiente al Enum enviado
+        //2. Validar si es Admin o Super Admin
+        if(!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            throw new UserDisabledException("No tienes permisos de administración sobre este congreso para modificar roles.");
+        }
+
+        //3. Buscar la entidad Role correspondiente al Enum enviado
         Role roleEntity = roleRepository.findByName(newRole)
                 .orElseThrow(() -> new ResourceNotFoundException("El rol especificado no existe en el sistema."));
 
-        //3. Validar si es superAdmin
-        boolean isSuperAdmin = securityEvaluator.isSuperAdmin(authenticatedUser);
 
-        if(!isSuperAdmin){
-
-            //4. Si no es superAdmin, validar que sea admin del Congreso
-            boolean isCongressAdmin = participantRepository.isAdminOfCongress(
-                authenticatedUser.getUserId(),
-                congressCode,
-                RoleName.ADMINISTRATOR
-            );
-
-            if (!isCongressAdmin) {
-                throw new UserDisabledException("No tienes permisos de administración sobre este congreso para modificar roles.");
-            }
-
-        }
-
-        //5. Traer y validar si participante es miembro activo del congreso
+        //4. Traer y validar si participante es miembro activo del congreso
         CongressParticipant targetParticipant = participantRepository
             .findByUser_CodeAndCongress_CodeAndActiveTrue(userCode, congressCode)
             .orElseThrow(() -> new ResourceNotFoundException(
-             "No se encontró una inscripción activa para el usuario " + userCode + " en el congreso " + congressCode));
+            "No se encontró una inscripción activa para el usuario " + userCode + " en el congreso " + congressCode));
 
-        //6. Actualizar la relación en la tabla intermedia y guardar
+        //5. Actualizar la relación en la tabla intermedia y guardar
         targetParticipant.setRole(roleEntity);
         participantRepository.save(targetParticipant);
     }
