@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.services;
 
 import java.util.List;
 
+
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
@@ -39,4 +40,5 @@ public interface CongressService {
 	boolean existsByCode(String code);
 	
 	boolean existsByCongressCodeAndUserCodeAndRoleName(String congressCode, String userCode, RoleName role);
+
 }

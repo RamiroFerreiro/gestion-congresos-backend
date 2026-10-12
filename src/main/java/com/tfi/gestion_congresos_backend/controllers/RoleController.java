@@ -12,12 +12,14 @@ import com.tfi.gestion_congresos_backend.services.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 
 @RestController
 @RequestMapping("/api/roles")
 @RequiredArgsConstructor
+@Tag(name = "Role", description = "Operaciones relacionadas con los roles de usuarios")
 public class RoleController {
 
     private final RoleService roleService;

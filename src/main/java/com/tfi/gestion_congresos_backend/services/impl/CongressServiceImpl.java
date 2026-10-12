@@ -11,13 +11,18 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
+import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
+import com.tfi.gestion_congresos_backend.repository.RoleRepository;
+import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 
@@ -29,7 +34,6 @@ public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
 	private final CongressMapper congressMapper;
-	private final UserService userService;
 	
 	private static final int CODE_LENGTH = 6;
 	
