@@ -61,6 +61,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(user, null, authorities);
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+
+                    // --- VALIDACIÓN DE CAMBIO DE CONTRASEÑA OBLIGATORIO ---
+                    if (user.isMustChangePassword()) {
+                        String requestURI = request.getRequestURI();
+
+                        // Definir las rutas permitidas cuando se debe cambiar la clave
+                        boolean isAllowedPath = requestURI.equals("/api/users/change-password") 
+                                            || requestURI.equals("/api/users/me")
+                                            || requestURI.startsWith("/api/auth/");
+
+                        if (!isAllowedPath) {
+                            // Bloquear el acceso y responder directamente con 428 Precondition Required
+                            response.setStatus(428); // HttpStatus.PRECONDITION_REQUIRED
+                            response.setContentType("application/json;charset=UTF-8");
+                            
+                            String jsonResponse = """
+                                {
+                                    "status": 428,
+                                    "error": "PASSWORD_CHANGE_REQUIRED",
+                                    "message": "Debe cambiar su contraseña obligatoriamente antes de continuar navegando por la plataforma."
+                                }
+                                """;
+                                
+                            response.getWriter().write(jsonResponse);
+                            return; // Detener la ejecución del filtro (no invoca a filterChain.doFilter)
+                        }
+                    }
                 }
             }
         } catch (JwtException ex) {

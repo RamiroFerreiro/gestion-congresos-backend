@@ -12,6 +12,7 @@ import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
 import com.tfi.gestion_congresos_backend.entities.Role;
@@ -28,6 +29,7 @@ import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
+import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.UserService;
@@ -35,6 +37,7 @@ import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -59,7 +62,7 @@ public class UserServiceImpl implements UserService {
     private final CongressRepository congressRepository;
     private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final EmailService emailService;
-
+    private final CongressService congressService;
 
     private final SecurityEvaluator securityEvaluator;
 
@@ -106,7 +109,7 @@ public class UserServiceImpl implements UserService {
                 .stream()
                 .map(userMapper::toUserResponseDTO)
                 .toList();
-        }
+    }
 
     ///TRAER EL USUARIO DE UN DETERMINADO CONGRESO
     @Override
@@ -182,32 +185,58 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request) {
+    public UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request) {
 
+        // 1. Obtener el usuario administrador autenticado
+        User authenticatedUser = getAuthenticatedUserEntity();
 
-        // Validar que el email no exista previamente
+        // 2. Validar que el congreso exista
+        Congress congress = congressService.getCongressByCode(congressCode);
+
+        // 3. Validar permisos del admin sobre este congressCode
+        if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            throw new UserDisabledException("No posee permisos de administración sobre el congreso " + congressCode);
+        }
+
+        // 4. Validar que el email no exista previamente en el sistema
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ResourceAlreadyExistsException("Ya existe un usuario registrado con el email: " + request.getEmail());
         }
 
-        // Buscar el rol, si no existe lanza excepción
-        Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + request.getRoleId()));
+        // 5. Buscar y validar el rol a asignar
+        Role role = roleRepository.findByName(request.getNewRole())
+                .orElseThrow(() -> new ResourceNotFoundException("El rol especificado no existe en el sistema."));
 
-        // Generar contraseña temporal segura de 10 caracteres
+        // 6. Buscar y validar el rol a asignar
+        if (role.getName() == RoleName.ADMINISTRATOR) {
+            throw new ArgumentNotValidException("No se puede asignar el rol ADMINISTRATOR desde este flujo.");
+        }
+        // 7. Generar contraseña temporal segura
         String temporaryPassword = generateRandomPassword();
 
-        // Mapear DTO a Entidad mediante MapStruct
+        // 8. Mapear y configurar la entidad User
         User user = userMapper.toEntity(request);
-
-        // Asignar manualmente los campos procesados (rol y contraseña encriptada)
         user.setPassword(passwordEncoder.encode(temporaryPassword));
         user.setMustChangePassword(true);
+        user.setEnabled(true);
+        user.setCode(generateUserCode());
 
-        // Persistir en la base de datos
+        // 9. Persistir el usuario global
         User savedUser = userRepository.save(user);
 
-        // Enviar e-mail con la contraseña temporal
+        // 10. Crear el registro de participación en la tabla intermedia (CongressParticipant)
+        CongressParticipant participant = CongressParticipant.builder()
+                .congress(congress)
+                .user(savedUser)
+                .role(role)
+                .institution("PENDIENTE") // Queda pendiente para la completitud progresiva del perfil
+                .active(true)
+                .registrationDate(LocalDateTime.now())
+                .build();
+
+        participantRepository.save(participant);
+
+        // 11. Enviar email con las credenciales temporales
         emailService.sendTemporaryPasswordEmail(savedUser, temporaryPassword);
 
         return userMapper.toUserResponseDTO(savedUser);

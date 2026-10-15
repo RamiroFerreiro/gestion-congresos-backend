@@ -137,17 +137,33 @@ public class UserController {
     ///----------------------------------------------------------POSTS----------------------------------------------------------///
    
     @Operation(
-        summary = "Alta de usuario por Administrador",
-        description = "Permite a un administrador crear un usuario con datos mínimos. Genera una contraseña provisoria y la envía por e-mail."
+        summary = "Alta de usuario por Administrador de Congreso",
+        description = """
+            Permite a un Administrador de congreso crear un nuevo usuario en la plataforma con contraseña temporal y registrarlo automáticamente como participante del congreso.
+            
+            **Flujo y reglas de negocio:**
+            - Requiere estar autenticado y ser **ADMINISTRATOR** del congreso especificado.
+            - El email no debe estar registrado previamente.
+            - No permite asignar el rol `ADMINISTRATOR` a través de este flujo.
+            - Genera una clave temporal y activa la bandera `mustChangePassword = true`.
+            - Asigna al usuario al congreso con `institution = null` (a completar progresivamente por el usuario).
+            - Notifica las credenciales temporales vía correo electrónico.
+            """
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Usuario creado y correo enviado correctamente"),
-        @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos o e-mail ya existente"),
-        @ApiResponse(responseCode = "403", description = "No tiene permisos de administrador")
+        @ApiResponse(responseCode = "201", description = "Usuario creado y registrado exitosamente en el congreso"),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: el rol indicado es ADMINISTRATOR o los campos no superan las validaciones"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado o token JWT inválido"),
+        @ApiResponse(responseCode = "403", description = "Acceso denegado: el usuario no posee permisos de administración sobre el congreso"),
+        @ApiResponse(responseCode = "404", description = "Congreso o Rol no encontrado"),
+        @ApiResponse(responseCode = "409", description = "Conflicto: ya existe un usuario registrado con el mismo correo electrónico")
     })
-    @PostMapping("/admin/create")
-    public ResponseEntity<UserResponseDTO> adminCreateUser(@Valid @RequestBody AdminCreateUserRequestDTO request) {
-        UserResponseDTO response = userService.adminCreateUser(request);
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/congresses/{congressCode}/users/admin")
+    public ResponseEntity<UserResponseDTO> adminCreateUser(
+            @PathVariable String congressCode, @Valid @RequestBody AdminCreateUserRequestDTO request) {
+
+        UserResponseDTO response = userService.adminCreateUser(congressCode, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

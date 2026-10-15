@@ -72,7 +72,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendTemporaryPasswordEmail(User user, String temporaryPassword) {
 
-        String loginLink = frontendUrl + "/login";
+        String loginLink = frontendUrl + "/auth/login";
 
         String text = "Hola " + user.getFirstName() + ",\n\n" +
                 "Un administrador ha creado tu cuenta en la plataforma.\n\n" +

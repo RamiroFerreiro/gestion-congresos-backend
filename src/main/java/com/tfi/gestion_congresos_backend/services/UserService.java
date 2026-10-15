@@ -18,7 +18,7 @@ public interface UserService {
     
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
-    UserResponseDTO adminCreateUser(AdminCreateUserRequestDTO request); //check
+    UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request); //check
 
     ///-----------------------------------------------------GET-----------------------------------------------------///
 

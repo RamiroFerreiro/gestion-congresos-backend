@@ -1,5 +1,7 @@
 package com.tfi.gestion_congresos_backend.dtos.user;
 
+import com.tfi.gestion_congresos_backend.enums.RoleName;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,5 +25,5 @@ public class AdminCreateUserRequestDTO {
     private String email;
 
     @NotNull(message = "Debe seleccionar un rol.")
-    private Long roleId;
+    private RoleName newRole;
 }
