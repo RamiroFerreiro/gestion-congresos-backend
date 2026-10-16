@@ -4,8 +4,11 @@ import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
+import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
@@ -70,7 +73,7 @@ public class SecurityEvaluator {
         return hasRoleInCongress(user, congressCode, RoleName.ADMINISTRATOR);
     }
 
-    ///Metodo para evaluar si es Admin en un congreso
+    ///Metodo para evaluar si es Expositor en un congreso
     public boolean isExpositorOfCongress(User user, String congressCode){
 
         if (isSuperAdmin(user)){
@@ -78,6 +81,16 @@ public class SecurityEvaluator {
         }
 
         return hasRoleInCongress(user, congressCode, RoleName.EXPOSITOR);
+    }
+
+    /// Método para evaluar si un usuario es Evaluador en un congreso
+    public boolean isEvaluatorOfCongress(User user, String congressCode) {
+
+        if (isSuperAdmin(user)) {
+            return true;
+        }
+
+        return hasRoleInCongress(user, congressCode, RoleName.EVALUATOR);
     }
 
     public boolean isParticipantOfPaper(Long paperId, Long userId) {
@@ -88,5 +101,21 @@ public class SecurityEvaluator {
 
         return paperAuthorRepository.existsByPaper_PaperIdAndAuthor_UserId(paperId, userId);
     }
+
+    public boolean isAssignedReviewer(User user, Paper paper) {
+        return user != null
+                && paper.getUserReviewer() != null
+                && paper.getUserReviewer().getUserId().equals(user.getUserId());
+    }
+
+    public boolean isAcceptedAuthor(User user, Paper paper) {
+        return user != null && paper.getAuthors().stream().anyMatch(pa ->
+                pa.getStatus() == PaperAuthorStatus.ACCEPTED
+                && pa.getAuthor().getUserId().equals(user.getUserId()));
+    }
+
+
+
+
 
 }

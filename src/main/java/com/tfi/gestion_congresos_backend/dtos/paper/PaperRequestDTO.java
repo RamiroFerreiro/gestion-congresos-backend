@@ -1,12 +1,16 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.paper;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-@Data @Builder @AllArgsConstructor @NoArgsConstructor
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class PaperRequestDTO {
 
     @NotBlank(message = "El título es obligatorio")
@@ -29,7 +33,7 @@ public class PaperRequestDTO {
     private String congressCode;  
 
     @NotEmpty(message = "El trabajo debe tener al menos un autor")
-    private List<Long> authorUserIds;
+    private List<@NotBlank(message = "El código de usuario no puede estar vacío") String> authorUserCodes;
 
     @NotNull(message = "El tipo de trabajo es obligatorio")
     private Long congressPaperTypeId;

@@ -1,4 +1,4 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.evaluation;
 
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -20,8 +20,7 @@ public class EvaluationRequestDTO {
     @NotBlank(message = "La devolución de la evaluación no puede estar vacía")
     private String feedback;
 
-    @NotNull(message = "La nueva fecha de cierre es obligatoria")
-    @Future(message = "La fecha de inicio de inscripción debe ser una fecha futura")
+    @Future(message = "La nueva fecha límite debe ser una fecha futura")
     private LocalDateTime newDeadline; 
     
     @NotNull(message = "El estado de la evaluación es obligatorio")

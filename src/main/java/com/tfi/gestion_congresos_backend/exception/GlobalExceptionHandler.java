@@ -183,7 +183,8 @@ public class GlobalExceptionHandler {
     /// 500 - Error no controlado del servidor:
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDTO> handleGlobalException(Exception ex) {
-    	
+    	ex.printStackTrace();
+
     	ErrorResponseDTO error = ErrorResponseDTO.builder()
     			.timestamp(LocalDateTime.now())
     			.status(HttpStatus.INTERNAL_SERVER_ERROR.value())

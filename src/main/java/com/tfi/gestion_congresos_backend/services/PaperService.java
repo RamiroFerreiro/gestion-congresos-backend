@@ -1,8 +1,12 @@
 package com.tfi.gestion_congresos_backend.services;
 
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperReviewerResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 
@@ -10,62 +14,53 @@ import java.util.List;
 import java.util.Set;
 
 // Se deben implementar metodos CRUD
-// (C): Crean un nuevo registro en la BD
-// (R): Lee un registro existente en la BD
-// (U): Actualiza un registro existente en la BD
-// (D): Elimina un registro existente en la BD
-//
 
 public interface PaperService {
 
-    /// Busca todos los trabajos asignados al código de un evaluador
-    List<PaperResponseDTO> getAssignedPapers(String reviewerCode);
-    
-    /// Obtener un paper por su ID:
-    PaperResponseDTO getPaperById(Long paperId);
-    
-    /// Obtener una entidad paper por su ID:
+///----------------------------------------------------------GETS----------------------------------------------------------///
+
+    List<PaperSummaryResponseDTO> getAssignedPapers(String reviewerCode);
+
+    PaperDetailResponseDTO getPaperById(Long paperId);
+
     Paper getPaperByPaperId(Long paperId);
 
-    /// Obtener todos los trabajos de un congreso por su Codigo (R)
-    List<PaperResponseDTO> getPapersByCongressCode(String congressCode);
+    PaperDetailResponseDTO getPaperByCode(String code);
 
-    /// Obtener un paper por su Codigo (R)
-    PaperResponseDTO getPaperByCode(String code);
+    // PaperReviewerResponseDTO getPaperForReviewer(String paperCode, String reviewerCode);
 
-    /// Obtener una entidad paper por su Codigo (R)
     Paper getPaperEntityByCode(String code);
 
-    /// Asignar un evaluador a un trabajo (C)
-    MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
+    List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode);
 
-    // Crear paper (C)
-    PaperResponseDTO createPaper(PaperRequestDTO dto);
+    ///----------------------------------------------------------CREATE & UPDATE----------------------------------------------------------///
 
+    PaperDetailResponseDTO createPaper(PaperRequestDTO dto);
 
-    // Enviar paper (U)
-    PaperResponseDTO submitPaper(String paperCode);
-    // Crear Autor en paper (C)
-    List<AuthorResponseDTO> addAuthorToPaper(String paperCode, String userCode);
+    // PaperDetailResponseDTO updatePaper(String paperCode, PaperUpdateRequestDTO dto);
 
-    // Remover Autor en paper (D)
-    List<AuthorResponseDTO> removeAuthorFromPaper(String paperCode, String userCode);
-    
-    // Solitar unirte a un paper (C)
+    ///----------------------------------------------------------AUTHORS----------------------------------------------------------///
+
     List<AuthorResponseDTO> requestToJoinPaper(String paperCode, String userCode);
 
-    // Aceptar solicitud de union a un paper (U)
     List<AuthorResponseDTO> acceptAuthorRequest(String paperCode, String userCode);
 
-    // Rechazar solicitud de union a un paper (U)
     List<AuthorResponseDTO> rejectAuthorRequest(String paperCode, String userCode);
-    
-    // Crear palabra clave en Paper (C)
+
+    List<AuthorResponseDTO> addAuthorToPaper(String paperCode, String userCode);
+
+    List<AuthorResponseDTO> removeAuthorFromPaper(String paperCode, String userCode);
+
+    MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
+
+    ///----------------------------------------------------------KEYWORDS----------------------------------------------------------///
+
     Set<String> addKeywordToPaper(String paperCode, String keyword);
 
-    // Remover palabra clave en Paper (R)  
     Set<String> removeKeywordFromPaper(String paperCode, String keyword);
 
+    ///----------------------------------------------------------SUBMIT----------------------------------------------------------///
 
+    PaperDetailResponseDTO submitPaper(String paperCode);
 
 }

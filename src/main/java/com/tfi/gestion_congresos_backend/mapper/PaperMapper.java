@@ -1,53 +1,76 @@
 package com.tfi.gestion_congresos_backend.mapper;
 
-import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.*;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperReviewerResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
-
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.mapstruct.*;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface PaperMapper {
 
-    @Mapping(target = "congressId", source = "congress.congressId")
+    // --- MAPEOS A SUMMARY ---
+    @Mapping(target = "congressCode", source = "congress.code")
     @Mapping(target = "congressName", source = "congress.name")
-    @Mapping(target = "reviewerId", source = "userReviewer.userId")
-    @Mapping(target = "reviewerFullName", expression = "java(paper.getUserReviewer() != null ? paper.getUserReviewer().getFirstName() + \" \" + paper.getUserReviewer().getLastName() : null)")
-    PaperResponseDTO toPaperResponseDTO(Paper paper);
+    PaperSummaryResponseDTO toPaperSummaryResponseDTO(Paper paper);
 
-    List<PaperResponseDTO> toPaperResponseDTOList(List<Paper> papers);
-    
-    // Mapeo desde PaperAuthor -> AuthorResponseDTO:
-    @Mapping(target = "authorId", source = "author.userId")
+    List<PaperSummaryResponseDTO> toPaperSummaryResponseDTOList(List<Paper> papers);
+
+    // --- MAPEOS A DETAIL ---
+    @Mapping(target = "congressCode", source = "congress.code")
+    @Mapping(target = "congressName", source = "congress.name")
+    @Mapping(target = "reviewerCode", source = "userReviewer.code")
+    @Mapping(target = "reviewerFullName", expression = "java(paper.getUserReviewer() != null ? paper.getUserReviewer().getFirstName() + \" \" + paper.getUserReviewer().getLastName() : null)")
+    @Mapping(target = "congressPaperTypeName", expression = "java(paper.getCongressPaperType() != null && paper.getCongressPaperType().getPaperType() != null ? paper.getCongressPaperType().getPaperType().name() : null)")
+    PaperDetailResponseDTO toPaperDetailResponseDTO(Paper paper);
+
+    // --- MAPEOS A REVIEWER VIEW (SINGLE BLIND HANDLER) ---
+    @Mapping(target = "congressCode", source = "congress.code")
+    @Mapping(target = "congressName", source = "congress.name")
+    @Mapping(target = "authors", expression = "java(paper.getCongress() != null && paper.getCongress().isSingleBlind() ? null : toAuthorResponseDTOList(paper.getAuthors()))")
+    PaperReviewerResponseDTO toPaperReviewerResponseDTO(Paper paper);
+
+    // --- MAPEOS DE AUTOR ---
+    @Mapping(target = "userCode", source = "author.code")
     @Mapping(target = "fullName", expression = "java(paperAuthor.getAuthor() != null ? paperAuthor.getAuthor().getFirstName() + \" \" + paperAuthor.getAuthor().getLastName() : null)")
     @Mapping(target = "email", source = "author.email")
     @Mapping(target = "dni", source = "author.dni")
     @Mapping(target = "country", source = "author.country")
     @Mapping(target = "authorOrder", source = "authorOrder")
-    @Mapping(target = "isMainAuthor", source = "mainAuthor")   
+    @Mapping(target = "isMainAuthor", source = "mainAuthor")
     @Mapping(target = "status", source = "status")
     AuthorResponseDTO toAuthorResponseDTO(PaperAuthor paperAuthor);
 
-
-    // Mapeo lista de PaperAuthor
     List<AuthorResponseDTO> toAuthorResponseDTOList(List<PaperAuthor> paperAuthors);
 
-    // Mapeo desde PaperRequestDTO -> Paper 
+    // --- MAPEO DE REQUEST A ENTIDAD ---
     @Mapping(target = "paperId", ignore = true)
-    @Mapping(target = "code", ignore = true)            //se genera en el service
-    @Mapping(target = "version", ignore = true)         // se setea server-side, nunca del DTO
-    @Mapping(target = "status", ignore = true)          // se setea server-side (NOT_SUBMITTED)
-    @Mapping(target = "congress", ignore = true)        // se resuelve en el service vía congressId
-    @Mapping(target = "userReviewer", ignore = true)    // no se asigna en la creación
-    @Mapping(target = "authors", ignore = true)         // se arma a mano en el service
-    @Mapping(target = "keywords", ignore = true)        //se agrega vía addKeywordToPaper
+    @Mapping(target = "code", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "congress", ignore = true)
+    @Mapping(target = "userReviewer", ignore = true)
+    @Mapping(target = "authors", ignore = true)
+    @Mapping(target = "keywords", ignore = true)
+    @Mapping(target = "pay", ignore = true)
+    @Mapping(target = "congressPaperType", ignore = true)
     Paper toEntity(PaperRequestDTO dto);
 
-    
-
+    @Mapping(target = "paperId", ignore = true)
+    @Mapping(target = "code", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "congress", ignore = true)
+    @Mapping(target = "userReviewer", ignore = true)
+    @Mapping(target = "authors", ignore = true)
+    @Mapping(target = "keywords", ignore = true)
+    @Mapping(target = "pay", ignore = true)
+    @Mapping(target = "congressPaperType", ignore = true)
+    void updateEntityFromDto(PaperUpdateRequestDTO dto, @MappingTarget Paper paper);
 }

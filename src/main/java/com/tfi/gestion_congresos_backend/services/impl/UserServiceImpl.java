@@ -4,7 +4,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
-import com.tfi.gestion_congresos_backend.dtos.RoleResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
@@ -27,11 +26,9 @@ import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
-import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
-import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
@@ -39,13 +36,9 @@ import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.coyote.BadRequestException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -319,7 +312,7 @@ public class UserServiceImpl implements UserService {
 
         //4. Traer y validar si participante es miembro activo del congreso
         CongressParticipant targetParticipant = participantRepository
-            .findByUser_CodeAndCongress_CodeAndActiveTrue(userCode, congressCode)
+            .findUserParticipantOfCongress(userCode, congressCode)
             .orElseThrow(() -> new ResourceNotFoundException(
             "No se encontró una inscripción activa para el usuario " + userCode + " en el congreso " + congressCode));
 
