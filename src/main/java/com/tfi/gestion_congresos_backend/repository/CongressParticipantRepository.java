@@ -74,4 +74,7 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         AND p.active = true
     """)
     List<User> findUsersByCongressCode(@Param("congressCode") String congressCode);
+
+    //Método para traer la única tabla intermedia entre usuario y congress a partir de un userId
+    Optional<CongressParticipant> findFirstByUserUserId(Long userId);
 }

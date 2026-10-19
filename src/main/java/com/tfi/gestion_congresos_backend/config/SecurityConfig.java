@@ -13,7 +13,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import com.tfi.gestion_congresos_backend.security.JwtAuthenticationFilter;
 
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.*;;
+import lombok.*;
 
 ///Clase de configuración spring security
 @Configuration

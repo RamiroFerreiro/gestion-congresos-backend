@@ -4,6 +4,7 @@ import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -13,6 +14,8 @@ import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -143,10 +146,10 @@ public class UserController {
             
             **Flujo y reglas de negocio:**
             - Requiere estar autenticado y ser **ADMINISTRATOR** del congreso especificado.
-            - El email no debe estar registrado previamente.
+            - El email no debe estar registrado previamente. IMPORTANTE: El usuario no debe existir ya que se invoca 'completeFirstLogin' que busca el único congreso al que participa para actualizar sus datos. Si ya tiene cuenta, el usuario debe inscribirse manualmente. Si no recuerda su contraseña, la tiene que recuperar.
             - No permite asignar el rol `ADMINISTRATOR` a través de este flujo.
             - Genera una clave temporal y activa la bandera `mustChangePassword = true`.
-            - Asigna al usuario al congreso con `institution = null` (a completar progresivamente por el usuario).
+            - Asigna al usuario al congreso con `institution = PENDIENTE` (a completar por el usuario).
             - Notifica las credenciales temporales vía correo electrónico.
             """
     )
@@ -196,6 +199,37 @@ public class UserController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
     }
+
+    @Operation(
+        summary = "Completar onboarding de primer inicio de sesión",
+        description = """
+            Permite a un usuario creado por un administrador validar su contraseña temporal recibida por correo,
+            establecer su nueva clave definitiva y completar los datos obligatorios de su perfil (DNI, País e Institución)
+            en una única transacción.
+            
+            **Detalles del Flujo:**
+            1. El usuario debe autenticarse previamente en `/api/auth/login` usando su clave temporal para obtener el JWT token.
+            2. La solicitud requiere que la cuenta tenga activa la bandera `mustChangePassword = true`.
+            3. Se delega la validación de contraseñas reutilizando la lógica interna de `changePassword(...)`.
+            4. Una vez procesada la solicitud de forma correcta, se actualizan las entidades `User` y `CongressParticipant`,
+               y se desactiva la bandera `mustChangePassword`, otorgando acceso completo al sistema.
+            """,
+        security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil y contraseña completados exitosamente."),
+        @ApiResponse(responseCode = "400",description = "Solicitud inválida: La contraseña temporal es incorrecta, la nueva clave no coincide/no cumple el formato o faltan datos requeridos del perfil."),
+        @ApiResponse(responseCode = "401",description = "No autorizado: El token JWT es inválido, ha expirado o no fue provisto."),
+        @ApiResponse(responseCode = "404", description = "Recurso no encontrado: No existe la inscripción al congreso para el usuario.")
+    })
+    @PostMapping("/first-login")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<MessageResponseDTO> completeFirstLogin( @Valid @RequestBody CompleteFirstLoginRequestDTO request) {
+        
+        MessageResponseDTO response = userService.completeFirstLogin(request);
+        return ResponseEntity.ok(response);
+    }
+
 
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
     @Operation(

@@ -67,14 +67,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (user.isMustChangePassword()) {
                         String requestURI = request.getRequestURI();
 
-                        // Definir las rutas permitidas cuando se debe cambiar la clave
-                        boolean isAllowedPath = requestURI.equals("/api/users/change-password") 
-                                            || requestURI.equals("/api/users/me")
+                        // Normalizar la URI para la comparación
+                        boolean isAllowedPath = requestURI.startsWith("/api/users/first-login") 
+                                            || requestURI.startsWith("/api/users/me")
                                             || requestURI.startsWith("/api/auth/");
 
+                        System.out.println(">>> requestURI: " + requestURI + " | esRutaPermitida: " + isAllowedPath);
+
                         if (!isAllowedPath) {
-                            // Bloquear el acceso y responder directamente con 428 Precondition Required
-                            response.setStatus(428); // HttpStatus.PRECONDITION_REQUIRED
+                            System.out.println(">>> BLOQUEADO POR 428 EN FILTRO JWT <<<");
+                            response.setStatus(428);
                             response.setContentType("application/json;charset=UTF-8");
                             
                             String jsonResponse = """
@@ -86,7 +88,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 """;
                                 
                             response.getWriter().write(jsonResponse);
-                            return; // Detener la ejecución del filtro (no invoca a filterChain.doFilter)
+                            return; // Detiene la petición
                         }
                     }
                 }

@@ -8,6 +8,7 @@ import com.tfi.gestion_congresos_backend.dtos.RoleResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -247,6 +248,46 @@ public class UserServiceImpl implements UserService {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 10);
     }
 
+    @Override
+    public MessageResponseDTO completeFirstLogin(CompleteFirstLoginRequestDTO request) {
+        
+        // 1. Obtener la entidad desprendida del SecurityContext
+        User principalUser = getAuthenticatedUserEntity();
+
+        // 2. Cargar la entidad gestionada por JPA desde la base de datos
+        User user = getUserByUserId(principalUser.getUserId());
+
+        // 3. Verificar que realmente sea su primer login
+        if (!user.isMustChangePassword()) {
+            throw new ArgumentNotValidException("El usuario ya ha completado su primer inicio de sesión.");
+        }  
+
+
+        // 4. Instanciar ChangePasswordRequestDTO a partir de la solicitud recibida
+        ChangePasswordRequestDTO changePasswordDTO = new ChangePasswordRequestDTO(
+                request.getCurrentPassword(),
+                request.getNewPassword(),
+                request.getConfirmPassword()
+        );
+        
+        // 5. Ejecutar literalmente el método de cambio de contraseña
+        changePassword(changePasswordDTO);
+        
+        // 6. Actualizar DNI y País en la entidad User
+        user.setDni(request.getDni());
+        user.setCountry(request.getCountry());
+        userRepository.save(user);
+
+        // 7. Obtener la única participación del usuario para actualizar la institución
+        CongressParticipant participant = participantRepository.findFirstByUserUserId(user.getUserId())
+        .orElseThrow(() -> new ResourceNotFoundException("No se encontró la inscripción al congreso para el usuario con ID: " + user.getUserId()));
+
+        participant.setInstitution(request.getInstitution());
+        participantRepository.save(participant);
+
+        return new MessageResponseDTO("Perfil y contraseña completados con éxito");
+    }
+
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
     
     @Transactional
@@ -346,10 +387,8 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setMustChangePassword(false); 
 
-        userRepository.save(user);
-
         // 5. Persistir (opcional explicitar save si usás @Transactional)
-
+        userRepository.save(user);
         return new MessageResponseDTO("Contraseña cambiada con éxito");
     }
 
@@ -507,5 +546,7 @@ public class UserServiceImpl implements UserService {
 		
 		return result;
 	}
+
+    
     
 }

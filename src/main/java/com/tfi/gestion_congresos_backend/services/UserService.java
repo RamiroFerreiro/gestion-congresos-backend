@@ -6,6 +6,7 @@ import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -18,7 +19,9 @@ public interface UserService {
     
     UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
-    UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request); //check
+    UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request);
+    
+    MessageResponseDTO completeFirstLogin(CompleteFirstLoginRequestDTO request);
 
     ///-----------------------------------------------------GET-----------------------------------------------------///
 
