@@ -1,7 +1,8 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import com.tfi.gestion_congresos_backend.dtos.EvaluationRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.EvaluationResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.evaluation.EvaluationRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.evaluation.EvaluationResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -64,6 +65,29 @@ public class EvaluationController {
             @Valid @RequestBody EvaluationRequestDTO request) {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(evaluationService.createEvaluation(paperCode, request));
+    }
+
+    @Operation(
+            summary = "Liberar evaluaciones pendientes de un congreso (modo BATCH)",
+            description = "Libera todas las evaluaciones no publicadas de un congreso en modo BATCH, marcándolas como isReleased=true y actualizando lastEvaluationReleaseDate del congreso. Rechaza la operación si el congreso está en modo IMMEDIATE."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Evaluaciones liberadas correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "El congreso está en modo IMMEDIATE, no hay nada que liberar manualmente"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No se encontró un congreso con el código especificado"
+            )
+    })
+    @PostMapping("/congress/{congressCode}/release")
+    public ResponseEntity<MessageResponseDTO> releasePendingEvaluations(@PathVariable String congressCode) {
+        return ResponseEntity.ok(evaluationService.releasePendingEvaluations(congressCode));
     }
 
 }

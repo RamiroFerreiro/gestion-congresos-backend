@@ -15,12 +15,13 @@ import lombok.Setter;
 @AllArgsConstructor
 public class AuthorResponseDTO {
 
-	private Long authorId;
-	private String fullName;
-	private String email;
-	private Long dni;
-	private String country;
-	private int authorOrder;
-	private boolean isMainAuthor;
-	private PaperAuthorStatus status;
+	private String userCode;
+    private String fullName;
+    private String email;
+    private String dni;
+    private String institution;
+    private String country;
+    private long authorOrder;
+    private boolean isMainAuthor;
+    private PaperAuthorStatus status;
 }

@@ -1,8 +1,10 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 
@@ -38,7 +40,7 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró un evaluador con el código especificado")
         })
         @GetMapping("/reviewer/{reviewerCode}")
-        public ResponseEntity<List<PaperResponseDTO>> getAssignedPapers(@PathVariable String reviewerCode) {
+        public ResponseEntity<List<PaperSummaryResponseDTO>> getAssignedPapers(@PathVariable String reviewerCode) {
                 return ResponseEntity.ok(paperService.getAssignedPapers(reviewerCode));
         }
 
@@ -51,7 +53,7 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
         })
         @GetMapping
-        public ResponseEntity<List<PaperResponseDTO>> getPapersByCongress(@RequestParam String congressCode) {
+        public ResponseEntity<List<PaperSummaryResponseDTO>> getPapersByCongress(@RequestParam String congressCode) {
                 return ResponseEntity.ok(paperService.getPapersByCongressCode(congressCode));
         }
 
@@ -64,7 +66,7 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró un Paper con el código especificado")
         })
         @GetMapping("/{paperCode}")
-        public ResponseEntity<PaperResponseDTO> getPaperByCode(@PathVariable String paperCode) {
+        public ResponseEntity<PaperDetailResponseDTO> getPaperByCode(@PathVariable String paperCode) {
                 return ResponseEntity.ok(paperService.getPaperByCode(paperCode));
         }
 
@@ -79,7 +81,7 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró el congreso, el tipo de trabajo, o algún autor especificado")
         })
         @PostMapping
-        public ResponseEntity<PaperResponseDTO> createPaper(@Valid @RequestBody PaperRequestDTO dto) {
+        public ResponseEntity<PaperDetailResponseDTO> createPaper(@Valid @RequestBody PaperRequestDTO dto) {
                 return ResponseEntity.status(HttpStatus.CREATED).body(paperService.createPaper(dto));
         }
 
@@ -188,7 +190,7 @@ public class PaperController {
                 @ApiResponse(responseCode = "404", description = "No se encontró un Paper con el código especificado")
         })
         @PatchMapping("/{paperCode}/submit")
-        public ResponseEntity<PaperResponseDTO> submitPaper(@PathVariable String paperCode) {
+        public ResponseEntity<PaperDetailResponseDTO> submitPaper(@PathVariable String paperCode) {
                 return ResponseEntity.ok(paperService.submitPaper(paperCode));
         }
 
