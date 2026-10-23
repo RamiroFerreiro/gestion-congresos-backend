@@ -1,7 +1,11 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +14,11 @@ import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 
 import lombok.*;
+import org.springframework.util.StreamUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -30,14 +39,19 @@ public class EmailServiceImpl implements EmailService {
 
         String resetLink = buildLink("/auth/reset-password", token);
 
-        String text = "Hola " + user.getFirstName() + ",\n\n" +
-                "Recibimos una solicitud para restablecer tu contraseña.\n\n" +
-                "Ingresa al siguiente enlace para crear una nueva contraseña:\n\n" +
-                resetLink + "\n\n" +
-                TOKEN_EXPIRATION_MESSAGE + "\n\n" +
-                "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.";
+        String html = loadEmailTemplate(
+                "email_templates/auth/c4t-password-recovery.html"
+        )
+                .replace("{{nombre_usuario}}", user.getFirstName())
+                .replace("{{email_usuario}}", user.getEmail())
+                .replace("{{tiempo_expiracion}}", "30 minutos")
+                .replace("{{url_recuperacion}}", resetLink);
 
-        sendEmail(user.getEmail(), "Password Recovery", text);
+        sendHtmlEmail(
+                user.getEmail(),
+                "C4T · Recuperación de contraseña",
+                html
+        );
     }
 
     @Override
@@ -86,7 +100,6 @@ public class EmailServiceImpl implements EmailService {
         sendEmail(user.getEmail(), "Bienvenido - Acceso a tu cuenta", text);
     }
 
-
     private String buildLink(String path, String token) {
         return frontendUrl + path + "?token=" + token;
     }
@@ -102,5 +115,48 @@ public class EmailServiceImpl implements EmailService {
         message.setText(text);
 
         mailSender.send(message);
+    }
+
+    private String loadEmailTemplate(String path) {
+        try {
+            ClassPathResource resource = new ClassPathResource(path);
+
+            try (InputStream inputStream = resource.getInputStream()) {
+                return StreamUtils.copyToString(
+                        inputStream,
+                        StandardCharsets.UTF_8
+                );
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "No se pudo cargar la plantilla de email: " + path, e
+            );
+        }
+    }
+
+    @Async
+    protected void sendHtmlEmail(String to, String subject, String html) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message,
+                    false,
+                    StandardCharsets.UTF_8.name()
+            );
+
+            helper.setFrom(from);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(html, true);
+
+            mailSender.send(message);
+
+        } catch (MessagingException e) {
+            throw new RuntimeException(
+                    "No se pudo enviar el email HTML", e
+            );
+        }
     }
 }
