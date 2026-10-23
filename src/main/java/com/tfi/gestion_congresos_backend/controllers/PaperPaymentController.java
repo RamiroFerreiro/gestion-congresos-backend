@@ -1,7 +1,5 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import java.io.IOException;
-import java.nio.file.Files;
 
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -12,7 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.tfi.gestion_congresos_backend.dtos.ErrorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.PaperPaymentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.UpdatePaymentStatusDTO;
 import com.tfi.gestion_congresos_backend.services.PaperPaymentService;
@@ -23,7 +20,6 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

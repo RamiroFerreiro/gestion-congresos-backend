@@ -1,6 +1,5 @@
 package com.tfi.gestion_congresos_backend.dtos.paper;
 
-import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,5 +32,5 @@ public class PaperResponseDTO {
     private Long reviewerId;
     private String reviewerFullName;
     
-    private List<AuthorResponseDTO> authors;
+    private List<PaperAuthorResponseDTO> authors;
 }

@@ -1,6 +1,5 @@
 package com.tfi.gestion_congresos_backend.dtos.paper;
 
-import com.tfi.gestion_congresos_backend.dtos.AuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import lombok.*;
 
@@ -32,5 +31,5 @@ public class PaperDetailResponseDTO {
 
     private String congressPaperTypeName;
 
-    private List<AuthorResponseDTO> authors;
+    private List<PaperAuthorResponseDTO> authors;
 }
