@@ -1,7 +1,11 @@
 package com.tfi.gestion_congresos_backend.entities;
 
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -41,5 +45,16 @@ public class PaperAuthor {
     private User author;
 
     @Column(name = "author_order", nullable = false)
-    private int authorOrder;
+    private Long authorOrder;
+
+    ///-----------nuevo---------
+    @Column(name = "is_main_author", nullable = false)
+    private boolean isMainAuthor;
+
+    @Column(name = "is_presentator", nullable = false)
+    private boolean isPresentator;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private PaperAuthorStatus status;
 }

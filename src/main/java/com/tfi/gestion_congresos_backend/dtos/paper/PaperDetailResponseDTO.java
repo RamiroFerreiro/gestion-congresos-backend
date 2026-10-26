@@ -1,35 +1,35 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.paper;
 
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaperResponseDTO {
+public class PaperDetailResponseDTO {
 
-    private Long paperId;
-    private String title;
     private String code;
+    private String title;
     private String thematicArea;
     private String version;
     private PaperStatus status;
     private String summary;
-    private String keywords;
+    private Set<String> keywords;
     private LocalDateTime presentationDate;
-    
-    private Long congressId;
+    private boolean pay;
+
+    private String congressCode;
     private String congressName;
-    
-    private Long reviewerId;
+
+    private String reviewerCode;
     private String reviewerFullName;
-    
-    private List<AuthorResponseDTO> authors;
+
+    private String congressPaperTypeName;
+
+    private List<PaperAuthorResponseDTO> authors;
 }

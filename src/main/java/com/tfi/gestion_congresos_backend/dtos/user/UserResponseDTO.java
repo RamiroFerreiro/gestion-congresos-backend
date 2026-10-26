@@ -12,11 +12,10 @@ import lombok.*;
 public class UserResponseDTO {
 
     private Long userId;
+    private String code;
     private String firstName;
     private String lastName;
     private String email;
     private Long dni;
-    private String institution;
     private String country;
-    private RoleName role;
 }

@@ -16,5 +16,5 @@ LOGIN
 
 {
   "email": "ramiro.x.ferreiro@gmail.com",
-  "password": "MiPassword123!"
+  "password": "12345678"
 }

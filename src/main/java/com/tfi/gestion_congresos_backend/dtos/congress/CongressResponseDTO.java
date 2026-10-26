@@ -1,9 +1,10 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.congress;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,4 +34,11 @@ public class CongressResponseDTO {
 	private Set<String> thematicAreas;
 	private boolean enabled;
 	private Set<UserResponseDTO> participants;
+	private boolean isFree;
+	private boolean isSingleBlind;
+	private String code;
+	private EvaluationReleaseMode evaluationReleaseMode;
+	private LocalDateTime scheduledEvaluationReleaseDate;
+	private LocalDateTime lastEvaluationReleaseDate;
+	private String contactMail;
 }

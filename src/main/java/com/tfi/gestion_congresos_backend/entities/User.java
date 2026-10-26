@@ -25,11 +25,14 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "users")
-public class User {
+public class User extends AuditableEntity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;
+    
+    @Column(name = "code", nullable = false)
+    private String code;
 
     @Column(name = "first_name", nullable = false)
     private String firstName;
@@ -47,16 +50,17 @@ public class User {
     @Column(name = "dni", nullable = false)
     private Long dni;
     
-    @Column(name = "institution", nullable = false)
-    private String institution;
-    
     @Column(name = "country", nullable = false)
     private String country;
     
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roles_id", nullable = false)
-    private Role role;
+
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
+    @Column(name = "is_super_admin", nullable = false)
+    @Builder.Default
+    private boolean superAdmin = false;
+
 } 

@@ -12,7 +12,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 import com.tfi.gestion_congresos_backend.security.JwtAuthenticationFilter;
 
-import lombok.*;;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.*;
 
 ///Clase de configuración spring security
 @Configuration
@@ -39,17 +40,30 @@ public class SecurityConfig {
                         // Permitir explícitamente todas las peticiones OPTIONS preflight
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
-                        /* 
+                         
                         .requestMatchers("/api/auth/**").permitAll() // Rutas públicas de autenticación
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Registro de usuarios
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()  // Swagger / OpenAPI
                         .anyRequest().authenticated() // El resto requiere autenticación
-                        */
-                        .anyRequest().permitAll()
                         
-                );
+                        //.anyRequest().permitAll()   
+                )
+                
                 // agregamos el filtro 
-                //.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+
+                //control sin token
+                .exceptionHandling(exception -> exception
+                    .authenticationEntryPoint((request, response, authException) -> {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"status\": 401, \"error\": \"Unauthorized\", \"message\": \"Token de acceso no proporcionado o no válido.\"}");
+                    })
+                );
+                
+                
+                
 
         return http.build();
     }

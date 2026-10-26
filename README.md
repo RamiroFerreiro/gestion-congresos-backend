@@ -54,6 +54,9 @@ DB_USERNAME=gestion_congresos_user
 DB_PASSWORD=********
 JWT_SECRET=ClaveLoSuficiementeLargaDeMasDe32Bytes
 JWT_EXPIRATION=86400000
+MAIL_USERNAME=tu_mail_de_google
+MAIL_PASSWORD=clave_para_que_la_app_use_tu_mail (la conseguís en https://myaccount.google.com/apppasswords)
+FRONTEND_URL=http://localhost:5173/
 ```
 
 Estas variables pueden definirse mediante un archivo `.env` o desde el sistema operativo.

@@ -8,15 +8,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PaperRepository extends JpaRepository<Paper, Long> {
 
-    /// Busca todos los trabajos asignados al ID de un evaluador
-    List<Paper> findByUserReviewer_UserId(Long reviewerId);
+    /// Busca todos los trabajos asignados al código de un evaluador
+    List<Paper> findByUserReviewer_Code(String reviewerCode);
     
     /// Busca todos los papers de un congreso por su ID:
    @Query("SELECT DISTINCT p FROM Paper p LEFT JOIN FETCH p.authors pa LEFT JOIN FETCH pa.author LEFT JOIN FETCH p.congress c LEFT JOIN FETCH p.userReviewer WHERE c.congressId = :congressId ORDER BY pa.authorOrder ASC")
     List<Paper> findByCongressIdWithDetails(@Param("congressId") Long congressId);
 
+    boolean existsByCode(String code);
+
+    Optional<Paper> findByCode(String code);
 }

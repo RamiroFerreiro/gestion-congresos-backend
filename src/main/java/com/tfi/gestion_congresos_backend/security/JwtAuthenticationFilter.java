@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.security;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 
 import io.jsonwebtoken.JwtException; // 👈 nuevo import
@@ -27,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final CongressParticipantRepository participantRepository; // <--- Inyectar el repositorio
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -45,17 +48,49 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String userEmail = jwtService.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                User user = userRepository.findByEmailWithRole(userEmail).orElse(null);
+
+                User user = userRepository.findByEmail(userEmail).orElse(null);
 
                 if (user != null && jwtService.isTokenValid(jwt, user)) {
-                    List<GrantedAuthority> authorities = List.of(
-                            new SimpleGrantedAuthority("ROLE_" + user.getRole().getName().name())
-                    );
 
+                    
+                    // Cargar las autoridades desde los roles activos del usuario en la tabla intermedia
+                    List<SimpleGrantedAuthority> authorities = Collections.emptyList();
+                    
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(user, null, authorities);
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+
+                    // --- VALIDACIÓN DE CAMBIO DE CONTRASEÑA OBLIGATORIO ---
+                    if (user.isMustChangePassword()) {
+                        String requestURI = request.getRequestURI();
+
+                        // Normalizar la URI para la comparación
+                        boolean isAllowedPath = requestURI.startsWith("/api/users/first-login") 
+                                            || requestURI.startsWith("/api/users/me")
+                                            || requestURI.startsWith("/api/auth/");
+
+                        System.out.println(">>> requestURI: " + requestURI + " | esRutaPermitida: " + isAllowedPath);
+
+                        if (!isAllowedPath) {
+                            System.out.println(">>> BLOQUEADO POR 428 EN FILTRO JWT <<<");
+                            response.setStatus(428);
+                            response.setContentType("application/json;charset=UTF-8");
+                            
+                            String jsonResponse = """
+                                {
+                                    "status": 428,
+                                    "error": "PASSWORD_CHANGE_REQUIRED",
+                                    "message": "Debe cambiar su contraseña obligatoriamente antes de continuar navegando por la plataforma."
+                                }
+                                """;
+                                
+                            response.getWriter().write(jsonResponse);
+                            return; // Detiene la petición
+                        }
+                    }
                 }
             }
         } catch (JwtException ex) {

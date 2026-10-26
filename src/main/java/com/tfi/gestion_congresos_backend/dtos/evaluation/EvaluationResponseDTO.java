@@ -1,4 +1,4 @@
-package com.tfi.gestion_congresos_backend.dtos;
+package com.tfi.gestion_congresos_backend.dtos.evaluation;
 
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;

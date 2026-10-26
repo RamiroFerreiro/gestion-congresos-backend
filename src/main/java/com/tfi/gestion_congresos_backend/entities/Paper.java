@@ -2,12 +2,16 @@ package com.tfi.gestion_congresos_backend.entities;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -36,7 +40,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "papers")
-public class Paper {
+public class Paper extends AuditableEntity{
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,11 +59,17 @@ public class Paper {
 	@Column(name = "thematic_area", nullable = false)
 	private String thematicArea;
 	
-	@Column(name = "summary", nullable = false)
+	@Column(name = "summary", columnDefinition = "TEXT", nullable = false)
 	private String summary;
 	
-	@Column(name = "keywords", nullable = false)
-	private String keywords;
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(
+		name = "paper_keywords",
+		joinColumns = @JoinColumn(name = "papers_id")
+	)
+	@Column(name = "keyword")
+	@Builder.Default
+	private Set<String> keywords = new HashSet<>();
 	
 	@Column(name = "presentation_date", nullable = false)
 	private LocalDateTime presentationDate;
@@ -80,4 +90,12 @@ public class Paper {
     @OrderBy("authorOrder ASC")
     @Builder.Default
     private List<PaperAuthor> authors = new ArrayList<>();
+
+	// ---------nuevo---------
+	@Column(name = "pay", nullable = false)
+    private boolean pay;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "congress_paper_type_id", nullable = false)
+    private CongressPaperType congressPaperType;
 }

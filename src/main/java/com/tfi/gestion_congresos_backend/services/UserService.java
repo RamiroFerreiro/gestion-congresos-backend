@@ -3,7 +3,10 @@ package com.tfi.gestion_congresos_backend.services;
 import java.util.List;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -12,33 +15,53 @@ import com.tfi.gestion_congresos_backend.entities.User;
 
 public interface UserService {
 
-    ///GET
+    ///-----------------------------------------------------CREATE-----------------------------------------------------///
+    
+    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
 
+    UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request);
+    
+    MessageResponseDTO completeFirstLogin(CompleteFirstLoginRequestDTO request);
+
+    ///-----------------------------------------------------GET-----------------------------------------------------///
+
+    ///Controllers
     List<UserResponseDTO> getAllUsers();
 
-    UserResponseDTO getUserById(Long userId);
+    List<UserResponseDTO> getUsersByCongress(String congressCode);
 
-    User getUserByUserId(Long userId);
+    UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode);
 
     UserResponseDTO getAuthenticatedUser();
 
-    UserResponseDTO createUser(UserRequestDTO userRequestDTO);
+    //Auxiliares
+    UserResponseDTO getUserById(Long userId); 
 
-    List<UserResponseDTO> getParticipantsByCongressAndRole(Long congressId, RoleName role);
+    User getUserByUserId(Long userId); 
 
-    ///DELETE
+    User getUserByUserCode(String code); 
 
-    void deleteUser(Long userId);
+    User getAuthenticatedUserEntity(); 
 
-    ///UPDATE
+    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role); //probar
 
-    UserResponseDTO updateUser(Long userId, UpdateUserRequestDTO userRequestDTO);
+    ///-----------------------------------------------------DELETE-----------------------------------------------------///
 
-    UserResponseDTO updateUserRole(Long userId, RoleName newRoleName);
+    void deleteUser(String userCode);
 
-    MessageResponseDTO changePassword(ChangePasswordRequestDTO request);
-    
+    ///-----------------------------------------------------UPDATE-----------------------------------------------------///
+
+    UserResponseDTO updateUser(String userCode, UpdateUserRequestDTO userRequestDTO);
+
+    void updateUserRole(String congressCode, String userCode, RoleName newRole); 
+
+    MessageResponseDTO changePassword(ChangePasswordRequestDTO request); 
+
+    MessageResponseDTO changeEmail(ChangeEmailRequestDTO request); 
+
     ///BOOLEAN
+    boolean existsByCode(String code);
+
+
     
-    boolean existsById(Long userId);
 }
