@@ -22,7 +22,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "congress_participants")
-public class CongressParticipant {
+public class CongressParticipant extends AuditableEntity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

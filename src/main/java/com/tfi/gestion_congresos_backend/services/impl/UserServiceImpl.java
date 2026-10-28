@@ -8,6 +8,7 @@ import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -134,13 +135,30 @@ public class UserServiceImpl implements UserService {
         return userMapper.toUserResponseDTO(targetUser);
     }
 
-    ///TRAER EL USUARIO AUTENTICADO
+    
     @Override
     public UserResponseDTO getAuthenticatedUser() {
 
         User user = getAuthenticatedUserEntity(); // método privado
 
         return userMapper.toUserResponseDTO(user);
+    }
+
+    ///TRAER EL USUARIO AUTENTICADO DENTRO DE UN CONGRESO
+    @Override
+    public CongressUserProfileResponseDTO getAuthenticatedUserProfileInCongress(String congressCode) {
+        
+        // 1. Obtener la entidad del usuario autenticado
+        User user = getAuthenticatedUserEntity();
+
+        // 2. Buscar la participacion del usuario en congreso
+        CongressParticipant participant = participantRepository
+            .findUserActiveParticipantOfCongress(user.getCode(), congressCode)
+            .orElseThrow(() -> new ResourceNotFoundException("El usuario no se encuentra inscripto o activo en el congreso: " + congressCode));
+
+        // 3. Mapeo unificado usando MapStruct
+        return userMapper.toCongressUserProfileResponseDTO(participant);
+
     }
 
     ///----------------------------------------------------------CREATE----------------------------------------------------------///
@@ -353,7 +371,7 @@ public class UserServiceImpl implements UserService {
 
         //4. Traer y validar si participante es miembro activo del congreso
         CongressParticipant targetParticipant = participantRepository
-            .findUserParticipantOfCongress(userCode, congressCode)
+            .findUserActiveParticipantOfCongress(userCode, congressCode)
             .orElseThrow(() -> new ResourceNotFoundException(
             "No se encontró una inscripción activa para el usuario " + userCode + " en el congreso " + congressCode));
 
@@ -538,8 +556,5 @@ public class UserServiceImpl implements UserService {
 				.toList();
 		
 		return result;
-	}
-
-    
-    
+	} 
 }

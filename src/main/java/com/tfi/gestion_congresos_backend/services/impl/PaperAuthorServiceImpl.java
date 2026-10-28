@@ -311,7 +311,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
     private void validateParticipantCanBeAuthor(String userCode, Congress congress) {
         CongressParticipant participant = congressParticipantRepository
-                .findUserParticipantOfCongress(userCode, congress.getCode())
+                .findUserActiveParticipantOfCongress(userCode, congress.getCode())
                 .orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en este congreso."));
 
         if (participant.getRole().getName() == RoleName.EVALUATOR) {
@@ -321,7 +321,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
     private void upgradeToExpositorRoleIfNeeded(User user, Congress congress) {
         CongressParticipant participant = congressParticipantRepository
-                .findUserParticipantOfCongress(user.getCode(), congress.getCode())
+                .findUserActiveParticipantOfCongress(user.getCode(), congress.getCode())
                 .orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en el congreso."));
 
         if (participant.getRole().getName() == RoleName.LISTENER) {

@@ -5,6 +5,7 @@ import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -135,6 +136,31 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> getAuthenticatedUser( ){
 
         return ResponseEntity.ok(userService.getAuthenticatedUser());
+    }
+
+    @Operation(
+        summary = "Obtener perfil del usuario autenticado en un congreso",
+        description = """
+            Recupera la información del perfil del usuario autenticado contextualizada para un congreso específico.
+            
+            **Datos devueltos:**
+            - **user**: Objeto base con los datos generales del usuario (`userId`, `code`, `firstName`, `lastName`, `email`, `dni`, `country`).
+            - **role**: El nombre del rol del usuario dentro del congreso (ej. 'AUTOR', 'EVALUADOR', 'ASISTENTE').
+            - **institution**: La institución declarada por el usuario para este congreso en particular.
+            - **registrationDate**: Fecha y hora exactas en que se registró la participación en la plataforma.
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil del usuario en el congreso obtenido exitosamente"),
+        @ApiResponse(responseCode = "401", description = "No autorizado: El token JWT es inválido, ha expirado o no fue provisto"),
+        @ApiResponse(responseCode = "404", description = "Recurso no encontrado: El usuario no se encuentra inscripto o activo en el congreso especificado")
+    })
+    @GetMapping("/me/congresses/{congressCode}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CongressUserProfileResponseDTO> getAuthenticatedUserProfileInCongress(@PathVariable String congressCode) {
+
+        CongressUserProfileResponseDTO profile = userService.getAuthenticatedUserProfileInCongress(congressCode);
+        return ResponseEntity.ok(profile);
     }
 
     ///----------------------------------------------------------POSTS----------------------------------------------------------///

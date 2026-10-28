@@ -49,6 +49,18 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         AND p.congress.code = :congressCode
         AND p.active = true
     """)
+    Optional<CongressParticipant> findUserActiveParticipantOfCongress(
+        @Param("targetUserCode") String targetUserCode,
+        @Param("congressCode") String congressCode
+    );
+
+    // Verifica si el usuario objetivo participa en ese mismo congreso y devuelve la entidad
+    @Query("""
+        SELECT p 
+        FROM CongressParticipant p 
+        WHERE p.user.code = :targetUserCode 
+        AND p.congress.code = :congressCode
+    """)
     Optional<CongressParticipant> findUserParticipantOfCongress(
         @Param("targetUserCode") String targetUserCode,
         @Param("congressCode") String congressCode

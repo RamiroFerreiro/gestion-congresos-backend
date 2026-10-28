@@ -1,9 +1,11 @@
 package com.tfi.gestion_congresos_backend.mapper;
 
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
+import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -28,4 +30,15 @@ public interface UserMapper {
     @Mapping(target = "dni", constant = "0L")
     @Mapping(target = "country", constant = "PENDIENTE")
     User toEntity(AdminCreateUserRequestDTO dto);
+
+
+    /**
+     * Mapea CongressParticipant hacia CongressUserProfileResponseDTO.
+     * MapStruct invocará toUserResponseDTO(participant.getUser()) para poblar el atributo 'user' de forma automática.
+     */
+    @Mapping(target = "user", source = "user")
+    @Mapping(target = "role", source = "role.name")
+    @Mapping(target = "institution", source = "institution")
+    @Mapping(target = "registrationDate", source = "registrationDate")
+    CongressUserProfileResponseDTO toCongressUserProfileResponseDTO(CongressParticipant participant);
 }

@@ -109,7 +109,7 @@ public class PaperServiceImpl implements PaperService {
         // Creador = Main Author (Lógica contenida sólo para el nacimiento del Paper)
         String creatorCode = dto.getAuthorUserCodes().get(0);
         CongressParticipant participant = congressParticipantRepository
-                .findUserParticipantOfCongress(creatorCode, congress.getCode())
+                .findUserActiveParticipantOfCongress(creatorCode, congress.getCode())
                 .orElseThrow(() -> new ArgumentNotValidException("El creador no está inscripto en el congreso."));
 
         PaperAuthor mainAuthor = PaperAuthor.builder()
@@ -169,7 +169,7 @@ public class PaperServiceImpl implements PaperService {
         }
 
         CongressParticipant reviewerParticipant = congressParticipantRepository
-                .findUserParticipantOfCongress(reviewerCode, paper.getCongress().getCode())
+                .findUserActiveParticipantOfCongress(reviewerCode, paper.getCongress().getCode())
                 .orElseThrow(() -> new ArgumentNotValidException("El evaluador no pertenece al congreso."));
 
         if (!securityEvaluator.hasRoleInCongress(reviewerParticipant.getUser(), paper.getCongress().getCode(), RoleName.EVALUATOR)) {

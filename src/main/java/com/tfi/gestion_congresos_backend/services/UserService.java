@@ -7,6 +7,7 @@ import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -33,6 +34,8 @@ public interface UserService {
     UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode);
 
     UserResponseDTO getAuthenticatedUser();
+
+    CongressUserProfileResponseDTO getAuthenticatedUserProfileInCongress(String congressCode);
 
     //Auxiliares
     UserResponseDTO getUserById(Long userId); 
