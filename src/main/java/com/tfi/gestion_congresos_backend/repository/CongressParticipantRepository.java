@@ -8,12 +8,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
-import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 
 public interface CongressParticipantRepository extends JpaRepository<CongressParticipant, Long> {
 
-    // 1. Verifica si un usuario es Administrador activo de un congreso específico
+    /// Verificar si un usuario activo tiene un rol en un congreso:
     @Query("""
         SELECT COUNT(p) > 0 
         FROM CongressParticipant p 
@@ -28,7 +27,7 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         @Param("role") RoleName role
     );
 
-    // 2. Verifica si el usuario objetivo participa (activo) en ese mismo congreso
+    /// Verificar si un usuario participa activamente en un congreso:
     @Query("""
         SELECT COUNT(p) > 0 
         FROM CongressParticipant p 
@@ -41,7 +40,7 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         @Param("congressCode") String congressCode
     );
 
-    // Verifica si el usuario objetivo participa (activo) en ese mismo congreso y devuelve la entidad
+    /// Obtener la participación activa de un usuario en un congreso:
     @Query("""
         SELECT p 
         FROM CongressParticipant p 
@@ -49,51 +48,44 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
         AND p.congress.code = :congressCode
         AND p.active = true
     """)
-    Optional<CongressParticipant> findUserActiveParticipantOfCongress(
+    
+    Optional<CongressParticipant> findActiveParticipantByUserCodeAndCongressCode(
+
         @Param("targetUserCode") String targetUserCode,
         @Param("congressCode") String congressCode
     );
-
-    // Verifica si el usuario objetivo participa en ese mismo congreso y devuelve la entidad
+    
+    /// Obtener los participantes activos de un congreso, opcionalmente filtrados por rol:
     @Query("""
-        SELECT p 
-        FROM CongressParticipant p 
-        WHERE p.user.code = :targetUserCode 
-        AND p.congress.code = :congressCode
-    """)
-    Optional<CongressParticipant> findUserParticipantOfCongress(
-        @Param("targetUserCode") String targetUserCode,
-        @Param("congressCode") String congressCode
-    );
-
-
-    // Consulta para el Admin de Congreso: verifica que el solicitante sea Admin de 'congressCode'
-    // y trae únicamente los usuarios activos de ese mismo congreso.
+	    SELECT p
+	    FROM CongressParticipant p
+	    JOIN FETCH p.user
+	    JOIN FETCH p.role
+	    WHERE p.congress.code = :congressCode
+	    AND p.active = true
+	    AND (:role IS NULL OR p.role.name = :role)
+	""")
+	List<CongressParticipant> findParticipantsByCongressCodeAndRole(
+	        @Param("congressCode") String congressCode,
+	        @Param("role") RoleName role
+	);
+    
+    /// Obtener un participante de un congreso por su código:
+    Optional<CongressParticipant> findByUserCodeAndCongressCode(
+	    String userCode,
+	    String congressCode
+	);
+    
+    /// Contar administradores activos de un congreso:
     @Query("""
-        SELECT DISTINCT p2.user 
-        FROM CongressParticipant p1
-        JOIN CongressParticipant p2 ON p1.congress.congressId = p2.congress.congressId
-        WHERE p1.user.userId = :adminUserId
-        AND p1.role.name = :role
-        AND p1.congress.code = :congressCode
-        AND p1.active = true
-        AND p2.active = true
-    """)
-    List<User> findUsersByCongressAndAdmin(
-        @Param("adminUserId") Long adminUserId,
-        @Param("congressCode") String congressCode,
-        @Param("role") RoleName role
-    );
-
-    // Consulta directa para Súper Admin: trae todos los usuarios de ese congreso
-    @Query("""
-        SELECT DISTINCT p.user 
-        FROM CongressParticipant p 
-        WHERE p.congress.code = :congressCode 
+        SELECT COUNT(p)
+        FROM CongressParticipant p
+        WHERE p.congress.code = :congressCode
+        AND p.role.name = :role
         AND p.active = true
     """)
-    List<User> findUsersByCongressCode(@Param("congressCode") String congressCode);
-
-    //Método para traer la única tabla intermedia entre usuario y congress a partir de un userId
-    Optional<CongressParticipant> findFirstByUserUserId(Long userId);
+    long countActiveParticipantsByCongressCodeAndRole(
+            @Param("congressCode") String congressCode,
+            @Param("role") RoleName role
+    );
 }

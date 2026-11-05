@@ -5,18 +5,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress_participant.AdminParticipantRegistrationRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
-import com.tfi.gestion_congresos_backend.entities.Congress;
-import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
-import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
@@ -25,24 +22,20 @@ import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
-import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
-import com.tfi.gestion_congresos_backend.repository.RoleRepository;
-import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
+import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -51,17 +44,14 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final CongressRepository congressRepository;
     private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final EmailService emailService;
-    private final CongressService congressService;
-
+    private final CongressParticipantService congressParticipantService;
+    private final AuthorizationService authorizationService;
     private final SecurityEvaluator securityEvaluator;
-
-    private final CongressParticipantRepository participantRepository;
     
     private static final int CODE_LENGTH = 6;
 
@@ -71,7 +61,7 @@ public class UserServiceImpl implements UserService {
     public List<UserResponseDTO> getAllUsers(){
 
         // 1. Obtener la entidad del usuario autenticado
-        User authenticatedUser = getAuthenticatedUserEntity();
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         List<User> users;
         
@@ -87,78 +77,13 @@ public class UserServiceImpl implements UserService {
         return users.stream().map(userMapper::toUserResponseDTO).toList();
     }
 
-    ///TRAER TODOS LOS USUARIOS DE UN DETERMINADO CONGRESO
-    @Override
-    public List<UserResponseDTO> getUsersByCongress(String congressCode) {
-
-        // 1. Obtener el usuario autenticado
-        User authenticatedUser = getAuthenticatedUserEntity();
-
-        // 2. Validar autorización (Fail-Fast)
-        if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
-            throw new UserDisabledException("No tienes permisos de administración sobre el congreso especificado.");
-        }
-
-        // 3. Buscar usuarios y mapear a DTOs
-        return participantRepository.findUsersByCongressCode(congressCode)
-                .stream()
-                .map(userMapper::toUserResponseDTO)
-                .toList();
-    }
-
-    ///TRAER EL USUARIO DE UN DETERMINADO CONGRESO
-    @Override
-    public UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode){
-        
-        // 1. Obtener la entidad del usuario autenticado
-        User authenticatedUser = getAuthenticatedUserEntity();
-
-        // 2. Buscar al usuario objetivo por su código global
-        User targetUser = userRepository.findByCode(userCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con código: " + userCode));
-
-        // 3. Validar que el usuario objetivo pertenezca al congreso (Aplica para TODOS)
-        boolean belongsToCongress = securityEvaluator.isParticipantOfCongress(targetUser, congressCode);
-        if (!belongsToCongress) {
-            throw new ResourceNotFoundException("El usuario no pertenece al congreso especificado.");
-        }
-        
-        // 4. Validar permisos de acceso (Self OR SuperAdmin OR AdminOfCongress)
-        boolean isSelf = authenticatedUser.getCode().equals(userCode);
-        boolean canAccess = isSelf || securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode);
-
-        if (!canAccess) {
-            throw new UserDisabledException("No tienes permisos para acceder a la información de este usuario.");
-        }
-
-        // 5. Mapear y retornar DTO
-        return userMapper.toUserResponseDTO(targetUser);
-    }
-
-    
+    ///TRAER EL DTO DEL USUARIO AUTENTICADO
     @Override
     public UserResponseDTO getAuthenticatedUser() {
 
-        User user = getAuthenticatedUserEntity(); // método privado
+        User user = authorizationService.getAuthenticatedUserEntity();
 
         return userMapper.toUserResponseDTO(user);
-    }
-
-    ///TRAER EL USUARIO AUTENTICADO DENTRO DE UN CONGRESO
-    @Override
-    public CongressUserProfileResponseDTO getAuthenticatedUserProfileInCongress(String congressCode) {
-        
-        // 1. Obtener la entidad del usuario autenticado
-        User user = getAuthenticatedUserEntity();
-
-        // 2. Buscar la participacion del usuario en congreso
-        CongressParticipant participant = participantRepository
-            .findUserActiveParticipantOfCongress(user.getCode(), congressCode)
-            .orElseThrow(() -> new ResourceNotFoundException("El usuario no se encuentra inscripto o activo en el congreso: " + congressCode));
-
-        // 3. Mapeo unificado usando MapStruct
-        return userMapper.toCongressUserProfileResponseDTO(participant);
-
     }
 
     ///----------------------------------------------------------CREATE----------------------------------------------------------///
@@ -194,63 +119,74 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
-
     @Transactional
     @Override
-    public UserResponseDTO adminCreateUser(String congressCode, AdminCreateUserRequestDTO request) {
+    public UserResponseDTO adminCreateUser(
+            String congressCode,
+            AdminCreateUserRequestDTO request) {
 
         // 1. Obtener el usuario administrador autenticado
-        User authenticatedUser = getAuthenticatedUserEntity();
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+        
+        // 2. Verificar que el congreso exista
+        if (!congressRepository.existsByCode(congressCode)) {
+            throw new ResourceNotFoundException(
+                    "No se encontró un congreso con el código: " + congressCode
+            );
+        }
 
-        // 2. Validar que el congreso exista
-        Congress congress = congressService.getCongressByCode(congressCode);
-
-        // 3. Validar permisos del admin sobre este congressCode
+        // 3. Validar permisos del administrador sobre el congreso
         if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
-            throw new UserDisabledException("No posee permisos de administración sobre el congreso " + congressCode);
+            throw new UserDisabledException(
+                    "No posee permisos de administración sobre el congreso " + congressCode
+            );
         }
 
-        // 4. Validar que el email no exista previamente en el sistema
+        // 4. Verificar que el email no exista previamente
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ResourceAlreadyExistsException("Ya existe un usuario registrado con el email: " + request.getEmail());
+            throw new ResourceAlreadyExistsException(
+                    "Ya existe un usuario registrado con el email: " + request.getEmail()
+            );
         }
 
-        // 5. Buscar y validar el rol a asignar
-        Role role = roleRepository.findByName(request.getNewRole())
-                .orElseThrow(() -> new ResourceNotFoundException("El rol especificado no existe en el sistema."));
-
-        // 6. Buscar y validar el rol a asignar
-        if (role.getName() == RoleName.ADMINISTRATOR) {
-            throw new ArgumentNotValidException("No se puede asignar el rol ADMINISTRATOR desde este flujo.");
+        // 5. Validar que no se intente asignar el rol ADMINISTRATOR
+        if (request.getNewRole() == RoleName.ADMINISTRATOR) {
+            throw new ArgumentNotValidException(
+                    "No se puede asignar el rol ADMINISTRATOR desde este flujo."
+            );
         }
-        // 7. Generar contraseña temporal segura
+
+        // 6. Generar contraseña temporal segura
         String temporaryPassword = generateRandomPassword();
 
-        // 8. Mapear y configurar la entidad User
+        // 7. Mapear y configurar la entidad User
         User user = userMapper.toEntity(request);
+
         user.setPassword(passwordEncoder.encode(temporaryPassword));
         user.setMustChangePassword(true);
         user.setEnabled(true);
         user.setCode(generateUserCode());
 
-        // 9. Persistir el usuario global
+        // 8. Persistir el usuario global
         User savedUser = userRepository.save(user);
 
-        // 10. Crear el registro de participación en la tabla intermedia (CongressParticipant)
-        CongressParticipant participant = CongressParticipant.builder()
-                .congress(congress)
-                .user(savedUser)
-                .role(role)
-                .institution("PENDIENTE") // Queda pendiente para la completitud progresiva del perfil
-                .active(true)
-                .registrationDate(LocalDateTime.now())
-                .build();
+        // 9. Construir la solicitud de inscripción administrativa
+        AdminParticipantRegistrationRequestDTO participantRequest =
+                AdminParticipantRegistrationRequestDTO.builder()
+                        .userCode(savedUser.getCode())
+                        .role(request.getNewRole())
+                        .build();
 
-        participantRepository.save(participant);
+        // 10. Delegar la creación de la participación
+        congressParticipantService.registerParticipantByAdmin(
+                congressCode,
+                participantRequest
+        );
 
         // 11. Enviar email con las credenciales temporales
         emailService.sendTemporaryPasswordEmail(savedUser, temporaryPassword);
 
+        // 12. Retornar el usuario creado
         return userMapper.toUserResponseDTO(savedUser);
     }
 
@@ -260,43 +196,43 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public MessageResponseDTO completeFirstLogin(CompleteFirstLoginRequestDTO request) {
-        
-        // 1. Obtener la entidad desprendida del SecurityContext
-        User principalUser = getAuthenticatedUserEntity();
 
-        // 2. Cargar la entidad gestionada por JPA desde la base de datos
+        // 1. Obtener el usuario autenticado
+        User principalUser = authorizationService.getAuthenticatedUserEntity();
+
+        // 2. Recuperar la entidad gestionada por JPA
         User user = getUserByUserId(principalUser.getUserId());
 
         // 3. Verificar que realmente sea su primer login
         if (!user.isMustChangePassword()) {
-            throw new ArgumentNotValidException("El usuario ya ha completado su primer inicio de sesión.");
-        }  
+            throw new ArgumentNotValidException(
+                    "El usuario ya ha completado su primer inicio de sesión."
+            );
+        }
 
+        // 4. Construir el DTO para reutilizar la lógica de cambio de contraseña
+        ChangePasswordRequestDTO changePasswordDTO =
+                new ChangePasswordRequestDTO(
+                        request.getCurrentPassword(),
+                        request.getNewPassword(),
+                        request.getConfirmPassword()
+                );
 
-        // 4. Instanciar ChangePasswordRequestDTO a partir de la solicitud recibida
-        ChangePasswordRequestDTO changePasswordDTO = new ChangePasswordRequestDTO(
-                request.getCurrentPassword(),
-                request.getNewPassword(),
-                request.getConfirmPassword()
-        );
-        
-        // 5. Ejecutar literalmente el método de cambio de contraseña
+        // 5. Ejecutar las validaciones y actualizar la contraseña
         changePassword(changePasswordDTO);
-        
-        // 6. Actualizar DNI y País en la entidad User
+
+        // 6. Completar los datos globales del usuario
         user.setDni(request.getDni());
         user.setCountry(request.getCountry());
+
         userRepository.save(user);
 
-        // 7. Obtener la única participación del usuario para actualizar la institución
-        CongressParticipant participant = participantRepository.findFirstByUserUserId(user.getUserId())
-        .orElseThrow(() -> new ResourceNotFoundException("No se encontró la inscripción al congreso para el usuario con ID: " + user.getUserId()));
-
-        participant.setInstitution(request.getInstitution());
-        participantRepository.save(participant);
-
-        return new MessageResponseDTO("Perfil y contraseña completados con éxito");
+        // 7. Retornar confirmación
+        return new MessageResponseDTO(
+                "Perfil y contraseña completados con éxito."
+        );
     }
 
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
@@ -306,7 +242,7 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(String userCode) {
         
         //1. Obtener la entidad del Usuario autenticado mediante el helper
-        User authenticatedUser = getAuthenticatedUserEntity();
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         //2. Validar que sea estrictamente Súper Admin
         if (!securityEvaluator.isSuperAdmin(authenticatedUser)) {
@@ -330,7 +266,7 @@ public class UserServiceImpl implements UserService {
     public UserResponseDTO updateUser(String userCode, UpdateUserRequestDTO userRequestDTO) {
 
         // 1. Obtener la entidad del Usuario autenticado mediante el helper
-        User authenticatedUser = getAuthenticatedUserEntity();
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         // 2. Buscar el usuario solicitado por código
         User targetUser = userRepository.findByCode(userCode)
@@ -351,40 +287,13 @@ public class UserServiceImpl implements UserService {
         User userSaved = userRepository.save(targetUser);
         return userMapper.toUserResponseDTO(userSaved);
     }
-
-    @Transactional
-    @Override
-    public void updateUserRole(String congressCode, String userCode, RoleName newRole) {
-
-        //1. Obtener la entidad del usuario autenticado
-        User authenticatedUser = getAuthenticatedUserEntity();
-
-        //2. Validar si es Admin o Super Admin
-        if(!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
-            throw new UserDisabledException("No tienes permisos de administración sobre este congreso para modificar roles.");
-        }
-
-        //3. Buscar la entidad Role correspondiente al Enum enviado
-        Role roleEntity = roleRepository.findByName(newRole)
-                .orElseThrow(() -> new ResourceNotFoundException("El rol especificado no existe en el sistema."));
-
-
-        //4. Traer y validar si participante es miembro activo del congreso
-        CongressParticipant targetParticipant = participantRepository
-            .findUserActiveParticipantOfCongress(userCode, congressCode)
-            .orElseThrow(() -> new ResourceNotFoundException(
-            "No se encontró una inscripción activa para el usuario " + userCode + " en el congreso " + congressCode));
-
-        //5. Actualizar la relación en la tabla intermedia y guardar
-        targetParticipant.setRole(roleEntity);
-        participantRepository.save(targetParticipant);
-    }
     
     @Override
+    @Transactional
     public MessageResponseDTO changePassword(ChangePasswordRequestDTO request){
 
         // 1. Obtener la entidad desprendida del SecurityContext
-        User principalUser = getAuthenticatedUserEntity();
+        User principalUser = authorizationService.getAuthenticatedUserEntity();
 
         // 2. Cargar la entidad gestionada por JPA desde la base de datos
         User user = getUserByUserId(principalUser.getUserId());
@@ -408,7 +317,7 @@ public class UserServiceImpl implements UserService {
     public MessageResponseDTO changeEmail(ChangeEmailRequestDTO request) {
         
         //1. Obtener la entidad desprendida del usuario autenticado desde el SecurityContext
-        User authenticatedUser = getAuthenticatedUserEntity();
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         //2. Cargar la entidad gestionada por JPA desde la BD para asegurar el estado real del usuario
         User user = getUserByUserId(authenticatedUser.getUserId());
@@ -452,20 +361,6 @@ public class UserServiceImpl implements UserService {
 	public boolean existsByCode(String code) {
 		return userRepository.existsByCode(code);
 	}
-
-    
-    
-    public User getAuthenticatedUserEntity() {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {
-
-            throw new InvalidCredentialsException("Usuario no autenticado");
-        }
-
-        return (User) authentication.getPrincipal();
-    }
 
     ///----------------------------------------------------------PRIVADOS----------------------------------------------------------///
 
@@ -538,23 +433,4 @@ public class UserServiceImpl implements UserService {
     	
     	return user;
     }
-
-    @Override
-	@Transactional(readOnly = true)
-	/// Obtener participantes de un congreso con determinado rol:
-	public List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role) {
-		
-    	// Validar existencia del congreso:
-        if (!congressRepository.existsByCode(code)) {
-            throw new ResourceNotFoundException("Congreso no encontrado con el código: " + code);
-        }
-    	
-    	List<User> participants = userRepository.findParticipantsByCongressCodeAndRole(code, role);
-		
-		List<UserResponseDTO> result = participants.stream()
-				.map(userMapper::toUserResponseDTO)
-				.toList();
-		
-		return result;
-	} 
 }

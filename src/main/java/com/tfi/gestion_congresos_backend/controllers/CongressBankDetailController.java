@@ -85,15 +85,29 @@ public class CongressBankDetailController {
     }
 
 
-    @Operation(summary = "Verificar si un congreso posee datos bancarios cargados")
-    @ApiResponses({
-        @ApiResponse(responseCode = "404", description = "Congreso no encontrado"),
-        @ApiResponse(responseCode = "500", description = "Error no controlado del servidor.")
-    })
-    @GetMapping("/exists/{congressCode}")
-    public ResponseEntity<Boolean> existsBankDetail(@PathVariable String congressCode) {
-        return ResponseEntity.ok(bankDetailService.existsByCongressCode(congressCode));
-    }
+    @Operation(
+    	    summary = "Verificar si un congreso posee datos bancarios cargados",
+    	    description = """
+    	        Verifica si el congreso tiene datos bancarios registrados.
+
+    	        **Restricciones de acceso:**
+    	        - Requiere estar autenticado.
+    	        - El usuario debe tener una participación activa en el congreso.
+    	        - Debe tener su institución completada.
+    	        - Los súper administradores están exceptuados de estas últimas restricciones.
+    	        """
+	)
+	@ApiResponses({
+	    @ApiResponse(responseCode = "200", description = "Consulta realizada exitosamente."),
+	    @ApiResponse(responseCode = "401", description = "Usuario no autenticado."),
+	    @ApiResponse(responseCode = "403", description = "El usuario debe completar su institución."),
+	    @ApiResponse(responseCode = "404", description = "No se encontró una participación activa del usuario en el congreso.")
+	})
+	@GetMapping("/exists/{congressCode}")
+	@PreAuthorize("isAuthenticated()")
+	public ResponseEntity<Boolean> existsBankDetail(@PathVariable String congressCode) {
+	    return ResponseEntity.ok(bankDetailService.existsByCongressCode(congressCode));
+	}
 
     ///----------------------------------------------------------PUT----------------------------------------------------------///
 
@@ -118,7 +132,7 @@ public class CongressBankDetailController {
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/{congressCode}")
     public ResponseEntity<CongressBankDetailResponseDTO> updateBankDetail(
-            @PathVariable String congressCode, @Valid CongressBankDetailRequestDTO request) {
+            @PathVariable String congressCode, @Valid @RequestBody CongressBankDetailRequestDTO request) {
 
         return ResponseEntity.ok(bankDetailService.update(congressCode, request));
     }

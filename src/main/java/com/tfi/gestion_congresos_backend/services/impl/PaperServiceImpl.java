@@ -14,10 +14,15 @@ import com.tfi.gestion_congresos_backend.repository.CongressPaperTypeRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +39,8 @@ public class PaperServiceImpl implements PaperService {
     private final PaperMapper paperMapper;
     private final CongressService congressService;
     private final UserService userService;
+    private final AuthorizationService authorizationService;
+    private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
 
     private static final int CODE_LENGTH = 6;
@@ -42,18 +49,66 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaperSummaryResponseDTO> getAssignedPapers(String reviewerCode) {
-        if (!userService.existsByCode(reviewerCode)) {
-            throw new ResourceNotFoundException("Evaluador no encontrado con el código: " + reviewerCode);
+    public List<PaperSummaryResponseDTO> getAssignedPapers(
+            String congressCode,
+            String reviewerCode) {
+
+        // Validar congreso
+        congressService.getCongressEntityByCode(congressCode);
+
+        // Obtener usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // Validar permisos del usuario solicitante
+        boolean isCongressAdmin =
+                securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode);
+
+        boolean isSelf =
+                Objects.equals(authenticatedUser.getCode(), reviewerCode);
+
+        if (!isCongressAdmin && !isSelf) {
+            throw new AccessDeniedException(
+                    "No tienes permisos para consultar los trabajos asignados a este evaluador."
+            );
         }
-        List<Paper> assignedPapers = paperRepository.findByUserReviewer_Code(reviewerCode);
+        
+        // Validar que el usuario solicitante tenga la institución definida
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+        // Buscar evaluador
+        User reviewer = userService.getUserByUserCode(reviewerCode);
+
+        // Validar que tenga el rol de evaluador en el congreso
+        if (!securityEvaluator.hasRoleInCongress(
+                reviewer,
+                congressCode,
+                RoleName.EVALUATOR)) {
+
+            throw new ResourceNotFoundException(
+                    "No se encontró un evaluador activo con el código: "
+                    + reviewerCode + " en el congreso: " + congressCode
+            );
+        }
+
+        // Obtener trabajos asignados al evaluador
+        List<Paper> assignedPapers =
+                paperRepository.findByCongress_CodeAndUserReviewer_Code(
+                        congressCode,
+                        reviewerCode
+                );
+
         return paperMapper.toPaperSummaryResponseDTOList(assignedPapers);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaperDetailResponseDTO getPaperById(Long paperId) {
-        return paperMapper.toPaperDetailResponseDTO(getPaperByPaperId(paperId));
+    	Paper paper = getPaperByPaperId(paperId);
+
+    	// Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+
+        return paperMapper.toPaperDetailResponseDTO(paper);
     }
 
     @Override
@@ -66,7 +121,12 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional(readOnly = true)
     public PaperDetailResponseDTO getPaperByCode(String code) {
-        return paperMapper.toPaperDetailResponseDTO(getPaperEntityByCode(code));
+    	Paper paper = getPaperEntityByCode(code);
+
+    	// Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+
+        return paperMapper.toPaperDetailResponseDTO(paper);
     }
 
     @Override
@@ -79,7 +139,11 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional(readOnly = true)
     public List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode) {
-        Congress congress = congressService.getCongressByCode(congressCode);
+        Congress congress = congressService.getCongressEntityByCode(congressCode);
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congressCode);
+        
         List<Paper> papers = paperRepository.findByCongressIdWithDetails(congress.getCongressId());
         return paperMapper.toPaperSummaryResponseDTOList(papers);
     }
@@ -89,7 +153,11 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional
     public PaperDetailResponseDTO createPaper(PaperRequestDTO dto) {
-        Congress congress = congressService.getCongressByCode(dto.getCongressCode());
+        Congress congress = congressService.getCongressEntityByCode(dto.getCongressCode());
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congress.getCode());
+        
         validateCongressEnabled(congress);
         validateThematicArea(congress, dto.getThematicArea());
         validatePresentationDateWithinWindow(congress, dto.getPresentationDate());
@@ -109,7 +177,7 @@ public class PaperServiceImpl implements PaperService {
         // Creador = Main Author (Lógica contenida sólo para el nacimiento del Paper)
         String creatorCode = dto.getAuthorUserCodes().get(0);
         CongressParticipant participant = congressParticipantRepository
-                .findUserActiveParticipantOfCongress(creatorCode, congress.getCode())
+        		.findActiveParticipantByUserCodeAndCongressCode(creatorCode, congress.getCode())
                 .orElseThrow(() -> new ArgumentNotValidException("El creador no está inscripto en el congreso."));
 
         PaperAuthor mainAuthor = PaperAuthor.builder()
@@ -135,6 +203,9 @@ public class PaperServiceImpl implements PaperService {
     public PaperDetailResponseDTO updatePaper(String paperCode, PaperUpdateRequestDTO dto) {
         Paper paper = getPaperEntityByCode(paperCode);
         
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        
         // Solo editable si no ha sido enviado o si necesita revisión
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
@@ -157,6 +228,10 @@ public class PaperServiceImpl implements PaperService {
     @Transactional
     public MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode) {
         Paper paper = getPaperEntityByCode(paperCode);
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
         User paperReviewer = paper.getUserReviewer();
@@ -169,8 +244,8 @@ public class PaperServiceImpl implements PaperService {
         }
 
         CongressParticipant reviewerParticipant = congressParticipantRepository
-                .findUserActiveParticipantOfCongress(reviewerCode, paper.getCongress().getCode())
-                .orElseThrow(() -> new ArgumentNotValidException("El evaluador no pertenece al congreso."));
+        		.findActiveParticipantByUserCodeAndCongressCode(reviewerCode, paper.getCongress().getCode())
+                	.orElseThrow(() -> new ArgumentNotValidException("El evaluador no pertenece al congreso."));
 
         if (!securityEvaluator.hasRoleInCongress(reviewerParticipant.getUser(), paper.getCongress().getCode(), RoleName.EVALUATOR)) {
             throw new ArgumentNotValidException("El usuario seleccionado no tiene rol EVALUADOR en este congreso.");
@@ -188,6 +263,10 @@ public class PaperServiceImpl implements PaperService {
     @Transactional
     public Set<String> addKeywordToPaper(String paperCode, String keyword) {
         Paper paper = getPaperEntityByCode(paperCode);
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
         addKeywordInternal(paper, keyword);
@@ -198,6 +277,10 @@ public class PaperServiceImpl implements PaperService {
     @Transactional
     public Set<String> removeKeywordFromPaper(String paperCode, String keyword) {
         Paper paper = getPaperEntityByCode(paperCode);
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
         removeKeywordInternal(paper, keyword);
@@ -210,6 +293,10 @@ public class PaperServiceImpl implements PaperService {
     @Transactional
     public PaperDetailResponseDTO submitPaper(String paperCode) {
         Paper paper = getPaperEntityByCode(paperCode);
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
         if (paper.getAuthors() == null || paper.getAuthors().isEmpty()) {
@@ -318,5 +405,11 @@ public class PaperServiceImpl implements PaperService {
         if (congress.getMinKeywords() != null && totalKeywords < congress.getMinKeywords()) {
             throw new ArgumentNotValidException("No alcanza el mínimo de palabras clave requeridas.");
         }
+    }
+    
+    private void validateCurrentUserInstitution(String congressCode) {
+        institutionValidator.validateAuthenticatedParticipantInstitution(
+                congressCode
+        );
     }
 }

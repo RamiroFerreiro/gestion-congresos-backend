@@ -15,12 +15,13 @@ import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsExceptio
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.EvaluationMapper;
-import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
+import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
-import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,16 +44,17 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     private final EvaluationRepository evaluationRepository;
     private final PaperRepository paperRepository;
-    private final CongressRepository congressRepository;
+    private final CongressService congressService;
+    private final CongressParticipantInstitutionValidator institutionValidator;
     private final EvaluationMapper evaluationMapper;
+    private final AuthorizationService authorizationService;
     private final SecurityEvaluator securityEvaluator;
-    private final UserService userService;
 
     @Override
     @Transactional(readOnly = true)
     public List<EvaluationResponseDTO> getEvaluationsByPaperCode(String paperCode) {
 
-        User user = userService.getAuthenticatedUserEntity();
+        User user = authorizationService.getAuthenticatedUserEntity();
         Paper paper = findPaperOrThrow(paperCode);
         Congress congress = paper.getCongress();
 
@@ -62,14 +64,22 @@ public class EvaluationServiceImpl implements EvaluationService {
                 securityEvaluator.isAssignedReviewer(user, paper)
                 || securityEvaluator.isAdminOfCongress(user, congress.getCode()));
 
-        List<Evaluation> evaluations = evaluationRepository.findByPaper_CodeOrderByEvaluationDateDesc(paperCode);
+        if (!privileged && !securityEvaluator.isAcceptedAuthor(user, paper)) {
+            throw new UserDisabledException(
+                    "No tenés permisos para ver las evaluaciones de este trabajo.");
+        }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congress.getCode());
+
+        List<Evaluation> evaluations =
+                evaluationRepository.findByPaper_CodeOrderByEvaluationDateDesc(paperCode);
 
         if (!privileged) {
-            if (!securityEvaluator.isAcceptedAuthor(user, paper)) {
-                throw new UserDisabledException("No tenés permisos para ver las evaluaciones de este trabajo.");
-            }
-            // Los autores solo ven lo ya liberado (CA2: en BATCH permanece oculta hasta el release)
-            evaluations = evaluations.stream().filter(Evaluation::isReleased).toList();
+            // Los autores solo ven las evaluaciones liberadas.
+            evaluations = evaluations.stream()
+                    .filter(Evaluation::isReleased)
+                    .toList();
         }
 
         return evaluations.stream().map(evaluationMapper::toResponseDTO).collect(Collectors.toList());
@@ -79,14 +89,17 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Transactional
     public EvaluationResponseDTO createEvaluation(String paperCode, EvaluationRequestDTO requestDTO) {
 
-        User user = userService.getAuthenticatedUserEntity();
+        User user = authorizationService.getAuthenticatedUserEntity();
         Paper paper = findPaperOrThrow(paperCode);
         Congress congress = paper.getCongress();
 
-        // 1. Autorización (primero, para no revelar estado interno a quien no corresponde)
+        // 1. Autorización (antes de validar el estado interno del Paper)
         if (!securityEvaluator.isSuperAdminOr(user, () -> securityEvaluator.isAssignedReviewer(user, paper))) {
             throw new UserDisabledException("Solo el evaluador asignado a este trabajo puede cargar una evaluación.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congress.getCode());
 
         // 2. Estado del congreso y del Paper
         if (!congress.isEnabled()) {
@@ -137,13 +150,15 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Transactional
     public MessageResponseDTO releasePendingEvaluations(String congressCode) {
 
-        User user = userService.getAuthenticatedUserEntity();
-        Congress congress = congressRepository.findByCode(congressCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + congressCode));
+        User user = authorizationService.getAuthenticatedUserEntity();
+        Congress congress = congressService.getCongressEntityByCode(congressCode);
 
         if (!securityEvaluator.isSuperAdminOr(user, () -> securityEvaluator.isAdminOfCongress(user, congress.getCode()))) {
             throw new UserDisabledException("Solo un administrador del congreso puede liberar evaluaciones.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congress.getCode());
 
         if (congress.getEvaluationReleaseMode() == EvaluationReleaseMode.IMMEDIATE) {
             throw new ArgumentNotValidException(
@@ -162,7 +177,6 @@ public class EvaluationServiceImpl implements EvaluationService {
         evaluationRepository.saveAll(pending);
 
         congress.setLastEvaluationReleaseDate(now);
-        congressRepository.save(congress);
 
         // TODO: notificar a los postulantes afectados cuando exista un servicio de notificaciones.
 
@@ -212,5 +226,11 @@ public class EvaluationServiceImpl implements EvaluationService {
                 .toList();
         log.info("[NOTIFICACION] Trabajo {} -> {} (v{}) | destinatarios: {}",
                 paper.getCode(), result, paper.getVersion(), emails);
+    }
+    
+    private void validateCurrentUserInstitution(String congressCode) {
+        institutionValidator.validateAuthenticatedParticipantInstitution(
+                congressCode
+        );
     }
 }

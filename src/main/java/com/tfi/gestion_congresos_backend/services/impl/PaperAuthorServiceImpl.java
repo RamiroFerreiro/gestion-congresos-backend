@@ -15,8 +15,11 @@ import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
 import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,8 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     private final PaperRepository paperRepository; // Injectamos el repo para evitar dependencias circulares con PaperService
     private final CongressParticipantRepository congressParticipantRepository;
     private final UserService userService;
+    private final AuthorizationService authorizationService;
+    private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
     private final PaperAuthorMapper paperAuthorMapper;
     private final RoleRepository roleRepository;
@@ -45,7 +50,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Transactional(readOnly = true)
     public List<PaperAuthorResponseDTO> getPaperAuthors(String paperCode) {
         Paper paper = getPaperEntity(paperCode);
-        User currentUser = userService.getAuthenticatedUserEntity();
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
 
         boolean isSuperAdmin = currentUser.isSuperAdmin();
         boolean isAdmin = securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR);
@@ -54,6 +59,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         if (!isSuperAdmin && !isAdmin && !isAuthor) {
             throw new AccessDeniedException("No posee permisos para ver los autores de este trabajo.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper);
 
         return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
     }
@@ -61,11 +69,14 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Override
     @Transactional(readOnly = true)
     public List<PaperAuthorResponseDTO> getCongressAuthors(String congressCode) {
-        User currentUser = userService.getAuthenticatedUserEntity();
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
 
         if (!currentUser.isSuperAdmin() && !securityEvaluator.hasRoleInCongress(currentUser, congressCode, RoleName.ADMINISTRATOR)) {
             throw new AccessDeniedException("Se requieren permisos de administración en el congreso para ver esta lista.");
         }
+        
+        // Validar institución del usuario en el congreso
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
 
         return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_Congress_Code(congressCode));
     }
@@ -78,7 +89,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         Paper paper = getPaperEntity(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
-        User currentUser = userService.getAuthenticatedUserEntity();
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
         boolean isSuperAdmin = currentUser.isSuperAdmin();
         boolean isAdmin = securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR);
 
@@ -92,6 +103,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         if (!isSuperAdmin && !isAdmin && !isCurrentMainAuthor) {
             throw new AccessDeniedException("No posee permisos para modificar los autores de este trabajo.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper);
 
         // Validación de Integridad: Debe haber exactamente un Main Author
         long newMainAuthorCount = updates.stream().filter(PaperAuthorUpdateRequestDTO::getIsMainAuthor).count();
@@ -137,13 +151,16 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
         // Validar que el usuario que solicita sea el mismo que está logueado (No puedes pedir unirte en nombre de otro)
-        User currentUser = userService.getAuthenticatedUserEntity();
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
         if (!currentUser.getCode().equals(userCode)) {
             throw new AccessDeniedException("No puedes solicitar unirte en nombre de otro usuario.");
         }
-
+        
         // Validar que participa en el congreso y no es Evaluador
         validateParticipantCanBeAuthor(userCode, paper.getCongress());
+
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper);
 
         if (paperAuthorRepository.existsByPaper_CodeAndAuthor_UserId(paperCode, currentUser.getUserId())) {
             throw new ResourceAlreadyExistsException("Ya tienes una relación (pendiente o aceptada) con este trabajo.");
@@ -170,7 +187,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     public List<PaperAuthorResponseDTO> acceptAuthorRequest(String paperCode, String userCode) {
         Paper paper = getPaperEntity(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
-        verifyAdminOrMainAuthorAccess(paper, userService.getAuthenticatedUserEntity());
+        verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
 
         PaperAuthor request = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe ninguna solicitud para el usuario indicado."));
@@ -200,7 +217,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     public List<PaperAuthorResponseDTO> rejectAuthorRequest(String paperCode, String userCode) {
         Paper paper = getPaperEntity(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
-        verifyAdminOrMainAuthorAccess(paper, userService.getAuthenticatedUserEntity());
+        verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
 
         PaperAuthor request = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe ninguna solicitud para el usuario indicado."));
@@ -221,7 +238,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     public List<PaperAuthorResponseDTO> addAuthorDirectly(String paperCode, String userCode) {
         Paper paper = getPaperEntity(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
-        verifyAdminAccess(paper, userService.getAuthenticatedUserEntity()); // SOLO Admin o SuperAdmin
+        verifyAdminAccess(paper, authorizationService.getAuthenticatedUserEntity()); // SOLO Admin o SuperAdmin
 
         User userToAdd = userService.getUserByUserCode(userCode);
         validateParticipantCanBeAuthor(userCode, paper.getCongress());
@@ -255,7 +272,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     public List<PaperAuthorResponseDTO> removeAuthorFromPaper(String paperCode, String userCode) {
         Paper paper = getPaperEntity(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
-        verifyAdminOrMainAuthorAccess(paper, userService.getAuthenticatedUserEntity());
+        verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
 
         PaperAuthor authorToRemove = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("El usuario no tiene relación con este Paper."));
@@ -301,18 +318,24 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         if (!isSuperAdmin && !isAdmin && !isMainAuthor) {
             throw new AccessDeniedException("Acceso denegado. Se requiere ser Autor Principal del trabajo o Administrador del congreso.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper);
     }
 
     private void verifyAdminAccess(Paper paper, User currentUser) {
         if (!currentUser.isSuperAdmin() && !securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR)) {
             throw new AccessDeniedException("Acceso denegado. Operación exclusiva para Administradores del congreso.");
         }
+        
+        // Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(paper);
     }
 
     private void validateParticipantCanBeAuthor(String userCode, Congress congress) {
         CongressParticipant participant = congressParticipantRepository
-                .findUserActiveParticipantOfCongress(userCode, congress.getCode())
-                .orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en este congreso."));
+        		.findActiveParticipantByUserCodeAndCongressCode(userCode, congress.getCode())
+        			.orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en este congreso."));
 
         if (participant.getRole().getName() == RoleName.EVALUATOR) {
             throw new ArgumentNotValidException("Un evaluador del congreso no puede postularse como autor de un trabajo.");
@@ -321,8 +344,8 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
     private void upgradeToExpositorRoleIfNeeded(User user, Congress congress) {
         CongressParticipant participant = congressParticipantRepository
-                .findUserActiveParticipantOfCongress(user.getCode(), congress.getCode())
-                .orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en el congreso."));
+        		.findActiveParticipantByUserCodeAndCongressCode(user.getCode(), congress.getCode())
+        			.orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en el congreso."));
 
         if (participant.getRole().getName() == RoleName.LISTENER) {
             Role expositorRole = roleRepository.findByName(RoleName.EXPOSITOR)
@@ -351,5 +374,12 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         if (!isAllowed) {
             throw new ArgumentNotValidException("No se puede realizar esta acción con el Paper en estado " + paper.getStatus());
         }
+    }
+    
+    // Validar institución del usuario en el congreso
+    private void validateCurrentUserInstitution(Paper paper) {
+        institutionValidator.validateAuthenticatedParticipantInstitution(
+                paper.getCongress().getCode()
+        );
     }
 }

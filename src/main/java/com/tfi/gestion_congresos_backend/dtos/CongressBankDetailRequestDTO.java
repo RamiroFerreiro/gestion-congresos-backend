@@ -2,8 +2,6 @@ package com.tfi.gestion_congresos_backend.dtos;
 
 import jakarta.validation.constraints.Size;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 

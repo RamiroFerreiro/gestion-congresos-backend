@@ -2,12 +2,10 @@ package com.tfi.gestion_congresos_backend.services;
 
 import java.util.List;
 
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.CompleteFirstLoginRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.CongressUserProfileResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
@@ -29,24 +27,14 @@ public interface UserService {
     ///Controllers
     List<UserResponseDTO> getAllUsers();
 
-    List<UserResponseDTO> getUsersByCongress(String congressCode);
-
-    UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode);
-
     UserResponseDTO getAuthenticatedUser();
-
-    CongressUserProfileResponseDTO getAuthenticatedUserProfileInCongress(String congressCode);
 
     //Auxiliares
     UserResponseDTO getUserById(Long userId); 
 
     User getUserByUserId(Long userId); 
 
-    User getUserByUserCode(String code); 
-
-    User getAuthenticatedUserEntity(); 
-
-    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role); //probar
+    User getUserByUserCode(String code);
 
     ///-----------------------------------------------------DELETE-----------------------------------------------------///
 
@@ -55,8 +43,6 @@ public interface UserService {
     ///-----------------------------------------------------UPDATE-----------------------------------------------------///
 
     UserResponseDTO updateUser(String userCode, UpdateUserRequestDTO userRequestDTO);
-
-    void updateUserRole(String congressCode, String userCode, RoleName newRole); 
 
     MessageResponseDTO changePassword(ChangePasswordRequestDTO request); 
 

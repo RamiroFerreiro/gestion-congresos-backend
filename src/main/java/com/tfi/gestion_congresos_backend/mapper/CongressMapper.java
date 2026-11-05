@@ -8,11 +8,10 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 
-@Mapper(componentModel = "spring", uses = {UserMapper.class}, unmappedTargetPolicy = ReportingPolicy.IGNORE)
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface CongressMapper {
 	
 	// De entidad a DTO de respuesta:
-    // MapStruct mapea automáticamente "Set<User> participants" a "Set<UserResponseDTO> participants" usando el UserMapper que le indicamos en 'uses'.
     CongressResponseDTO toCongressResponseDTO(Congress congress);
 
     // De DTO de creación a entidad:

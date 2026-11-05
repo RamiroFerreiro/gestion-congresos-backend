@@ -14,7 +14,7 @@ import java.util.Set;
 
 public interface PaperService {
     // GETS
-    List<PaperSummaryResponseDTO> getAssignedPapers(String reviewerCode);
+	List<PaperSummaryResponseDTO> getAssignedPapers(String congressCode, String reviewerCode);
     PaperDetailResponseDTO getPaperById(Long paperId);
     Paper getPaperByPaperId(Long paperId);
     PaperDetailResponseDTO getPaperByCode(String code);

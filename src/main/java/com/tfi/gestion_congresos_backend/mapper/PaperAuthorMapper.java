@@ -38,7 +38,7 @@ public abstract class PaperAuthorMapper {
             return null;
         }
         
-        return participantRepository.findUserParticipantOfCongress(
+        return participantRepository.findActiveParticipantByUserCodeAndCongressCode(
                 paperAuthor.getAuthor().getCode(), 
                 paperAuthor.getPaper().getCongress().getCode()
         )

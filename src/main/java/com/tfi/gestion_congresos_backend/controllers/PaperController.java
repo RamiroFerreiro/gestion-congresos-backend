@@ -34,17 +34,41 @@ public class PaperController {
     
     @Operation(
             summary = "Obtener trabajos asignados a un evaluador",
-            description = "Obtiene la lista resumida de Papers que tiene asignados un evaluador específico."
+            description = """
+                    Obtiene los trabajos asignados a un evaluador dentro de un congreso.
+                    El evaluador puede consultar sus propios trabajos y los administradores
+                    del congreso o superadministradores pueden consultar los trabajos
+                    de cualquier evaluador activo del congreso.
+                    Requiere que el usuario autenticado tenga su institución definida.
+                    """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
-            @ApiResponse(responseCode = "401", description = "No autenticado"),
-            @ApiResponse(responseCode = "404", description = "No se encontró un evaluador con el código especificado")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Trabajos obtenidos correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "No tiene permisos para consultar los trabajos o tiene pendiente completar su institución"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No se encontró el congreso o un evaluador activo con el código especificado"
+            )
     })
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/reviewer/{reviewerCode}")
-    public ResponseEntity<List<PaperSummaryResponseDTO>> getAssignedPapers(@PathVariable String reviewerCode) {
-        return ResponseEntity.ok(paperService.getAssignedPapers(reviewerCode));
+    @GetMapping("/congresses/{congressCode}/assigned-to/{reviewerCode}")
+    public ResponseEntity<List<PaperSummaryResponseDTO>> getAssignedPapers(
+    		@PathVariable String congressCode,
+    		@PathVariable String reviewerCode) {
+
+        return ResponseEntity.ok(
+                paperService.getAssignedPapers(congressCode, reviewerCode)
+        );
     }
 
     @Operation(
@@ -54,6 +78,7 @@ public class PaperController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
@@ -69,6 +94,7 @@ public class PaperController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trabajo obtenido correctamente"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró un Paper con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
@@ -91,6 +117,7 @@ public class PaperController {
             @ApiResponse(responseCode = "201", description = "Trabajo creado correctamente"),
             @ApiResponse(responseCode = "400", description = "Datos inválidos: congreso deshabilitado, área temática no válida, fecha fuera de ventana, etc."),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el congreso, el tipo de trabajo, o el autor especificado")
     })
     @PreAuthorize("isAuthenticated()")
@@ -107,6 +134,7 @@ public class PaperController {
             @ApiResponse(responseCode = "201", description = "Palabra clave agregada correctamente"),
             @ApiResponse(responseCode = "400", description = "Estado inválido, duplicada, excede el máximo, o aparece en el título sin permitirlo"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el Paper")
     })
     @PreAuthorize("isAuthenticated()")
@@ -131,6 +159,7 @@ public class PaperController {
             @ApiResponse(responseCode = "200", description = "Trabajo actualizado exitosamente"),
             @ApiResponse(responseCode = "400", description = "Estado del trabajo no editable o datos inválidos (ej. área temática incorrecta)"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el Paper o el Tipo de Trabajo")
     })
     @PreAuthorize("isAuthenticated()")
@@ -151,6 +180,7 @@ public class PaperController {
             @ApiResponse(responseCode = "200", description = "Palabra clave eliminada correctamente"),
             @ApiResponse(responseCode = "400", description = "Estado inválido, o es la última palabra clave"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el Paper o la palabra clave")
     })
     @PreAuthorize("isAuthenticated()")
@@ -171,6 +201,7 @@ public class PaperController {
             @ApiResponse(responseCode = "200", description = "Evaluador asignado correctamente"),
             @ApiResponse(responseCode = "400", description = "El evaluador no pertenece al mismo congreso o no posee el rol adecuado"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el Paper o el evaluador"),
             @ApiResponse(responseCode = "409", description = "El Paper ya tiene este u otro evaluador asignado")
     })
@@ -193,6 +224,7 @@ public class PaperController {
             @ApiResponse(responseCode = "200", description = "Trabajo enviado a revisión correctamente"),
             @ApiResponse(responseCode = "400", description = "Estado inválido, sin autores, o no alcanza el mínimo de palabras clave"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró un Paper con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
