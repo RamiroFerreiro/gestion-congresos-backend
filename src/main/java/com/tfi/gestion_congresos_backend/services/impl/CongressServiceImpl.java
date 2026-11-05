@@ -2,7 +2,7 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,20 +11,16 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
-import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
-import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
-import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
-import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
-import com.tfi.gestion_congresos_backend.repository.RoleRepository;
-import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
-import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,21 +30,18 @@ public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
 	private final CongressMapper congressMapper;
-	
-	private static final int CODE_LENGTH = 6;
+	private final AuthorizationService authorizationService;
+	private final CongressParticipantInstitutionValidator institutionValidator;
 	
 	@Override
 	@Transactional(readOnly = true)
 	/// Obtener todos los congresos con sus participantes:
 	public List<CongressResponseDTO> getAllCongresses() {
 		
-		List<Congress> congresses = congressRepository.findAllCongressesWithParticipants();
-		
-		
-		List<CongressResponseDTO> result = congresses.stream()
-												.map(congressMapper::toCongressResponseDTO)
-												.toList();
-		return result;
+		return congressRepository.findAllWithThematicAreas()
+				.stream()
+		        .map(congressMapper::toCongressResponseDTO)
+		        .toList();
 	}
 	
 	@Override
@@ -56,48 +49,54 @@ public class CongressServiceImpl implements CongressService {
 	/// Obtener todos los congresos activos/desactivados con sus participantes:
 	public List<CongressResponseDTO> getCongressesByEnabled(boolean enabled) {
 		
-		List<Congress> congresses = congressRepository.findAllCongressesByEnabledWithParticipants(enabled);
-		
-		
-		List<CongressResponseDTO> result = congresses.stream()
-				.map(congressMapper::toCongressResponseDTO)
-				.toList();
-		return result;
+		return congressRepository.findAllByEnabledWithThematicAreas(enabled)
+				.stream()
+		        .map(congressMapper::toCongressResponseDTO)
+		        .toList();
 	}
 	
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener un congreso con sus participantes por su ID:
-	public CongressResponseDTO getCongressById(Long congressId) {
-		 
-		Congress congress = congressRepository.findByCongressId(congressId)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));;
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
+	/// Obtener la entidad de un congreso por su código:
+	public Congress getCongressEntityByCode(String code) {
+
+	    return congressRepository.findByCodeWithThematicAreas(code)
+	            .orElseThrow(() ->
+	                new ResourceNotFoundException(
+	                    "Congreso no encontrado con código: " + code
+	                )
+	            );
 	}
 	
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener una entidad congreso con sus participantes por su ID:
-	public Congress getCongressByCongressId(Long congressId) {
-		 
-		Congress congress = congressRepository.findByCongressId(congressId)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));;
-		 
-		return congress;
+	/// Obtener el DTO de un congreso por su código:
+	public CongressResponseDTO getCongressDTOByCode(String code) {
+
+	    Congress congress = getCongressEntityByCode(code);
+
+	    return congressMapper.toCongressResponseDTO(congress);
 	}
 	
 	@Override
 	@Transactional
 	/// Crear un congreso:
-	public CongressResponseDTO createCongress(CongressRequestDTO congressRequestDTO) {
+	public CongressResponseDTO createCongress(CongressRequestDTO request) {
+		
+		// Validar permisos:
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+	    authorizationService.validateSuperAdminPermission(authenticatedUser);
 		
 		// Validación de fechas del congreso:
-		validateCongressDates(congressRequestDTO);
+		validateCongressDatesForCreation(request);
+		
+		// Validación de rango de palabras clave límite:
+		validateKeywordLimits(request);
+		
+		// Validar modo de publicación de evaluaciones y fecha definida:
+		validateEvaluationReleaseConfiguration(request);
 		 
-		Congress congress = congressMapper.toEntity(congressRequestDTO);
+		Congress congress = congressMapper.toEntity(request);
 		
 		// Generamos un código para el congreso:
 		congress.setCode(generateCongressCode());
@@ -105,18 +104,50 @@ public class CongressServiceImpl implements CongressService {
 		// Activamos el congreso:
 		congress.setEnabled(true);
 		
-		congress = congressRepository.save(congress);
+		Congress savedCongress = congressRepository.save(congress);
 		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
+		return congressMapper.toCongressResponseDTO(savedCongress);
+	}
+	
+	@Override
+	@Transactional
+	/// Actualizar un congreso:
+	public CongressResponseDTO updateCongress(String code, CongressRequestDTO request) {
+		
+		// Obtener usuario autenticado:
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		
+		// Validar permisos:
+		authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+		
+		// Validar institución del administrador:
+		institutionValidator.validateAuthenticatedParticipantInstitution(code);
+		
+		// Obtener congreso:
+		Congress congress = getCongressEntityByCode(code);
 		 
-		return result;
+		// Validación de fechas del congreso:
+		validateCongressDatesForUpdate(request, congress);
+		
+		// Validación de rango de palabras clave límite:
+		validateKeywordLimits(request);
+		
+		// Validar modo de publicación de evaluaciones y fecha definida:
+		validateEvaluationReleaseConfiguration(request);
+		 
+		congressMapper.updateCongressFromDto(request, congress);
+		 
+		Congress updatedCongress = congressRepository.save(congress);
+		 
+		return congressMapper.toCongressResponseDTO(updatedCongress);
 	}
 	
 	@Override
 	@Transactional
 	/// Desactivar un congreso:
 	public MessageResponseDTO disableCongress(String code) {
-	    changeCongressStatus(code, false);
+	    
+		changeCongressStatus(code, false);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso desactivado con éxito");
@@ -126,82 +157,28 @@ public class CongressServiceImpl implements CongressService {
 	@Transactional
 	/// Activar un congreso:
 	public MessageResponseDTO enableCongress(String code) {
-	    changeCongressStatus(code, true);
+	    
+		changeCongressStatus(code, true);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso activado con éxito");
 	}
-	 
-	@Override
-	@Transactional
-	/// Actualizar un congreso:
-	public CongressResponseDTO updateCongress(String code, CongressRequestDTO congressRequestDTO) {
-		 
-		Congress congress = congressRepository.findByCode(code)
-				 								.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
-		 
-		// Validación de fechas del congreso:
-		validateCongressDates(congressRequestDTO);
-		 
-		congressMapper.updateCongressFromDto(congressRequestDTO, congress);
-		 
-		congress = congressRepository.save(congress);
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
-	}
-	
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un usuario de determinado rol en un congreso:
-	public boolean existsByCongressIdAndUserIdAndRoleName(Long congressId, Long userId, RoleName role) {
-		return congressRepository.existsByCongressIdAndUserIdAndRole(congressId, userId, role);
-	}
-	
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un congreso por su ID:
-	public boolean existsById(Long congressId) {
-		return congressRepository.existsById(congressId);
-	}
-	
-	@Override
-	@Transactional
-	/// Agregar un participante a un congreso:
-	public MessageResponseDTO addParticipantToCongress(String code, String participantCode) {
 
-		/* 
-		// Buscar congreso:
-		Congress congress = getCongressByCode(code);
-		
-		// Buscar participante:
-		User participant = userService.getUserByUserCode(participantCode);
-		
-		// Validar que el participante no esté inscripto previamente en el congreso:
-		if (congressRepository.existsByCodeAndParticipantsCode(code, participantCode)) {
-			throw new ResourceAlreadyExistsException("El participante con código " + participantCode + " ya está inscripto en el congreso con código " + code + ".");
-		}
-		
-		///ESTO SE ROMPE POR CAMBIAR EL MANY TO MANY DE CONGRESS A USER
-		/// AHORA ES ONE TO MANY A LA TABLE INTERMEDIA
-		/// AHORA LIST ANTES ERA SET
-
-		//Añadir el participante al congreso:
-		congress.getParticipants().add(participant);
-		congressRepository.save(congress);
-		
-		*/
-		// Devolver mensaje de respuesta:
-		return new MessageResponseDTO("Participante agregado con éxito");
-	}
-	
-	@Transactional
 	/// Cambiar de estado un congreso:
 	private void changeCongressStatus(String code, boolean targetStatus) {
-	    Congress congress = congressRepository.findByCode(code)
-	            				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
-	   
+	    
+		// Obtener usuario autenticado:
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+	    // Validar permisos:
+	    authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+	    
+	    // Validar institución del administrador:
+	    institutionValidator.validateAuthenticatedParticipantInstitution(code);
+	    
+	    // Obtener congreso:
+	    Congress congress = getCongressEntityByCode(code);
+	            				
 	    if (congress.isEnabled() == targetStatus) {
 	    	throw new ResourceAlreadyExistsException("El congreso ya se encontraba en ese estado");
 	    }
@@ -210,134 +187,217 @@ public class CongressServiceImpl implements CongressService {
 	    
 	    congressRepository.save(congress);
 	}
-	 
-	/**
-	 * Valida que una lista de fechas mantenga un orden cronológico estricto o no superpuesto.
-	 * Retorna true si cada fecha es anterior (o igual) a la que le sigue.
-	 */
+	
+	/// Validar rango de fechas:
+	private boolean isValidDateRange(
+	        LocalDateTime startDate,
+	        LocalDateTime endDate
+	) {
+	    return startDate != null
+	            && endDate != null
+	            && startDate.isBefore(endDate);
+	}
+	
+	/// Validar secuencia de fechas:
 	private boolean isChronologicalSequence(LocalDateTime... dates) {
-	     
-		for (int i = 0; i < dates.length - 1; i++) {
-	         
-			// Si la fecha actual es posterior a la siguiente, la secuencia es inválida
+
+	    for (int i = 0; i < dates.length - 1; i++) {
+
 	        if (dates[i].isAfter(dates[i + 1])) {
 	            return false;
 	        }
 	    }
-	     
-		return true;
+
+	    return true;
 	}
-	 
-	/**
-	 * Valida que un rango individual de fechas sea coherente:
-	 * - Ambas fechas deben ser futuras (posteriores a 'now').
-	 * - La fecha de inicio debe ser estrictamente anterior a la fecha de fin.
-	 */
-	private boolean isValidDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-	     
-		if (startDate == null || endDate == null) {
-	        return false;
+	
+	/// Validar que todas las fechas sean futuras:
+	private boolean areAllDatesInFuture(LocalDateTime now, LocalDateTime... dates) {
+
+	    for (LocalDateTime date : dates) {
+	        if (date == null || !date.isAfter(now)) {
+	            return false;
+	        }
 	    }
-	     
-	    LocalDateTime now = LocalDateTime.now();
+
+	    return true;
+	}
 	
-	    boolean areInFuture = startDate.isAfter(now) && endDate.isAfter(now);
-	    boolean isValidSequence = startDate.isBefore(endDate);
-	
-	    return areInFuture && isValidSequence;
+	/// Validar si es una fecha futura o si no cambió:
+	private boolean isFutureOrUnchanged(
+	        LocalDateTime newDate,
+	        LocalDateTime currentDate,
+	        LocalDateTime now
+	) {
+	    return newDate != null
+	            && (newDate.equals(currentDate) || newDate.isAfter(now));
 	}
 
-	/**
-	 * Valida la totalidad de las fechas de un congreso (coherencia individual y orden global):
-	 */
-	private void validateCongressDates(CongressRequestDTO dto) {
-		 
-		// Extracción de fechas:
-		LocalDateTime registrationStartDate = dto.getRegistrationStartDate();
-		LocalDateTime registrationEndDate = dto.getRegistrationEndDate();
-		LocalDateTime presentationStartDate = dto.getPresentationStartDate();
-		LocalDateTime presentationEndDate = dto.getPresentationEndDate();
-		LocalDateTime startDate = dto.getStartDate();
-		LocalDateTime endDate = dto.getEndDate();
-	
-		// 1. Validar que cada par individual sea coherente (inicio < fin y futuras):
-		boolean isRegistrationValid = isValidDateRange(registrationStartDate, registrationEndDate);
-	    boolean isPresentationValid = isValidDateRange(presentationStartDate, presentationEndDate);
-	    boolean isCongressValid = isValidDateRange(startDate, endDate);
-	
+	/// Validar rangos y secuencia de fechas:
+	private void validateDateRangesAndSequence(CongressRequestDTO dto) {
+
+	    // 1. Validar que cada rango sea coherente (inicio < fin):
+
+	    boolean isRegistrationValid = isValidDateRange(
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate()
+	    );
+
+	    boolean isPresentationValid = isValidDateRange(
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate()
+	    );
+
+	    boolean isCongressValid = isValidDateRange(
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
 	    if (!isRegistrationValid || !isPresentationValid || !isCongressValid) {
 	        throw new ArgumentNotValidException(
-	            "Las fechas de cada etapa deben ser futuras y la fecha de inicio debe ser anterior a la de fin."
+	                "La fecha de inicio de cada etapa debe ser anterior a su fecha de fin."
 	        );
 	    }
-	
-	    // 2. Validar el orden cronológico entre las etapas del congreso:
-	    // inicio inscripción <= fin inscripción <= inicio presentación <= fin presentación <= inicio congreso <= fin congreso
+
+	    // 2. Validar el orden cronológico entre las etapas:
+	    // inicio inscripción <= fin inscripción
+	    // <= inicio presentación <= fin presentación
+	    // <= inicio congreso <= fin congreso.
+
 	    boolean isSequenceValid = isChronologicalSequence(
-	    		registrationStartDate,
-	    		registrationEndDate,
-	    		presentationStartDate,
-	    		presentationEndDate,
-	    		startDate,
-	    		endDate
-	    		);
-	
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate(),
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate(),
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
 	    if (!isSequenceValid) {
 	        throw new ArgumentNotValidException(
-	            "La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
+	                "La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
+	        );
+	    }
+	}
+	
+	/// Validar fechas al crear un congreso:
+	private void validateCongressDatesForCreation(CongressRequestDTO dto) {
+
+	    LocalDateTime now = LocalDateTime.now();
+
+	    // Validar rangos y secuencia cronológica:
+	    validateDateRangesAndSequence(dto);
+
+	    // Comprobar que las seis fechas sean futuras:
+	    boolean areDatesFuture = areAllDatesInFuture(
+	            now,
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate(),
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate(),
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
+	    if (!areDatesFuture) {
+	        throw new ArgumentNotValidException(
+	                "Todas las fechas del congreso deben ser futuras al momento de su creación."
+	        );
+	    }
+
+	    // Validar la fecha opcional de publicación de evaluaciones:
+	    LocalDateTime scheduledDate = dto.getPlannedEvaluationReleaseDate();
+
+	    if (scheduledDate != null && !scheduledDate.isAfter(now)) {
+	        throw new ArgumentNotValidException(
+	                "La fecha de publicación programada de evaluaciones debe ser futura."
+	        );
+	    }
+	}
+	
+	/// Validar fechas al modificar un congreso:
+	private void validateCongressDatesForUpdate(
+	        CongressRequestDTO dto,
+	        Congress congress
+	) {
+
+	    LocalDateTime now = LocalDateTime.now();
+
+	    // Validar rangos y secuencia cronológica:
+	    validateDateRangesAndSequence(dto);
+
+	    // Comprobar que las fechas modificadas sean futuras
+	    // o que conserven exactamente el valor anterior:
+	    boolean areDatesValid =
+	            isFutureOrUnchanged(dto.getRegistrationStartDate(), congress.getRegistrationStartDate(), now)
+	            && isFutureOrUnchanged(dto.getRegistrationEndDate(), congress.getRegistrationEndDate(), now)
+	            && isFutureOrUnchanged(dto.getPresentationStartDate(), congress.getPresentationStartDate(), now)
+	            && isFutureOrUnchanged(dto.getPresentationEndDate(), congress.getPresentationEndDate(), now)
+	            && isFutureOrUnchanged(dto.getStartDate(), congress.getStartDate(), now)
+	            && isFutureOrUnchanged(dto.getEndDate(), congress.getEndDate(), now);
+
+	    if (!areDatesValid) {
+	        throw new ArgumentNotValidException(
+	                "Las fechas que se modifiquen deben ser futuras. Las fechas pasadas solo pueden conservarse sin cambios."
+	        );
+	    }
+
+	    // Validar la fecha opcional de publicación de evaluaciones:
+	    LocalDateTime newScheduledDate = dto.getPlannedEvaluationReleaseDate();
+	    LocalDateTime currentScheduledDate = congress.getPlannedEvaluationReleaseDate();
+
+	    if (newScheduledDate != null
+	            && !isFutureOrUnchanged(newScheduledDate, currentScheduledDate, now)) {
+
+	        throw new ArgumentNotValidException(
+	                "La fecha de publicación programada debe ser futura si se modifica."
 	        );
 	    }
 	}
 	
 	/// Genera un código de congreso no duplicado:
 	private String generateCongressCode() {
-        String code;
-        do {
-            code = generateRandomNumericCode(CODE_LENGTH);
-        } while (congressRepository.existsByCode(code));
-        return code;
-    }
+		String code;
 
-	/// Genera un código numérico aleatorio de la longitud indicada:
-    private String generateRandomNumericCode(int length) {
-        int max = (int) Math.pow(10, length) - 1;
-        int randomNumber = new Random().nextInt(max + 1);
-        return String.format("%0" + length + "d", randomNumber);
-    }
+	    do {
+	        code = "%06d".formatted(
+	            ThreadLocalRandom.current().nextInt(1_000_000)
+	        );
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Obtener una entidad congreso con sus participantes por su code:
-	public Congress getCongressByCode(String code) {
-		return congressRepository.findByCode(code)
-				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
+	    } while (congressRepository.existsByCode(code));
+
+	    return code;
+    }
+	
+	/// Validar rango de palabras clave límite:
+	private void validateKeywordLimits(CongressRequestDTO dto) {
+
+	    Integer min = dto.getMinKeywords();
+	    Integer max = dto.getMaxKeywords();
+
+	    if (min != null && max != null && min > max) {
+	        throw new ArgumentNotValidException(
+	                "La cantidad mínima de palabras clave no puede superar la cantidad máxima."
+	        );
+	    }
 	}
 	
-	@Override
-	@Transactional(readOnly = true)
-	/// Obtener un congreso en DTO con sus participantes por su code:
-	public CongressResponseDTO getCongressDTOByCode(String code) {
-		 
-		Congress congress = congressRepository.findByCode(code)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));;
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
-	}
+	/// Validar modo de publicación de evaluaciones y fecha definida:
+	private void validateEvaluationReleaseConfiguration(CongressRequestDTO dto) {
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un congreso por su code:
-	public boolean existsByCode(String code) {
-		return congressRepository.existsByCode(code);
-	}
+	    EvaluationReleaseMode mode = dto.getEvaluationReleaseMode();
+	    LocalDateTime scheduledDate = dto.getPlannedEvaluationReleaseDate();
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un usuario de determinado rol en un congreso, buscando por code:
-	public boolean existsByCongressCodeAndUserCodeAndRoleName(String congressCode, String userCode, RoleName role) {
-		return congressRepository.existsByCongressCodeAndUserCodeAndRole(congressCode, userCode, role);
-	}
+	    if (mode == EvaluationReleaseMode.BATCH && scheduledDate == null) {
+	        throw new ArgumentNotValidException(
+	                "Debe especificar una fecha de publicación para el modo BATCH."
+	        );
+	    }
 
+	    if (mode == EvaluationReleaseMode.IMMEDIATE && scheduledDate != null) {
+	        throw new ArgumentNotValidException(
+	                "No debe especificar una fecha de publicación para el modo IMMEDIATE."
+	        );
+	    }
+	}
 }

@@ -1,3 +1,4 @@
+
 package com.tfi.gestion_congresos_backend.controllers;
 
 import java.util.List;
@@ -18,10 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.services.CongressService;
-import com.tfi.gestion_congresos_backend.services.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,203 +28,203 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-@Tag(name = "Congress", description = "Operaciones relacionadas con la gestión de congresos")
+@Tag(
+    name = "Congress",
+    description = "Operaciones relacionadas con la gestión de congresos"
+)
 @RestController
 @RequestMapping("/api/congresses")
 @RequiredArgsConstructor
 public class CongressController {
-	
-	private final CongressService congressService;
-	private final UserService userService;
-	
-	/// Traer congresos (Todos / Activos / Desactivados):
-	@Operation(
-            summary = "Obtener los congresos según el estado indicado",
-            description = "Obtiene la lista de todos los congresos registrados en el sistema o los que estén activos o desactivos."
+
+    private final CongressService congressService;
+
+    /// Obtener congresos (todos / activos / desactivados):
+    @Operation(
+        summary = "Obtener congresos según el estado indicado",
+        description = "Obtiene todos los congresos registrados o los que estén activos o desactivados."
     )
     @ApiResponse(
+        responseCode = "200",
+        description = "Congresos obtenidos correctamente"
+    )
+    @GetMapping
+    public ResponseEntity<List<CongressResponseDTO>> getCongresses(
+            @RequestParam(required = false) Boolean enabled
+    ) {
+
+        if (enabled != null) {
+            return ResponseEntity.ok(
+                congressService.getCongressesByEnabled(enabled)
+            );
+        }
+
+        return ResponseEntity.ok(congressService.getAllCongresses());
+    }
+
+    /// Obtener un congreso por código:
+    @Operation(
+        summary = "Obtener un congreso por código",
+        description = "Obtiene la información de un congreso a partir de su código."
+    )
+    @ApiResponses({
+        @ApiResponse(
             responseCode = "200",
-            description = "Congresos obtenidos correctamente"
-    )
-	@GetMapping
-	public ResponseEntity<List<CongressResponseDTO>> getCongresses(@RequestParam(required = false) Boolean enabled) {
-		
-		if (enabled != null) {
-			return ResponseEntity.ok(congressService.getCongressesByEnabled(enabled));
-		}
-		
-		return ResponseEntity.ok(congressService.getAllCongresses());
-	}
-	
-	/// Traer un congreso por ID:
-	@Operation(
-            summary = "Obtener un congreso por código",
-            description = "Obtiene la información de un congreso a partir de su código."
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Congreso obtenido correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró un congreso con el código especificado"
-            )
+            description = "Congreso obtenido correctamente"
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "No se encontró un congreso con el código especificado"
+        )
     })
-	@GetMapping("/{code}")
-	public ResponseEntity<CongressResponseDTO> getCongressByCode(@PathVariable String code) {
-	
-		return ResponseEntity.ok(congressService.getCongressDTOByCode(code));
-	}
-	
-	/// Crear un congreso:
-	@Operation(
-            summary = "Crear un congreso",
-            description = "Registra un nuevo congreso en el sistema."
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "Congreso creado correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Los datos enviados no son válidos. Razones posibles:\n" +
-                            	  "- Las fechas de cada etapa deben ser futuras y la fecha de inicio debe ser anterior a la de fin.\n" +
-                            	  "- La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
-            )
-    })
-	@PostMapping
-	public ResponseEntity<CongressResponseDTO> createCongress(@Valid @RequestBody CongressRequestDTO request) {
-		
-		CongressResponseDTO created = congressService.createCongress(request);
-        
-		return ResponseEntity.status(HttpStatus.CREATED).body(created);
-	}
-	
-	/// Desactivar congreso (baja lógica):
-	@Operation(
-            summary = "Desactivar un congreso por código",
-            description = "Establece como desactivado el congreso."
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Congreso desactivado correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró un congreso con el código especificado"
-            ),
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "El congreso ya se encontraba desactivado"
-            )
-    })
-	@PatchMapping("/{code}/disable")
-	public ResponseEntity<MessageResponseDTO> disableCongress(@PathVariable String code) {
-	    
-		return ResponseEntity.ok(congressService.disableCongress(code));
-	}
+    @GetMapping("/{code}")
+    public ResponseEntity<CongressResponseDTO> getCongressByCode(
+            @PathVariable String code
+    ) {
 
-	/// Reactivar congreso:
-	@Operation(
-            summary = "Activar un congreso por código",
-            description = "Establece como activado el congreso."
+        return ResponseEntity.ok(
+            congressService.getCongressDTOByCode(code)
+        );
+    }
+
+    /// Crear un congreso:
+    @Operation(
+        summary = "Crear un congreso",
+        description = "Registra un nuevo congreso en el sistema."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Congreso activado correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró un congreso con el código especificado"
-            ),
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "El congreso ya se encontraba activado"
-            )
+        @ApiResponse(
+            responseCode = "201",
+            description = "Congreso creado correctamente"
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Los datos enviados no son válidos. Las fechas deben respetar los rangos y el orden cronológico establecido, y ser futuras."
+        )
     })
-	@PatchMapping("/{code}/enable")
-	public ResponseEntity<MessageResponseDTO> enableCongress(@PathVariable String code) {
-	    
-		return ResponseEntity.ok(congressService.enableCongress(code));
-	}
-	
-	/// Actualizar un congreso:
-	@Operation(
-            summary = "Actualizar un congreso",
-            description = "Modifica un congreso existente en el sistema."
+    @PreAuthorize("@securityEvaluator.isSuperAdmin(authentication.principal)")
+    @PostMapping
+    public ResponseEntity<CongressResponseDTO> createCongress(
+            @Valid @RequestBody CongressRequestDTO request
+    ) {
+
+        CongressResponseDTO created = congressService.createCongress(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /// Desactivar un congreso:
+    @Operation(
+        summary = "Desactivar un congreso por código",
+        description = "Establece como desactivado el congreso."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "Congreso actualizado correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Los datos enviados no son válidos. Razones posibles:\n" +
-                            	  "- Las fechas de cada etapa deben ser futuras y la fecha de inicio debe ser anterior a la de fin.\n" +
-                            	  "- La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "No se encontró un congreso con el código especificado"
-            ),
+        @ApiResponse(
+            responseCode = "200",
+            description = "Congreso desactivado correctamente"
+        ),
+        @ApiResponse(
+    	    responseCode = "401",
+    	    description = "Usuario no autenticado"
+    	),
+    	@ApiResponse(
+    	    responseCode = "403",
+    	    description = "No posee permisos de administración o debe completar su institución"
+    	),
+        @ApiResponse(
+            responseCode = "404",
+            description = "No se encontró un congreso con el código especificado"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "El congreso ya se encontraba desactivado"
+        )
     })
-	@PutMapping("/{code}")
-	public ResponseEntity<CongressResponseDTO> updateCongress(@PathVariable String code, @Valid @RequestBody CongressRequestDTO request) {
-		
-		return ResponseEntity.ok(congressService.updateCongress(code, request));
-	}
-	
-	/// Obtener usuarios de un congreso con determinado rol:
-	@Operation(
-            summary = "Obtener los participantes de un congreso con determinado rol",
-            description = "Obtiene la lista de todos los participantes registrados en el congreso que cuentan con el rol indicado."
+    @PatchMapping("/{code}/disable")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<MessageResponseDTO> disableCongress(
+            @PathVariable String code
+    ) {
+
+        return ResponseEntity.ok(
+            congressService.disableCongress(code)
+        );
+    }
+
+    /// Activar un congreso:
+    @Operation(
+        summary = "Activar un congreso por código",
+        description = "Establece como activado el congreso."
     )
     @ApiResponses({
-			@ApiResponse(
-		            responseCode = "200",
-		            description = "Participantes obtenidos correctamente"
-		    ),
-			@ApiResponse(
-		            responseCode = "404",
-		            description = "No se encontró un congreso con el código especificado"
-		    ),
-	})
-	@GetMapping("/{code}/participants")
-	public ResponseEntity<List<UserResponseDTO>> getParticipantsByCongressAndRole(@PathVariable String code, @RequestParam(required = false) RoleName role) {
-		
-		return ResponseEntity.ok(userService.getParticipantsByCongressAndRole(code, role));
-	}
-	
-	/// Agregar un participante a un congreso:
-	@Operation(
-            summary = "Agregar un participante a un congreso",
-            description = "Añade un participante a un congreso determinado."
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "Participante agregado correctamente"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Objeto inexistente. Razones posibles:\n" +
-                            	  "- No se encontró un congreso con el código especificado.\n" +
-                            	  "- No se encontró un usuario con el código especificado."
-            ),
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "El participante ya estaba inscripto en el congreso"
-            ),
+        @ApiResponse(
+            responseCode = "200",
+            description = "Congreso activado correctamente"
+        ),
+        @ApiResponse(
+    	    responseCode = "401",
+    	    description = "Usuario no autenticado"
+    	),
+    	@ApiResponse(
+    	    responseCode = "403",
+    	    description = "No posee permisos de administración o debe completar su institución"
+    	),
+        @ApiResponse(
+            responseCode = "404",
+            description = "No se encontró un congreso con el código especificado"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "El congreso ya se encontraba activado"
+        )
     })
-	@PostMapping("/{code}/participants/{participantCode}")
-	public ResponseEntity<MessageResponseDTO> addParticipantToCongress(@PathVariable String code, @PathVariable String participantCode) {
-		
-		return ResponseEntity.ok(congressService.addParticipantToCongress(code, participantCode));
-	}   
+    @PatchMapping("/{code}/enable")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<MessageResponseDTO> enableCongress(
+            @PathVariable String code
+    ) {
+
+        return ResponseEntity.ok(
+            congressService.enableCongress(code)
+        );
+    }
+
+    /// Actualizar un congreso:
+    @Operation(
+        summary = "Actualizar un congreso",
+        description = "Modifica un congreso existente en el sistema."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Congreso actualizado correctamente"
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos inválidos. Las fechas modificadas deben ser futuras; las fechas pasadas pueden conservarse sin cambios. También deben respetarse los rangos y el orden cronológico."
+        ),
+        @ApiResponse(
+    	    responseCode = "401",
+    	    description = "Usuario no autenticado"
+    	),
+    	@ApiResponse(
+    	    responseCode = "403",
+    	    description = "No posee permisos de administración o debe completar su institución"
+    	),
+        @ApiResponse(
+            responseCode = "404",
+            description = "No se encontró un congreso con el código especificado"
+        )
+    })
+    @PutMapping("/{code}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CongressResponseDTO> updateCongress(
+            @PathVariable String code,
+            @Valid @RequestBody CongressRequestDTO request
+    ) {
+
+        return ResponseEntity.ok(
+            congressService.updateCongress(code, request)
+        );
+    }
 }
-

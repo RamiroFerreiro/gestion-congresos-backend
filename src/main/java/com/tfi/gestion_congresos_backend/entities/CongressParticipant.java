@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.*;
 
 @Builder
@@ -18,11 +19,18 @@ import lombok.*;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 
 @Entity
-@Table(name = "congress_participants")
-public class CongressParticipant extends AuditableEntity{
+@Table(
+		name = "congress_participants",
+		uniqueConstraints = {
+		        @UniqueConstraint(
+		            name = "uk_congress_participant_user",
+		            columnNames = {"congress_id", "user_id"}
+		        )
+		}
+)
+public class CongressParticipant extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -40,14 +48,19 @@ public class CongressParticipant extends AuditableEntity{
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
-    @Column(name = "institution", nullable = false)
+    @Column(name = "institution")
     private String institution;
 
     @Column(name = "active", nullable = false)
     @Builder.Default
     private boolean active = true;
 
-    @Column(name = "registration_date", nullable = false, updatable = false)
+    @Column(name = "registration_date", nullable = false)
     private LocalDateTime registrationDate;
+    
+    public void reactivate(String institution) {
+        this.active = true;
+        this.institution = institution;
+    }
     
 }

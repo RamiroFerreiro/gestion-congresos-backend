@@ -5,7 +5,7 @@ import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
-import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -30,27 +30,21 @@ public class CongressRequestDTO {
 	private String place;
 	
 	@NotNull(message = "La fecha de inicio de inscripción es obligatoria")
-    @Future(message = "La fecha de inicio de inscripción debe ser una fecha futura")
 	private LocalDateTime registrationStartDate;
 	
 	@NotNull(message = "La fecha de fin de inscripción es obligatoria")
-    @Future(message = "La fecha de fin de inscripción debe ser una fecha futura")
 	private LocalDateTime registrationEndDate;
 	
 	@NotNull(message = "La fecha de inicio de presentación es obligatoria")
-    @Future(message = "La fecha de inicio de presentación debe ser una fecha futura")
 	private LocalDateTime presentationStartDate;
 	
 	@NotNull(message = "La fecha de fin de presentación es obligatoria")
-    @Future(message = "La fecha de fin de presentación debe ser una fecha futura")
 	private LocalDateTime presentationEndDate;
 	
 	@NotNull(message = "La fecha de inicio del congreso es obligatoria")
-    @Future(message = "La fecha de inicio del congreso debe ser una fecha futura")
 	private LocalDateTime startDate;
 	
 	@NotNull(message = "La fecha de fin del congreso es obligatoria")
-    @Future(message = "La fecha de fin del congreso debe ser una fecha futura")
 	private LocalDateTime endDate;
 	
 	@Min(value = 1, message = "Si se especifica un límite, el número máximo de autores debe ser al menos 1")
@@ -65,7 +59,7 @@ public class CongressRequestDTO {
 	private Integer maxKeywords;
 	
 	@NotEmpty(message = "Debe especificar al menos un área temática")
-	private Set<String> thematicAreas;
+	private Set<@NotBlank(message = "Las áreas temáticas no pueden estar vacías") String> thematicAreas;
 	
 	private boolean isFree;
 	
@@ -74,9 +68,9 @@ public class CongressRequestDTO {
 	@NotNull(message = "El modo de publicación de evalauciones es obligatorio")
 	private EvaluationReleaseMode evaluationReleaseMode;
 	
-    @Future(message = "La fecha de publicación de evaluaciones debe ser una fecha futura")
-	private LocalDateTime scheduledEvaluationReleaseDate;
+	private LocalDateTime plannedEvaluationReleaseDate;
 	
 	@NotBlank(message = "El email de contacto del congreso no puede estar vacío")
+	@Email(message = "El email de contacto no tiene un formato válido")
 	private String contactMail;
 }
