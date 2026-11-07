@@ -24,6 +24,7 @@ import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
 	private final RoleRepository roleRepository;
 	private final CongressParticipantRepository congressParticipantRepository;
     private final CongressService congressService;
+    private final RoleService roleService;
     private final UserRepository userRepository;
     private final CongressParticipantMapper congressParticipantMapper;
     private final CongressParticipantInstitutionValidator institutionValidator;
@@ -138,14 +140,17 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         
         // 4. Validar que el administrador tenga una institución definida en el congreso
         institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+        
+        // 5. Validar que el rol solicitado pueda asignarse
+        roleService.validateAssignableRole(requestDTO.getRole());
 
-        // 5. Buscar al usuario que se desea inscribir
+        // 6. Buscar al usuario que se desea inscribir
         User targetUser = userRepository.findByCode(requestDTO.getUserCode())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No se encontró un usuario con el código: " + requestDTO.getUserCode()
                 ));
 
-        // 6. Verificar si existe una participación previa
+        // 7. Verificar si existe una participación previa
         Optional<CongressParticipant> participantOpt =
                 congressParticipantRepository.findByUserCodeAndCongressCode(
                         targetUser.getCode(),
@@ -171,13 +176,13 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
             );
         }
         
-        // 7. Obtener el rol solicitado
+        // 8. Obtener el rol solicitado
         Role participantRole = roleRepository.findByName(requestDTO.getRole())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "El rol solicitado no se encuentra configurado en el sistema."
                 ));
 
-        // 8. Crear la nueva participación
+        // 9. Crear la nueva participación
         CongressParticipant newParticipant = CongressParticipant.builder()
                 .congress(congress)
                 .user(targetUser)
@@ -187,10 +192,10 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
                 .registrationDate(LocalDateTime.now())
                 .build();
 
-        // 9. Guardar la participación
+        // 10. Guardar la participación
         congressParticipantRepository.save(newParticipant);
 
-        // 10. Retornar confirmación
+        // 11. Retornar confirmación
         return MessageResponseDTO.builder()
                 .message(
                         "Se ha inscripto exitosamente a "
@@ -355,12 +360,8 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         // 4. Validar que el administrador tenga una institución definida en este congreso
         institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
 
-        // 5. Validar que se haya indicado un nuevo rol
-        if (newRole == null) {
-            throw new ArgumentNotValidException(
-                    "Debe especificarse el nuevo rol del participante."
-            );
-        }
+        // 5. Validar que el nuevo rol pueda asignarse
+        roleService.validateAssignableRole(newRole);
 
         // 6. Buscar la participación activa del usuario
         CongressParticipant participant =
