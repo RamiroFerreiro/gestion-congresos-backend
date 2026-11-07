@@ -343,6 +343,73 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
     
     @Override
     @Transactional
+    public MessageResponseDTO reactivateParticipantByAdmin(
+            String congressCode,
+            String userCode,
+            CongressParticipantInstitutionRequestDTO requestDTO) {
+
+        // 1. Obtener el usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // 2. Verificar que el congreso exista
+        Congress congress = congressService.getCongressEntityByCode(congressCode);
+
+        // 3. Validar permisos de administración
+        authorizationService.validateCongressAdminPermission(
+                authenticatedUser,
+                congressCode
+        );
+
+        // 4. Validar que el administrador tenga una institución definida
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+        // 5. Validar la institución proporcionada
+        if (requestDTO == null
+                || requestDTO.getInstitution() == null
+                || requestDTO.getInstitution().isBlank()) {
+            throw new ArgumentNotValidException(
+                    "La institución es obligatoria para reactivar la participación."
+            );
+        }
+
+        // 6. Buscar la participación, independientemente de su estado
+        CongressParticipant participant =
+                congressParticipantRepository.findByUserCodeAndCongressCode(
+                        userCode,
+                        congressCode
+                ).orElseThrow(() -> new ResourceNotFoundException(
+                        "No se encontró una participación previa para el usuario "
+                        + userCode + " en el congreso: " + congressCode
+                ));
+
+        // 7. Verificar que la participación esté inactiva
+        if (participant.isActive()) {
+            throw new ArgumentNotValidException(
+                    "El usuario ya tiene una participación activa en este congreso."
+            );
+        }
+
+        // 8. Reactivar la participación y actualizar la institución
+        participant.setActive(true);
+        participant.setInstitution(requestDTO.getInstitution().strip());
+
+        // 9. Guardar los cambios
+        congressParticipantRepository.save(participant);
+
+        // 10. Retornar confirmación
+        return MessageResponseDTO.builder()
+                .message(
+                        "La participación de "
+                        + participant.getUser().getFirstName() + " "
+                        + participant.getUser().getLastName()
+                        + " en el congreso '" + congress.getName()
+                        + "' ha sido reactivada exitosamente."
+                )
+                .build();
+    }
+    
+    @Override
+    @Transactional
     public void updateParticipantRole(String congressCode, String userCode, RoleName newRole) {
 
         // 1. Obtener el usuario autenticado
