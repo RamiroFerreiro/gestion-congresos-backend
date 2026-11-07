@@ -19,6 +19,8 @@ public interface CongressParticipantService {
     CongressParticipantResponseDTO getParticipantByUserCode(String congressCode, String userCode);
 
     MessageResponseDTO unregisterFromCongress(String targetUserCode, String congressCode);
+    
+    MessageResponseDTO reactivateParticipantByAdmin(String congressCode, String userCode, CongressParticipantInstitutionRequestDTO requestDTO);
 
     void updateParticipantRole(String congressCode, String userCode, RoleName newRole);
     

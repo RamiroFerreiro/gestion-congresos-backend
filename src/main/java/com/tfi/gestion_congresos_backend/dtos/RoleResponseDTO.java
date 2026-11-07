@@ -2,7 +2,6 @@ package com.tfi.gestion_congresos_backend.dtos;
 
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

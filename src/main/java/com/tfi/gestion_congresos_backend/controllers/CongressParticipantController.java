@@ -241,6 +241,47 @@ public class CongressParticipantController {
 
         return ResponseEntity.ok(response);
     }
+    
+    @Operation(
+            summary = "Reactivar la participación de un usuario",
+            description = """
+                    Reactiva una participación previamente dada de baja en un congreso.
+
+                    **Permisos:**
+                    - Administradores del congreso.
+                    - Súper administradores.
+
+                    **Reglas de negocio:**
+                    - Debe existir una participación previa inactiva.
+                    - No se permite reactivar una participación que ya está activa.
+                    - Se conserva el rol que tenía el participante antes de la baja.
+                    - Se actualiza la institución con el valor proporcionado.
+                    - Se conserva el historial de la baja anterior.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Participación reactivada exitosamente."),
+            @ApiResponse(responseCode = "400", description = "La participación ya está activa o la institución no es válida."),
+            @ApiResponse(responseCode = "401", description = "Usuario no autenticado."),
+            @ApiResponse(responseCode = "403", description = "No posee permisos de administración sobre el congreso."),
+            @ApiResponse(responseCode = "404", description = "No se encontró una participación previa para el usuario en el congreso.")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/{congressCode}/participants/{userCode}/reactivation")
+    public ResponseEntity<MessageResponseDTO> reactivateParticipantByAdmin(
+            @PathVariable String congressCode,
+            @PathVariable String userCode,
+            @Valid @RequestBody CongressParticipantInstitutionRequestDTO requestDTO) {
+
+        MessageResponseDTO response =
+                participantService.reactivateParticipantByAdmin(
+                        congressCode,
+                        userCode,
+                        requestDTO
+                );
+
+        return ResponseEntity.ok(response);
+    }
 
 
     @Operation(

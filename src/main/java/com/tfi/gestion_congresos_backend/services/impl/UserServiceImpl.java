@@ -3,7 +3,6 @@ package com.tfi.gestion_congresos_backend.services.impl;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.enums.EmailChangeStatus;
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress_participant.AdminParticipantRegistrationRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
@@ -27,6 +26,7 @@ import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
+import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
@@ -51,6 +51,7 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
     private final CongressParticipantService congressParticipantService;
     private final AuthorizationService authorizationService;
+    private final RoleService roleService;
     private final SecurityEvaluator securityEvaluator;
     
     private static final int CODE_LENGTH = 6;
@@ -149,12 +150,8 @@ public class UserServiceImpl implements UserService {
             );
         }
 
-        // 5. Validar que no se intente asignar el rol ADMINISTRATOR
-        if (request.getNewRole() == RoleName.ADMINISTRATOR) {
-            throw new ArgumentNotValidException(
-                    "No se puede asignar el rol ADMINISTRATOR desde este flujo."
-            );
-        }
+        // 5. Validar que el rol solicitado pueda asignarse
+        roleService.validateAssignableRole(request.getNewRole());
 
         // 6. Generar contraseña temporal segura
         String temporaryPassword = generateRandomPassword();
