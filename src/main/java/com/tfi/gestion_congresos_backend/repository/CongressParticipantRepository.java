@@ -76,13 +76,28 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
 	    String congressCode
 	);
     
-    /// Contar administradores activos de un congreso:
+    /// Obtener las participaciones activas de un usuario para un rol determinado:
+    @Query("""
+        SELECT p
+        FROM CongressParticipant p
+        JOIN FETCH p.congress
+        WHERE p.user.code = :userCode
+        AND p.role.name = :role
+        AND p.active = true
+    """)
+    List<CongressParticipant> findActiveParticipationsByUserCodeAndRole(
+            @Param("userCode") String userCode,
+            @Param("role") RoleName role
+    );
+    
+    /// Contar participantes activos con cuenta global habilitada para un rol:
     @Query("""
         SELECT COUNT(p)
         FROM CongressParticipant p
         WHERE p.congress.code = :congressCode
         AND p.role.name = :role
         AND p.active = true
+        AND p.user.enabled = true
     """)
     long countActiveParticipantsByCongressCodeAndRole(
             @Param("congressCode") String congressCode,

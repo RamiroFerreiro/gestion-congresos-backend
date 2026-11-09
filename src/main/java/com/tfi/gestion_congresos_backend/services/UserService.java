@@ -36,9 +36,17 @@ public interface UserService {
 
     User getUserByUserCode(String code);
 
+    /*
     ///-----------------------------------------------------DELETE-----------------------------------------------------///
 
     void deleteUser(String userCode);
+    */
+    
+    ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
+
+    void disableUser(String userCode);
+
+    void enableUser(String userCode);
 
     ///-----------------------------------------------------UPDATE-----------------------------------------------------///
 

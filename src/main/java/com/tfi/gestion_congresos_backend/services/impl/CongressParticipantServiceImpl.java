@@ -342,6 +342,39 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
     }
     
     @Override
+    @Transactional(readOnly = true)
+    public void validateUserCanBeDisabled(String userCode) {
+
+        // 1. Obtener las participaciones administrativas activas del usuario
+        List<CongressParticipant> adminParticipations =
+                congressParticipantRepository.findActiveParticipationsByUserCodeAndRole(
+                        userCode,
+                        RoleName.ADMINISTRATOR
+                );
+
+        // 2. Verificar que cada congreso conserve al menos un administrador habilitado
+        for (CongressParticipant participation : adminParticipations) {
+
+            String congressCode = participation.getCongress().getCode();
+
+            long activeAdmins =
+                    congressParticipantRepository.countActiveParticipantsByCongressCodeAndRole(
+                            congressCode,
+                            RoleName.ADMINISTRATOR
+                    );
+
+            // 3. Impedir la baja si el usuario es el único administrador habilitado
+            if (activeAdmins <= 1) {
+                throw new ArgumentNotValidException(
+                        "No se puede deshabilitar al usuario porque es el único "
+                        + "administrador habilitado del congreso '"
+                        + participation.getCongress().getName() + "'."
+                );
+            }
+        }
+    }
+    
+    @Override
     @Transactional
     public MessageResponseDTO reactivateParticipantByAdmin(
             String congressCode,

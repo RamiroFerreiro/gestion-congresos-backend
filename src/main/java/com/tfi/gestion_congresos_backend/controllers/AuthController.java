@@ -11,7 +11,6 @@ import com.tfi.gestion_congresos_backend.services.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -74,6 +73,7 @@ public class AuthController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Etapa verificada correctamente (mensaje informativo según el estado)"),
         @ApiResponse(responseCode = "400", description = "El token enviado ha expirado o no es válido"),
+        @ApiResponse(responseCode = "403", description = "La cuenta asociada al token está deshabilitada"),
         @ApiResponse(responseCode = "404", description = "No se encontró el token de confirmación"),
         @ApiResponse(responseCode = "409", description = "El nuevo email ya fue registrado por otro usuario antes de completar la confirmación")
     })
@@ -95,6 +95,7 @@ public class AuthController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Contraseña restablecida exitosamente  "),
         @ApiResponse(responseCode = "400", description = "Las contraseñas no coinciden, la clave nueva es igual a la actual o el token ha expirado"),
+        @ApiResponse(responseCode = "403", description = "La cuenta asociada al token está deshabilitada"),
         @ApiResponse(responseCode = "404", description = "El token de recuperación no existe o es inválido")
     })
     @PatchMapping("/reset-password")

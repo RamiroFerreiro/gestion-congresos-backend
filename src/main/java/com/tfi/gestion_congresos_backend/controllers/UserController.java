@@ -181,7 +181,7 @@ public class UserController {
 	    return ResponseEntity.ok(response);
 	}
 
-
+    /*
     ///----------------------------------------------------------DELETE----------------------------------------------------------///
     @Operation(
         summary = "Desactivar un usuario del sistema (Baja lógica global)",
@@ -207,7 +207,67 @@ public class UserController {
 
         return ResponseEntity.noContent().build();
     }
+    */
 
+    ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
+    @Operation(
+    	    summary = "Deshabilitar un usuario del sistema (Baja lógica global)",
+    	    description = """
+    	        Realiza la baja lógica global de una cuenta de usuario estableciendo
+    	        su estado enabled en false.
+
+    	        **Políticas de acceso:**
+    	        - Exclusivo para superadministradores.
+    	        - El usuario deshabilitado pierde el acceso a la plataforma.
+    	        - No modifica las participaciones del usuario en los congresos.
+    	        - No permite la autodesactivación.
+    	        - No permite deshabilitar al último superadministrador habilitado.
+    	        - No permite dejar congresos sin administradores habilitados.
+    	        """
+    	)
+    	@ApiResponses({
+    	    @ApiResponse(responseCode = "204", description = "Usuario deshabilitado correctamente"),
+    	    @ApiResponse(responseCode = "400", description = "La operación no puede realizarse por las restricciones de negocio"),
+    	    @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+    	    @ApiResponse(responseCode = "403", description = "Se requieren permisos de superadministrador"),
+    	    @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
+    	})
+    	@PreAuthorize("isAuthenticated()")
+    	@DeleteMapping("/{code}")
+    	public ResponseEntity<Void> disableUser(@PathVariable String code) {
+
+    	    userService.disableUser(code);
+
+    	    return ResponseEntity.noContent().build();
+    	}
+    
+    @Operation(
+    	    summary = "Habilitar un usuario del sistema",
+    	    description = """
+    	        Reactiva globalmente una cuenta previamente deshabilitada,
+    	        estableciendo su estado enabled en true.
+
+    	        **Políticas de acceso:**
+    	        - Exclusivo para superadministradores.
+    	        - No modifica las participaciones del usuario en los congresos.
+    	        - Conserva el historial de la baja lógica anterior.
+    	        """
+    	)
+    	@ApiResponses({
+    	    @ApiResponse(responseCode = "204", description = "Usuario habilitado correctamente"),
+    	    @ApiResponse(responseCode = "400", description = "El usuario ya se encuentra habilitado"),
+    	    @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+    	    @ApiResponse(responseCode = "403", description = "Se requieren permisos de superadministrador"),
+    	    @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
+    	})
+    	@PreAuthorize("isAuthenticated()")
+    	@PatchMapping("/{code}/enable")
+    	public ResponseEntity<Void> enableUser(@PathVariable String code) {
+
+    	    userService.enableUser(code);
+
+    	    return ResponseEntity.noContent().build();
+    	}
 
     ///----------------------------------------------------------PUT----------------------------------------------------------///
     @Operation(
