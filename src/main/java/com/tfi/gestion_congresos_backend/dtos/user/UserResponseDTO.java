@@ -16,4 +16,5 @@ public class UserResponseDTO {
     private String email;
     private Long dni;
     private String country;
+    private boolean enabled;
 }

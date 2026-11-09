@@ -23,6 +23,7 @@ import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.EmailChangeTokenRepository;
+import com.tfi.gestion_congresos_backend.repository.PasswordResetTokenRepository;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
@@ -48,6 +49,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final CongressRepository congressRepository;
     private final EmailChangeTokenRepository emailChangeTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
     private final CongressParticipantService congressParticipantService;
     private final AuthorizationService authorizationService;
@@ -232,27 +234,88 @@ public class UserServiceImpl implements UserService {
         );
     }
 
-    ///----------------------------------------------------------DELETE----------------------------------------------------------///
+    ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
     
     @Transactional
     @Override
-    public void deleteUser(String userCode) {
-        
-        //1. Obtener la entidad del Usuario autenticado mediante el helper
+    public void disableUser(String userCode) {
+
+        // 1. Obtener el usuario autenticado
         User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
-        //2. Validar que sea estrictamente Súper Admin
-        if (!securityEvaluator.isSuperAdmin(authenticatedUser)) {
-            throw new UserDisabledException("Solo un súper administrador del sistema puede realizar la baja de usuarios.");
+        // 2. Validar que sea superadministrador
+        authorizationService.validateSuperAdminPermission(authenticatedUser);
+
+        // 3. Buscar el usuario que se desea deshabilitar
+        User targetUser = userRepository.findByCode(userCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario no encontrado con código: " + userCode
+                ));
+
+        // 4. Impedir la autodesactivación
+        if (authenticatedUser.getCode().equals(targetUser.getCode())) {
+            throw new ArgumentNotValidException(
+                    "No se puede deshabilitar la propia cuenta."
+            );
         }
 
-        //3. Buscar el usuario solicitado por código
-        User targetUser = userRepository.findByCode(userCode).orElseThrow(() ->
-                    new ResourceNotFoundException( "Usuario no encontrado con código: " + userCode));
+        // 5. Evitar modificar nuevamente una cuenta ya deshabilitada
+        if (!targetUser.isEnabled()) {
+            invalidatePendingTokens(targetUser);
+            return;
+        }
 
-        //4. Desactivar usuario
+        // 6. Impedir que el sistema se quede sin superadministradores habilitados
+        if (targetUser.isSuperAdmin()
+                && userRepository.countBySuperAdminTrueAndEnabledTrue() <= 1) {
+
+            throw new ArgumentNotValidException(
+                    "No se puede deshabilitar al último superadministrador habilitado del sistema."
+            );
+        }
+
+        // 7. Verificar que los congresos conserven administradores habilitados
+        congressParticipantService.validateUserCanBeDisabled(userCode);
+        
+        // 8. Invalidar los tokens pendientes de la cuenta
+        invalidatePendingTokens(targetUser);
+
+        // 9. Registrar la baja lógica
         targetUser.setEnabled(false);
+        targetUser.setDeletedAt(DateUtils.now());
+        targetUser.setDeletedBy(authenticatedUser.getCode());
 
+        // 10. Guardar los cambios
+        userRepository.save(targetUser);
+    }
+    
+    @Transactional
+    @Override
+    public void enableUser(String userCode) {
+
+        // 1. Obtener el usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // 2. Validar que sea superadministrador
+        authorizationService.validateSuperAdminPermission(authenticatedUser);
+
+        // 3. Buscar el usuario que se desea habilitar
+        User targetUser = userRepository.findByCode(userCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario no encontrado con código: " + userCode
+                ));
+
+        // 4. Verificar que la cuenta esté deshabilitada
+        if (targetUser.isEnabled()) {
+            throw new ArgumentNotValidException(
+                    "El usuario ya se encuentra habilitado."
+            );
+        }
+
+        // 5. Habilitar la cuenta globalmente
+        targetUser.setEnabled(true);
+
+        // 6. Guardar los cambios
         userRepository.save(targetUser);
     }
 
@@ -396,6 +459,17 @@ public class UserServiceImpl implements UserService {
 	    int max = (int) Math.pow(10, length) - 1;
 	    int randomNumber = new Random().nextInt(max + 1);
 	    return String.format("%0" + length + "d", randomNumber);
+	}
+	
+	private void invalidatePendingTokens(User user) {
+
+	    // 1. Eliminar solicitud pendiente de recuperación de contraseña
+	    passwordResetTokenRepository.findByUser(user)
+	            .ifPresent(passwordResetTokenRepository::delete);
+
+	    // 2. Eliminar solicitud pendiente de cambio de email
+	    emailChangeTokenRepository.findByUser(user)
+	            .ifPresent(emailChangeTokenRepository::delete);
 	}
 
 
