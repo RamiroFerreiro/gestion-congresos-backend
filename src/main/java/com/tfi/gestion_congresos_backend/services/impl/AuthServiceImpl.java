@@ -1,20 +1,16 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ForgotPasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.LoginResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ResetPasswordRequestDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
 import com.tfi.gestion_congresos_backend.entities.PasswordResetToken;
@@ -26,10 +22,8 @@ import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsExceptio
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.AuthMapper;
-import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
-import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import jakarta.transaction.Transactional;
@@ -63,14 +57,13 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new InvalidCredentialsException("Email o contraseña incorrectos"));
 
         //2. Validar contraseña PRIMERO (evita confirmarle a un atacante que el email existe si la cuenta está deshabilitada)
-        if (!user.isEnabled()) {
-            throw new UserDisabledException("El usuario está deshabilitado");
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        	throw new InvalidCredentialsException("Email o contraseña incorrectos");
         }
 
         //3. Validar si la cuenta está habilitada RECIÉN después de confirmar la contraseña correcta
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-
-            throw new InvalidCredentialsException("Email o contraseña incorrectos");
+        if (!user.isEnabled()) {
+            throw new UserDisabledException("El usuario está deshabilitado");
         }
 
         //4. Mapear la respuesta, generar el JWT y retornarlo
@@ -133,20 +126,27 @@ public class AuthServiceImpl implements AuthService {
 
         //2. Si existe, traemos el usuario atado al token
         User user = passwordResetToken.getUser();
+        
+        //3. Verificar que la cuenta asociada al token esté habilitada
+        if (!user.isEnabled()) {
+            throw new UserDisabledException(
+                    "No se puede restablecer la contraseña de una cuenta deshabilitada."
+            );
+        }
 
-        //3. Validar que el token recibido no haya experido, que las contraseñas coincidas y que la nueva no sea identica a la actual
+        //4. Validar que el token recibido no haya experido, que las contraseñas coincidas y que la nueva no sea identica a la actual
         validateTokenExpiration(passwordResetToken.getExpirationDate());
         validatePasswordConfirmation(request.getNewPassword(), request.getConfirmPassword());
         validateNewPassword(user.getPassword(), request.getNewPassword());
-
-        //4. Setear, encriptar y guardar la nueva contraseña
+        
+        //5. Setear, encriptar y guardar la nueva contraseña
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        //5. Borrar el token de recuperación
+        //6. Borrar el token de recuperación
         passwordResetTokenRepository.delete(passwordResetToken);
 
-        //6. Retonar mensaje
+        //7. Retonar mensaje
         return MessageResponseDTO.builder().message("Contraseña recuperada correctamente.").build();
     }
      ///----------------------------------------------------------CONFIRM MAIL----------------------------------------------------------///
@@ -158,25 +158,34 @@ public class AuthServiceImpl implements AuthService {
         //1. Recuperar el registro de confirmación a partir del token único recibido en el enlace
         EmailChangeToken emailChangeToken = emailChangeTokenRepository.findByToken(token)
                     .orElseThrow(() -> new ResourceNotFoundException("El token de cambio de email no es válido."));
+        
+        //2. Verificar que la cuenta asociada al token esté habilitada
+        User user = emailChangeToken.getUser();
 
-        //2. Validar que la fecha actual no haya superado la hora de expiración registrada en el token
+        if (!user.isEnabled()) {
+            throw new UserDisabledException(
+                    "No se puede completar el cambio de email de una cuenta deshabilitada."
+            );
+        }
+
+        //3. Validar que la fecha actual no haya superado la hora de expiración registrada en el token
         validateTokenExpiration(emailChangeToken.getExpirationDate());
 
-        //3. Declarar la variable que almacenará el mensaje informativo de la etapa
+        //4. Declarar la variable que almacenará el mensaje informativo de la etapa
         String message = "";
 
-        //4. PRIMERA ETAPA (Confirmación desde casilla actual)
+        //5. PRIMERA ETAPA (Confirmación desde casilla actual)
         if (emailChangeToken.getStatus() == EmailChangeStatus.PENDING_CURRENT_EMAIL) {
 
             message = confirmNewEmail(emailChangeToken);
             
-            //5. SEGUNDA ETAPA (Confirmación desde la nueva casilla)
+            //6. SEGUNDA ETAPA (Confirmación desde la nueva casilla)
         }else if (emailChangeToken.getStatus() == EmailChangeStatus.PENDING_NEW_EMAIL) {
                 
             message = saveNewEmail(emailChangeToken);
         }
 
-        //6. Construir y retornar la respuesta con el mensaje correspondiente a la etapa procesada
+        //7. Construir y retornar la respuesta con el mensaje correspondiente a la etapa procesada
         return MessageResponseDTO.builder().message(message).build();
     }
 
