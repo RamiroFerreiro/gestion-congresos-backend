@@ -20,6 +20,8 @@ public interface CongressParticipantService {
 
     MessageResponseDTO unregisterFromCongress(String targetUserCode, String congressCode);
     
+    void validateUserCanBeDisabled(String userCode);
+    
     MessageResponseDTO reactivateParticipantByAdmin(String congressCode, String userCode, CongressParticipantInstitutionRequestDTO requestDTO);
 
     void updateParticipantRole(String congressCode, String userCode, RoleName newRole);
