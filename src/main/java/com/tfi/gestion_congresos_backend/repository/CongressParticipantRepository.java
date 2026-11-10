@@ -103,4 +103,20 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
             @Param("congressCode") String congressCode,
             @Param("role") RoleName role
     );
+    
+    /// Obtener los evaluadores disponibles de un congreso
+    @Query("""
+        SELECT cp
+        FROM CongressParticipant cp
+        JOIN FETCH cp.user
+        JOIN FETCH cp.role
+        WHERE cp.congress.code = :congressCode
+          AND cp.active = true
+          AND cp.user.enabled = true
+          AND cp.role.name = com.tfi.gestion_congresos_backend.enums.RoleName.EVALUATOR
+        ORDER BY cp.user.lastName ASC, cp.user.firstName ASC
+        """)
+    List<CongressParticipant> findAvailableReviewersByCongressCode(
+            @Param("congressCode") String congressCode
+    );
 }

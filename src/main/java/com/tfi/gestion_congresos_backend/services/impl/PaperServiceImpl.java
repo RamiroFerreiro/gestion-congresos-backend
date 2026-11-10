@@ -12,6 +12,7 @@ import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.PaperMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressPaperTypeRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
+import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
@@ -36,6 +37,7 @@ public class PaperServiceImpl implements PaperService {
     private final PaperRepository paperRepository;
     private final CongressParticipantRepository congressParticipantRepository;
     private final CongressPaperTypeRepository congressPaperTypeRepository;
+    private final EvaluationRepository evaluationRepository;
     private final PaperMapper paperMapper;
     private final CongressService congressService;
     private final UserService userService;
@@ -98,6 +100,98 @@ public class PaperServiceImpl implements PaperService {
                 );
 
         return paperMapper.toPaperSummaryResponseDTOList(assignedPapers);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaperPendingReassignmentResponseDTO> getPapersPendingReassignment(
+            String congressCode) {
+
+        // Validar que el congreso exista
+        congressService.getCongressEntityByCode(congressCode);
+
+        // Obtener usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // Validar permisos de administración del congreso
+        authorizationService.validateCongressAdminPermission(
+                authenticatedUser,
+                congressCode
+        );
+        
+        // Validar que el usuario tenga su institución definida
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+        // Obtener trabajos pendientes de reasignación
+        List<Paper> pendingPapers =
+                paperRepository.findPapersPendingReassignment(congressCode);
+
+        // Convertir entidades a DTOs
+        return paperMapper.toPaperPendingReassignmentResponseDTOList(pendingPapers);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReviewerWorkloadResponseDTO> getAvailableReviewersWithWorkload(
+            String congressCode) {
+
+        // 1. Validar que el congreso exista
+        congressService.getCongressEntityByCode(congressCode);
+
+        // 2. Obtener usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // 3. Validar permisos de administración
+        authorizationService.validateCongressAdminPermission(
+                authenticatedUser,
+                congressCode
+        );
+
+        // 4. Validar que el administrador tenga su institución definida
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+        // 5. Obtener evaluadores disponibles
+        List<CongressParticipant> availableReviewers =
+                congressParticipantRepository.findAvailableReviewersByCongressCode(
+                        congressCode
+                );
+
+        // 6. Obtener la carga de trabajo de los evaluadores
+        List<Object[]> workloadResults =
+                paperRepository.countPendingPapersByReviewer(congressCode);
+
+        // 7. Convertir los resultados de carga en un Map
+        Map<String, Long> workloadByReviewer = new HashMap<>();
+
+        for (Object[] result : workloadResults) {
+
+            String reviewerCode = (String) result[0];
+            Long assignedPapersCount = ((Number) result[1]).longValue();
+
+            workloadByReviewer.put(reviewerCode, assignedPapersCount);
+        }
+
+        // 8. Construir los DTOs combinando evaluadores y carga de trabajo
+        return availableReviewers.stream()
+                .map(participant -> {
+
+                    User reviewer = participant.getUser();
+
+                    return ReviewerWorkloadResponseDTO.builder()
+                            .reviewerCode(reviewer.getCode())
+                            .reviewerFullName(
+                                    reviewer.getFirstName() + " " + reviewer.getLastName()
+                            )
+                            .institution(participant.getInstitution())
+                            .assignedPapersCount(
+                                    workloadByReviewer.getOrDefault(
+                                            reviewer.getCode(),
+                                            0L
+                                    )
+                            )
+                            .build();
+                })
+                .toList();
     }
 
     @Override

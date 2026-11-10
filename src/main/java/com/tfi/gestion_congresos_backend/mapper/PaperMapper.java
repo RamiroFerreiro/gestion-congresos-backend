@@ -19,6 +19,18 @@ public interface PaperMapper {
     PaperSummaryResponseDTO toPaperSummaryResponseDTO(Paper paper);
 
     List<PaperSummaryResponseDTO> toPaperSummaryResponseDTOList(List<Paper> papers);
+    
+    // --- MAPEOS A PENDING REASSIGNMENT ---
+    @Mapping(target = "congressCode", source = "congress.code")
+    @Mapping(target = "congressName", source = "congress.name")
+    @Mapping(target = "previousReviewerCode", source = "userReviewer.code")
+    @Mapping(
+        target = "previousReviewerFullName",
+        expression = "java(paper.getUserReviewer() != null ? paper.getUserReviewer().getFirstName() + \" \" + paper.getUserReviewer().getLastName() : null)"
+    )
+    PaperPendingReassignmentResponseDTO toPaperPendingReassignmentResponseDTO(Paper paper);
+
+    List<PaperPendingReassignmentResponseDTO> toPaperPendingReassignmentResponseDTOList(List<Paper> papers);
 
     // --- MAPEOS A DETAIL ---
     @Mapping(target = "congressCode", source = "congress.code")

@@ -1,9 +1,11 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 
@@ -68,6 +70,79 @@ public class PaperController {
 
         return ResponseEntity.ok(
                 paperService.getAssignedPapers(congressCode, reviewerCode)
+        );
+    }
+    
+    @Operation(
+            summary = "Obtener evaluadores disponibles y su carga de trabajo",
+            description = """
+                    Obtiene los evaluadores disponibles de un congreso y la cantidad
+                    de trabajos pendientes de evaluación que tiene asignados cada uno.
+
+                    Se consideran disponibles los usuarios cuya cuenta global está
+                    habilitada, tienen una participación activa y poseen el rol
+                    EVALUATOR en el congreso indicado.
+
+                    Los evaluadores sin trabajos asignados también se incluyen,
+                    con una carga de trabajo igual a cero.
+
+                    **Permisos:**
+                    - Administradores del congreso.
+                    - Súper administradores.
+
+                    Requiere que el usuario autenticado tenga su institución definida,
+                    salvo que sea superadministrador.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Evaluadores recuperados correctamente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos de administración o tiene pendiente completar su institución"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el congreso")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/congresses/{congressCode}/reviewers/available")
+    public ResponseEntity<List<ReviewerWorkloadResponseDTO>> getAvailableReviewersWithWorkload(
+            @PathVariable String congressCode) {
+
+        return ResponseEntity.ok(
+                paperService.getAvailableReviewersWithWorkload(congressCode)
+        );
+    }
+    
+    @Operation(
+            summary = "Obtener trabajos pendientes de reasignación",
+            description = """
+                    Obtiene los trabajos cuyo evaluador asignado ya no cumple
+                    las condiciones para evaluar en el congreso.
+
+                    Se incluyen trabajos en estado NOT_SUBMITTED,
+                    UNDER_EVALUATION o NEEDS_REVISION.
+
+                    Se excluyen los trabajos que tengan una evaluación
+                    pendiente de liberación para su versión actual.
+
+                    **Permisos:**
+                    - Administradores del congreso.
+                    - Súper administradores.
+
+                    Requiere que el usuario autenticado tenga su institución
+                    definida, salvo que sea superadministrador.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trabajos pendientes recuperados correctamente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "No tiene permisos de administración o tiene pendiente completar su institución"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el congreso")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/congresses/{congressCode}/pending-reassignment")
+    public ResponseEntity<List<PaperPendingReassignmentResponseDTO>> getPapersPendingReassignment(
+            @PathVariable String congressCode) {
+
+        return ResponseEntity.ok(
+                paperService.getPapersPendingReassignment(congressCode)
         );
     }
 
