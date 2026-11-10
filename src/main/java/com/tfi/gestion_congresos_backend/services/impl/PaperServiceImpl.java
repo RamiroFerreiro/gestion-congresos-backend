@@ -301,6 +301,121 @@ public class PaperServiceImpl implements PaperService {
 
         return new MessageResponseDTO("Evaluador asignado con éxito");
     }
+    
+    @Override
+    @Transactional
+    public MessageResponseDTO reassignReviewerToPaper(
+            String paperCode,
+            String newReviewerCode) {
+
+        // 1. Obtener el Paper
+        Paper paper = getPaperEntityByCode(paperCode);
+        String congressCode = paper.getCongress().getCode();
+
+        // 2. Obtener usuario autenticado
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        // 3. Validar permisos de administración
+        authorizationService.validateCongressAdminPermission(
+                authenticatedUser,
+                congressCode
+        );
+
+        // 4. Validar que el administrador tenga su institución definida
+        institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+        // 5. Validar el estado del Paper
+        validatePaperEditableState(
+                paper,
+                PaperStatus.UNDER_EVALUATION,
+                PaperStatus.NEEDS_REVISION
+        );
+
+        // 6. Verificar que el Paper tenga un evaluador asignado
+        User previousReviewer = paper.getUserReviewer();
+
+        if (previousReviewer == null) {
+            throw new ArgumentNotValidException(
+                    "El trabajo no tiene un evaluador asignado. No requiere reasignación."
+            );
+        }
+
+        // 7. Verificar que no exista una evaluación pendiente de liberar
+        boolean hasPendingEvaluation =
+                evaluationRepository.existsByPaper_CodeAndEvaluatedVersionAndIsReleasedFalse(
+                        paperCode,
+                        paper.getVersion()
+                );
+
+        if (hasPendingEvaluation) {
+            throw new ArgumentNotValidException(
+                    "No se puede reasignar el trabajo porque tiene una evaluación pendiente de liberación."
+            );
+        }
+
+        // 8. Verificar que el evaluador anterior haya dejado de ser elegible
+        boolean previousReviewerStillEligible =
+                previousReviewer.isEnabled()
+                && securityEvaluator.hasRoleInCongress(
+                        previousReviewer,
+                        congressCode,
+                        RoleName.EVALUATOR
+                );
+
+        if (previousReviewerStillEligible) {
+            throw new ArgumentNotValidException(
+                    "El evaluador asignado todavía se encuentra habilitado para evaluar en este congreso."
+            );
+        }
+
+        // 9. Evitar reasignar al mismo evaluador
+        if (previousReviewer.getCode().equals(newReviewerCode)) {
+            throw new ArgumentNotValidException(
+                    "El nuevo evaluador debe ser diferente del evaluador anterior."
+            );
+        }
+
+        // 10. Buscar la participación activa del nuevo evaluador
+        CongressParticipant newReviewerParticipant =
+                congressParticipantRepository.findActiveParticipantByUserCodeAndCongressCode(
+                		newReviewerCode,
+                        congressCode
+                ).orElseThrow(() -> new ArgumentNotValidException(
+                        "El nuevo evaluador no tiene una participación activa en este congreso."
+                ));
+
+        User newReviewer = newReviewerParticipant.getUser();
+
+        // 11. Verificar que la cuenta global esté habilitada
+        if (!newReviewer.isEnabled()) {
+            throw new ArgumentNotValidException(
+                    "No se puede asignar un evaluador cuya cuenta esté deshabilitada."
+            );
+        }
+
+        // 12. Verificar que tenga el rol EVALUATOR en este congreso
+        if (newReviewerParticipant.getRole().getName() != RoleName.EVALUATOR) {
+            throw new ArgumentNotValidException(
+                    "El usuario seleccionado no tiene el rol EVALUATOR en este congreso."
+            );
+        }
+
+        // 13. Verificar que el nuevo evaluador no sea autor del trabajo
+        if (securityEvaluator.isParticipantOfPaper(
+                paper.getPaperId(),
+                newReviewer.getUserId())) {
+
+            throw new ArgumentNotValidException(
+                    "Un autor del trabajo no puede ser asignado como evaluador."
+            );
+        }
+        
+        // 14. Actualizar el evaluador asignado
+        paper.setUserReviewer(newReviewer);
+        paperRepository.save(paper);
+
+        return new MessageResponseDTO("Evaluador reasignado con éxito");
+    }
 
     ///----------------------------------------------------------KEYWORDS----------------------------------------------------------///
 

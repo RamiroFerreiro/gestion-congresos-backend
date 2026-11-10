@@ -31,5 +31,6 @@ public interface PaperService {
 
     // EVALUADORES Y SUBMIT
     MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
+    MessageResponseDTO reassignReviewerToPaper(String paperCode, String newReviewerCode);
     PaperDetailResponseDTO submitPaper(String paperCode);
 }
