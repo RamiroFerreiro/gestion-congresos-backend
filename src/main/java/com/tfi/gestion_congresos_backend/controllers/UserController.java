@@ -89,7 +89,7 @@ public class UserController {
     )
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Usuario creado y registrado exitosamente en el congreso"),
-        @ApiResponse(responseCode = "400", description = "Solicitud inválida: el rol indicado es ADMINISTRATOR o los campos no superan las validaciones"),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: los campos no superan las validaciones"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado o token JWT inválido"),
         @ApiResponse(responseCode = "403", description = "Acceso denegado: el usuario no posee permisos de administración sobre el congreso"),
         @ApiResponse(responseCode = "404", description = "Congreso o Rol no encontrado"),
@@ -180,34 +180,6 @@ public class UserController {
 	    MessageResponseDTO response = userService.completeFirstLogin(request);
 	    return ResponseEntity.ok(response);
 	}
-
-    /*
-    ///----------------------------------------------------------DELETE----------------------------------------------------------///
-    @Operation(
-        summary = "Desactivar un usuario del sistema (Baja lógica global)",
-        description = """
-            Realiza la baja lógica global de una cuenta de usuario en la plataforma cambiando su estado "enabled" a "false".
-            
-            **Políticas de Acceso:**
-            - **Restricción Estricta:** Exclusivo para usuarios con "isSuperAdmin = true".
-            - **Efecto Global:** Un usuario desactivado pierde el acceso a la plataforma.
-            - Los administradores de congreso o el propio usuario no pueden ejecutar la baja global desde este endpoint.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "204", description = "Usuario eliminado correctamente"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado. Se requieren permisos de Súper Admin"),
-        @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
-    })
-    @PreAuthorize("isAuthenticated()")
-    @DeleteMapping("/{code}")
-    public ResponseEntity<Void> deleteUser(@PathVariable String code) {
-
-        userService.deleteUser(code);
-
-        return ResponseEntity.noContent().build();
-    }
-    */
 
     ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
     @Operation(

@@ -1,9 +1,11 @@
 package com.tfi.gestion_congresos_backend.services;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 
@@ -15,6 +17,8 @@ import java.util.Set;
 public interface PaperService {
     // GETS
 	List<PaperSummaryResponseDTO> getAssignedPapers(String congressCode, String reviewerCode);
+	List<PaperPendingReassignmentResponseDTO> getPapersPendingReassignment(String congressCode);
+	List<ReviewerWorkloadResponseDTO> getAvailableReviewersWithWorkload(String congressCode);
     PaperDetailResponseDTO getPaperById(Long paperId);
     Paper getPaperByPaperId(Long paperId);
     PaperDetailResponseDTO getPaperByCode(String code);
@@ -31,5 +35,6 @@ public interface PaperService {
 
     // EVALUADORES Y SUBMIT
     MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
+    MessageResponseDTO reassignReviewerToPaper(String paperCode, String newReviewerCode);
     PaperDetailResponseDTO submitPaper(String paperCode);
 }
