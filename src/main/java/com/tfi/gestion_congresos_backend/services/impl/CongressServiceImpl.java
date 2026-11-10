@@ -1,5 +1,7 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -9,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.User;
@@ -16,8 +22,13 @@ import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
+import com.tfi.gestion_congresos_backend.mapper.CongressDashboardMapper;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperRepository;
+import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.FinancialMetricsProjection;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
@@ -32,6 +43,42 @@ public class CongressServiceImpl implements CongressService {
 	private final CongressMapper congressMapper;
 	private final AuthorizationService authorizationService;
 	private final CongressParticipantInstitutionValidator institutionValidator;
+
+	private final PaperRepository paperRepository;
+	private final PaperPaymentRepository paperPaymentRepository;
+	private final CongressDashboardMapper dashboardMapper;
+
+	@Override
+	public CongressDashboardResponseDTO getDashboardMetrics(String congressCode) {
+
+		//1. Traer usuario autenticado
+		User user = authorizationService.getAuthenticatedUserEntity();
+
+		//2. Validar que el usuario sea administrador del congreso 
+		authorizationService.validateCongressAdminPermission(user, congressCode);
+
+		//3. Validar existencia del congreso
+        Congress congress = getCongressEntityByCode(congressCode);
+
+        //4. Consultar las proyecciones agregadas en BD
+        AcademicMetricsProjection academicProj = paperRepository.getAcademicMetricsByCongressCode(congressCode);
+        FinancialMetricsProjection financialProj = paperPaymentRepository.getFinancialMetricsByCongressCode(congressCode);
+
+        //5. Delegar todo el mapeo y cálculo de porcentajes a MapStruct
+        return dashboardMapper.toDashboardResponseDTO(congress, academicProj, financialProj);
+	}
+
+	private MetricValueDTO buildMetricValue(long count, long total) {
+		if (total == 0) {
+			return MetricValueDTO.builder().count(0).percentage(0.0).build();
+		}
+		double percentage = BigDecimal.valueOf((double) count / total * 100)
+				.setScale(2, RoundingMode.HALF_UP)
+				.doubleValue();
+
+		return MetricValueDTO.builder().count(count).percentage(percentage).build();
+	}
+	
 	
 	@Override
 	@Transactional(readOnly = true)

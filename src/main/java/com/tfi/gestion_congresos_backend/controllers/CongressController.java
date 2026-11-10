@@ -18,12 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -226,5 +230,26 @@ public class CongressController {
         return ResponseEntity.ok(
             congressService.updateCongress(code, request)
         );
+    }
+
+    @Operation(
+        summary = "Obtener el resumen de métricas del Dashboard",
+        description = """
+            Devuelve en una única llamada HTTP los indicadores académicos (trabajos recibidos, sin evaluador, en evaluación, etc.) 
+            y los indicadores financieros (pagos pendientes y verificados) del congreso especificado.
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Métricas del panel obtenidas exitosamente"),
+        @ApiResponse(responseCode = "401", description = "No autorizado: El token JWT es inválido o no fue provisto"),
+        @ApiResponse(responseCode = "403", description = "Prohibido: El usuario autenticado no posee permisos de administración sobre este congreso"),
+        @ApiResponse(responseCode = "404", description = "Recurso no encontrado: El código de congreso especificado no existe")
+    })
+    @GetMapping("/{congressCode}/dashboard")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CongressDashboardResponseDTO> getDashboardMetrics( @PathVariable String congressCode) {
+
+        CongressDashboardResponseDTO dashboardMetrics = congressService.getDashboardMetrics(congressCode);
+        return ResponseEntity.ok(dashboardMetrics);
     }
 }

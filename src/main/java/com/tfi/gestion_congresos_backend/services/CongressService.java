@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 
@@ -24,5 +25,7 @@ public interface CongressService {
 	MessageResponseDTO enableCongress(String code);
 	
 	Congress getCongressEntityByCode(String code);
-	
+
+	CongressDashboardResponseDTO getDashboardMetrics(String congressCode);
+
 }

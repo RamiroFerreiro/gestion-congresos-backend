@@ -2,6 +2,7 @@
 package com.tfi.gestion_congresos_backend.repository;
 
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -80,4 +81,18 @@ public interface PaperRepository extends JpaRepository<Paper, Long> {
     List<Object[]> countPendingPapersByReviewer(
             @Param("congressCode") String congressCode
     );
+
+    @Query("""
+        SELECT 
+            COUNT(p) AS totalSubmissions,
+            SUM(CASE WHEN p.userReviewer IS NULL THEN 1 ELSE 0 END) AS unassignedSubmissions,
+            SUM(CASE WHEN p.status = 'UNDER_EVALUATION' THEN 1 ELSE 0 END) AS underEvaluationSubmissions,
+            SUM(CASE WHEN p.status = 'NEEDS_REVISION' THEN 1 ELSE 0 END) AS needsRevisionSubmissions,
+            SUM(CASE WHEN p.status = 'ACCEPTED' THEN 1 ELSE 0 END) AS acceptedSubmissions,
+            SUM(CASE WHEN p.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedSubmissions,
+            SUM(CASE WHEN p.status = 'NOT_SUBMITTED' THEN 1 ELSE 0 END) AS notSubmittedSubmissions
+        FROM Paper p
+        WHERE p.congress.code = :congressCode
+    """)
+    AcademicMetricsProjection getAcademicMetricsByCongressCode(@Param("congressCode") String congressCode);
 }
