@@ -10,6 +10,7 @@ import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
@@ -94,14 +95,27 @@ public class EvaluationServiceImpl implements EvaluationService {
         Congress congress = paper.getCongress();
 
         // 1. Autorización (antes de validar el estado interno del Paper)
-        if (!securityEvaluator.isSuperAdminOr(user, () -> securityEvaluator.isAssignedReviewer(user, paper))) {
-            throw new UserDisabledException("Solo el evaluador asignado a este trabajo puede cargar una evaluación.");
+        boolean isSuperAdmin = securityEvaluator.isSuperAdmin(user);
+
+        boolean isEligibleReviewer =
+                securityEvaluator.isAssignedReviewer(user, paper)
+                && user.isEnabled()
+                && securityEvaluator.hasRoleInCongress(
+                        user,
+                        congress.getCode(),
+                        RoleName.EVALUATOR
+                );
+
+        if (!isSuperAdmin && !isEligibleReviewer) {
+            throw new UserDisabledException(
+                    "Solo el evaluador asignado, con cuenta habilitada y rol EVALUATOR activo en el congreso, puede cargar una evaluación."
+            );
         }
         
-        // Validar institución del usuario en el congreso
+        // 2. Validar institución del usuario en el congreso
         validateCurrentUserInstitution(congress.getCode());
 
-        // 2. Estado del congreso y del Paper
+        // 3. Estado del congreso y del Paper
         if (!congress.isEnabled()) {
             throw new ArgumentNotValidException("El congreso '" + congress.getName() + "' está deshabilitado.");
         }
@@ -113,20 +127,25 @@ public class EvaluationServiceImpl implements EvaluationService {
                 "Solo se puede evaluar un trabajo en estado UNDER_EVALUATION. Estado actual: " + paper.getStatus());
         }
 
-        // 3. Conflicto de interés
-        boolean isAuthor = paper.getAuthors().stream()
-                .anyMatch(pa -> pa.getAuthor().getUserId().equals(user.getUserId()));
+        // 4. Conflicto de interés
+        boolean isAuthor = securityEvaluator.isParticipantOfPaper(
+                paper.getPaperId(),
+                user.getUserId()
+        );
+
         if (isAuthor) {
-            throw new ArgumentNotValidException("Un autor del trabajo no puede evaluarlo.");
+            throw new ArgumentNotValidException(
+                    "Un autor del trabajo no puede evaluarlo."
+            );
         }
 
-        // 4. Una sola evaluación por versión
+        // 5. Una sola evaluación por versión
         if (evaluationRepository.existsByPaper_CodeAndEvaluatedVersion(paperCode, paper.getVersion())) {
             throw new ResourceAlreadyExistsException(
                 "Ya existe una evaluación para la versión " + paper.getVersion() + " de este trabajo.");
         }
 
-        // 5. Resultado y deadline
+        // 6. Resultado y deadline
         validateResultAndDeadline(requestDTO);
 
         Evaluation evaluation = evaluationMapper.toEntity(requestDTO);
