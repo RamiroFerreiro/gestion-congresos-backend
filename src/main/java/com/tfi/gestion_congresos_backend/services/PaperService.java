@@ -12,8 +12,6 @@ import com.tfi.gestion_congresos_backend.entities.Paper;
 import java.util.List;
 import java.util.Set;
 
-// Se deben implementar metodos CRUD
-
 public interface PaperService {
     // GETS
 	List<PaperSummaryResponseDTO> getAssignedPapers(String congressCode, String reviewerCode);
@@ -36,5 +34,5 @@ public interface PaperService {
     // EVALUADORES Y SUBMIT
     MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
     MessageResponseDTO reassignReviewerToPaper(String paperCode, String newReviewerCode);
-    PaperDetailResponseDTO submitPaper(String paperCode);
+    PaperDetailResponseDTO submitPaper(String paperCode, boolean confirmDiscardPendingRequests);
 }

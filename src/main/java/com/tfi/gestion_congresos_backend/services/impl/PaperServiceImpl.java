@@ -13,9 +13,11 @@ import com.tfi.gestion_congresos_backend.mapper.PaperMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressPaperTypeRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
+import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 import com.tfi.gestion_congresos_backend.services.UserService;
@@ -38,10 +40,12 @@ public class PaperServiceImpl implements PaperService {
     private final CongressParticipantRepository congressParticipantRepository;
     private final CongressPaperTypeRepository congressPaperTypeRepository;
     private final EvaluationRepository evaluationRepository;
+    private final PaperAuthorRepository paperAuthorRepository;
     private final PaperMapper paperMapper;
     private final CongressService congressService;
     private final UserService userService;
     private final AuthorizationService authorizationService;
+    private final CongressParticipantService congressParticipantService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
 
@@ -197,12 +201,13 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional(readOnly = true)
     public PaperDetailResponseDTO getPaperById(Long paperId) {
-    	Paper paper = getPaperByPaperId(paperId);
-
-    	// Validar institución del usuario en el congreso
+        Paper paper = getPaperByPaperId(paperId);
         validateCurrentUserInstitution(paper.getCongress().getCode());
+        validatePaperDetailAccess(paper);
 
-        return paperMapper.toPaperDetailResponseDTO(paper);
+        PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(paper);
+
+        return applyPaperIdentityVisibility(paper, response);
     }
 
     @Override
@@ -215,12 +220,13 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional(readOnly = true)
     public PaperDetailResponseDTO getPaperByCode(String code) {
-    	Paper paper = getPaperEntityByCode(code);
-
-    	// Validar institución del usuario en el congreso
+        Paper paper = getPaperEntityByCode(code);
         validateCurrentUserInstitution(paper.getCongress().getCode());
+        validatePaperDetailAccess(paper);
 
-        return paperMapper.toPaperDetailResponseDTO(paper);
+        PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(paper);
+
+        return applyPaperIdentityVisibility(paper, response);
     }
 
     @Override
@@ -248,15 +254,48 @@ public class PaperServiceImpl implements PaperService {
     @Transactional
     public PaperDetailResponseDTO createPaper(PaperRequestDTO dto) {
         Congress congress = congressService.getCongressEntityByCode(dto.getCongressCode());
-        
+
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(congress.getCode());
-        
         validateCongressEnabled(congress);
         validateThematicArea(congress, dto.getThematicArea());
         validatePresentationDateWithinWindow(congress, dto.getPresentationDate());
 
-        CongressPaperType paperType = validateAndGetPaperType(dto.getCongressPaperTypeId(), congress);
+        CongressPaperType paperType = validateAndGetPaperType(
+                dto.getCongressPaperTypeId(),
+                congress
+        );
+
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        if (dto.getAuthorUserCodes() == null || dto.getAuthorUserCodes().isEmpty()) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe tener al menos un autor."
+            );
+        }
+
+        if (!authenticatedUser.getCode().equals(dto.getAuthorUserCodes().get(0))) {
+            throw new AccessDeniedException(
+                    "El usuario que crea el trabajo debe ser el autor principal."
+            );
+        }
+
+        CongressParticipant participant = congressParticipantRepository
+                .findActiveParticipantByUserCodeAndCongressCode(
+                        authenticatedUser.getCode(),
+                        congress.getCode()
+                )
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario no está inscripto activamente en el congreso."
+                ));
+
+        RoleName creatorRole = participant.getRole().getName();
+
+        if (creatorRole != RoleName.LISTENER && creatorRole != RoleName.EXPOSITOR) {
+            throw new AccessDeniedException(
+                    "Solo los participantes con rol LISTENER o EXPOSITOR pueden crear trabajos."
+            );
+        }
 
         Paper paper = paperMapper.toEntity(dto);
         paper.setCode(generatePaperCode());
@@ -269,27 +308,31 @@ public class PaperServiceImpl implements PaperService {
         paper.setKeywords(new HashSet<>());
 
         // Creador = Main Author (Lógica contenida sólo para el nacimiento del Paper)
-        String creatorCode = dto.getAuthorUserCodes().get(0);
-        CongressParticipant participant = congressParticipantRepository
-        		.findActiveParticipantByUserCodeAndCongressCode(creatorCode, congress.getCode())
-                .orElseThrow(() -> new ArgumentNotValidException("El creador no está inscripto en el congreso."));
-
         PaperAuthor mainAuthor = PaperAuthor.builder()
                 .paper(paper)
                 .author(participant.getUser())
                 .authorOrder(1L)
                 .isMainAuthor(true)
-                .isPresentator(false)
+                .isPresentator(true)
                 .status(PaperAuthorStatus.ACCEPTED)
                 .build();
-        
+
         paper.getAuthors().add(mainAuthor);
 
         for (String keyword : dto.getKeywords()) {
             addKeywordInternal(paper, keyword);
         }
 
-        return paperMapper.toPaperDetailResponseDTO(paperRepository.save(paper));
+        Paper savedPaper = paperRepository.save(paper);
+
+        congressParticipantService.promoteListenerToExpositor(
+                congress.getCode(),
+                authenticatedUser.getCode()
+        );
+
+        PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(savedPaper);
+
+        return applyPaperIdentityVisibility(savedPaper, response);
     }
 
     @Override
@@ -299,6 +342,9 @@ public class PaperServiceImpl implements PaperService {
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
+        
+        // Validar si es autor responsable del trabajo
+        validatePaperResponsibleAuthor(paper);
         
         // Solo editable si no ha sido enviado o si necesita revisión
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
@@ -313,7 +359,10 @@ public class PaperServiceImpl implements PaperService {
         paperMapper.updateEntityFromDto(dto, paper);
         paper.setCongressPaperType(paperType);
 
-        return paperMapper.toPaperDetailResponseDTO(paperRepository.save(paper));
+        Paper savedPaper = paperRepository.save(paper);
+        PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(savedPaper);
+
+        return applyPaperIdentityVisibility(savedPaper, response);
     }
 
     ///----------------------------------------------------------EVALUATION----------------------------------------------------------///
@@ -545,22 +594,87 @@ public class PaperServiceImpl implements PaperService {
 
     @Override
     @Transactional
-    public PaperDetailResponseDTO submitPaper(String paperCode) {
+    public PaperDetailResponseDTO submitPaper(
+            String paperCode,
+            boolean confirmDiscardPendingRequests
+    ) {
         Paper paper = getPaperEntityByCode(paperCode);
-        
+
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
-        
-        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
-        if (paper.getAuthors() == null || paper.getAuthors().isEmpty()) {
-            throw new ArgumentNotValidException("El Paper debe tener al menos un autor antes de enviarlo a revisión.");
+        // Validar si es autor responsable del trabajo
+        validatePaperResponsibleAuthor(paper);
+
+        validatePaperEditableState(
+                paper,
+                PaperStatus.NOT_SUBMITTED,
+                PaperStatus.NEEDS_REVISION
+        );
+
+        // Verificar que exista al menos un autor aceptado
+        long acceptedAuthorCount = paperAuthorRepository
+                .countByPaper_CodeAndStatus(
+                        paperCode,
+                        PaperAuthorStatus.ACCEPTED
+                );
+
+        if (acceptedAuthorCount == 0) {
+            throw new ArgumentNotValidException(
+                    "El Paper debe tener al menos un autor aceptado antes de enviarlo a revisión."
+            );
+        }
+        
+        // Verificar que exista un autor principal aceptado
+        List<PaperAuthor> mainAuthors = paper.getAuthors() == null
+                ? List.of()
+                : paper.getAuthors().stream()
+                        .filter(PaperAuthor::isMainAuthor)
+                        .toList();
+
+        if (mainAuthors.size() != 1
+                || mainAuthors.get(0).getStatus() != PaperAuthorStatus.ACCEPTED) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe tener exactamente un autor principal en estado ACCEPTED."
+            );
         }
 
         validateKeywordCountMin(paper.getCongress(), paper.getKeywords().size());
 
+        // Recuperar solicitudes pendientes
+        List<PaperAuthor> pendingRequests = paperAuthorRepository
+                .findByPaper_CodeAndStatus(
+                        paperCode,
+                        PaperAuthorStatus.PENDING
+                );
+
+        // Exigir confirmación explícita si existen solicitudes pendientes
+        if (!pendingRequests.isEmpty() && !confirmDiscardPendingRequests) {
+            int pendingCount = pendingRequests.size();
+
+            String message = pendingCount == 1
+                    ? "Existe 1 solicitud pendiente de incorporación. "
+                    : "Existen " + pendingCount + " solicitudes pendientes de incorporación. ";
+
+            throw new ResourceAlreadyExistsException(
+                    message
+                    + "Para enviar el trabajo, debe confirmar el descarte de todas las solicitudes pendientes."
+            );
+        }
+
+        // Descartar solicitudes únicamente si el responsable confirmó
+        if (!pendingRequests.isEmpty()) {
+            paperAuthorRepository.deleteAll(pendingRequests);
+        }
+
         paper.setStatus(PaperStatus.UNDER_EVALUATION);
-        return paperMapper.toPaperDetailResponseDTO(paperRepository.save(paper));
+
+        Paper savedPaper = paperRepository.save(paper);
+
+        PaperDetailResponseDTO response =
+                paperMapper.toPaperDetailResponseDTO(savedPaper);
+
+        return applyPaperIdentityVisibility(savedPaper, response);
     }
 
     ///----------------------------------------------------------LÓGICA INTERNA----------------------------------------------------------///
@@ -665,5 +779,81 @@ public class PaperServiceImpl implements PaperService {
         institutionValidator.validateAuthenticatedParticipantInstitution(
                 congressCode
         );
+    }
+    
+    private void validatePaperDetailAccess(Paper paper) {
+
+        var authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+        String congressCode = paper.getCongress().getCode();
+
+        // El superadministrador y el administrador del congreso
+        // pueden consultar cualquier trabajo del congreso.
+        if (securityEvaluator.isSuperAdmin(authenticatedUser)
+                || securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            return;
+        }
+
+        // Los evaluadores solamente pueden consultar trabajos asignados.
+        if (securityEvaluator.isAssignedReviewer(authenticatedUser, paper)) {
+            return;
+        }
+
+        // Los autores solamente pueden consultar trabajos
+        // en los que tengan una participación aceptada.
+        if (securityEvaluator.isAcceptedAuthor(authenticatedUser, paper)) {
+            return;
+        }
+
+        throw new AccessDeniedException(
+                "No tiene permisos para consultar el detalle de este trabajo"
+        );
+    }
+    
+    private PaperDetailResponseDTO applyPaperIdentityVisibility(
+            Paper paper,
+            PaperDetailResponseDTO response
+    ) {
+    	User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+        String congressCode = paper.getCongress().getCode();
+
+        // Los administradores pueden ver ambas identidades.
+        if (securityEvaluator.isSuperAdmin(authenticatedUser)
+                || securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            return response;
+        }
+
+        // Los evaluadores no pueden conocer la identidad de los autores.
+        if (securityEvaluator.isAssignedReviewer(authenticatedUser, paper)) {
+            response.setAuthors(null);
+            return response;
+        }
+
+        // Los autores conocen a los evaluadores únicamente
+        // en congresos con modalidad simple ciego.
+        if (securityEvaluator.isAcceptedAuthor(authenticatedUser, paper)) {
+            if (!paper.getCongress().isSingleBlind()) {
+                response.setReviewerCode(null);
+                response.setReviewerFullName(null);
+            }
+        }
+
+        return response;
+    }
+    
+    private void validatePaperResponsibleAuthor(Paper paper) {
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        boolean isResponsibleAuthor = paper.getAuthors() != null
+                && paper.getAuthors().stream()
+                        .anyMatch(paperAuthor ->
+                                paperAuthor.isMainAuthor()
+                                        && paperAuthor.getAuthor().getUserId().equals(authenticatedUser.getUserId())
+                        );
+
+        if (!isResponsibleAuthor) {
+            throw new AccessDeniedException(
+                    "Solo el autor responsable puede realizar esta operación."
+            );
+        }
     }
 }

@@ -328,22 +328,44 @@ public class PaperController {
     }
 
     @Operation(
-            summary = "Enviar un trabajo a revisión (Submit)",
+            summary = "Enviar un trabajo a evaluación (Submit)",
             description = """
-                Transiciona el estado del Paper de NOT_SUBMITTED o NEEDS_REVISION a UNDER_EVALUATION.
-                Verifica que cumpla los requisitos mínimos (ej. cantidad mínima de palabras clave y autores).
-                """
+                    Transiciona el estado del Paper de NOT_SUBMITTED o NEEDS_REVISION
+                    a UNDER_EVALUATION.
+
+                    **Permisos:**
+                    - Exclusivamente el autor responsable del trabajo.
+
+                    **Reglas de negocio:**
+                    - Verifica que exista al menos un autor ACCEPTED.
+                    - Valida la cantidad mínima de palabras clave.
+                    - Si existen solicitudes PENDING, requiere confirmación explícita
+                      para descartarlas antes de enviar el trabajo.
+                    - Si se confirma el descarte, las solicitudes pendientes se eliminan
+                      y el trabajo se envía dentro de la misma transacción.
+
+                    **Parámetro confirmDiscardPendingRequests:**
+                    - false (predeterminado): no autoriza descartar solicitudes pendientes.
+                    - true: confirma el descarte de todas las solicitudes pendientes.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trabajo enviado a revisión correctamente"),
-            @ApiResponse(responseCode = "400", description = "Estado inválido, sin autores, o no alcanza el mínimo de palabras clave"),
+            @ApiResponse(responseCode = "400", description = "Estado inválido, sin autores aceptados o no alcanza el mínimo de palabras clave"),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
-            @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
-            @ApiResponse(responseCode = "404", description = "No se encontró un Paper con el código especificado")
+            @ApiResponse(responseCode = "403", description = "No es el autor responsable o tiene pendiente completar su institución"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el trabajo"),
+            @ApiResponse(responseCode = "409", description = "Existen solicitudes pendientes y se requiere confirmar su descarte")
     })
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{paperCode}/submit")
-    public ResponseEntity<PaperDetailResponseDTO> submitPaper(@PathVariable String paperCode) {
-        return ResponseEntity.ok(paperService.submitPaper(paperCode));
+    public ResponseEntity<PaperDetailResponseDTO> submitPaper(
+            @PathVariable String paperCode,
+            @RequestParam(defaultValue = "false")
+            boolean confirmDiscardPendingRequests
+    ) {
+        return ResponseEntity.ok(
+                paperService.submitPaper(paperCode, confirmDiscardPendingRequests)
+        );
     }
 }
