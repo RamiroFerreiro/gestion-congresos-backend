@@ -44,10 +44,9 @@ public class PaperAuthor {
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
 
-    @Column(name = "author_order", nullable = false)
+    @Column(name = "author_order")
     private Long authorOrder;
 
-    ///-----------nuevo---------
     @Column(name = "is_main_author", nullable = false)
     private boolean isMainAuthor;
 

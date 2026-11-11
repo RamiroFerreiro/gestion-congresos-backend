@@ -26,6 +26,8 @@ public interface CongressParticipantService {
 
     void updateParticipantRole(String congressCode, String userCode, RoleName newRole);
     
+    void promoteListenerToExpositor(String congressCode, String userCode);
+    
     CongressParticipantResponseDTO getAuthenticatedParticipantInCongress(String congressCode);
     
     MessageResponseDTO updateAuthenticatedParticipantInstitution(String congressCode, CongressParticipantInstitutionRequestDTO requestDTO);

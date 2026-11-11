@@ -13,9 +13,9 @@ import com.tfi.gestion_congresos_backend.mapper.PaperAuthorMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
-import com.tfi.gestion_congresos_backend.repository.RoleRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
+import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
@@ -26,7 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -37,10 +40,10 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     private final CongressParticipantRepository congressParticipantRepository;
     private final UserService userService;
     private final AuthorizationService authorizationService;
+    private final CongressParticipantService congressParticipantService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
     private final PaperAuthorMapper paperAuthorMapper;
-    private final RoleRepository roleRepository;
 
     // TODO_EMAIL: Inyectar ApplicationEventPublisher eventPublisher; para enviar los emails luego.
 
@@ -54,16 +57,23 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         boolean isSuperAdmin = currentUser.isSuperAdmin();
         boolean isAdmin = securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR);
-        boolean isAuthor = paperAuthorRepository.existsByPaper_CodeAndAuthor_UserId(paperCode, currentUser.getUserId());
+        boolean isAcceptedAuthor = paperAuthorRepository
+                .existsByPaper_CodeAndAuthor_UserIdAndStatus(
+                        paperCode,
+                        currentUser.getUserId(),
+                        PaperAuthorStatus.ACCEPTED
+                );
 
-        if (!isSuperAdmin && !isAdmin && !isAuthor) {
+        if (!isSuperAdmin && !isAdmin && !isAcceptedAuthor) {
             throw new AccessDeniedException("No posee permisos para ver los autores de este trabajo.");
         }
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper);
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
+        );
     }
 
     @Override
@@ -78,108 +88,225 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         // Validar institución del usuario en el congreso
         institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_Congress_Code(congressCode));
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_Congress_Code(congressCode)
+        );
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaperAuthorResponseDTO> getPendingAuthorRequests(String paperCode) {
+        Paper paper = getPaperEntity(paperCode);
+
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
+
+        // Solo el autor responsable, administradores o superadministradores
+        // pueden consultar las solicitudes pendientes.
+        verifyAdminOrMainAuthorAccess(paper, currentUser);
+
+        List<PaperAuthor> pendingRequests = paperAuthorRepository
+                .findByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.PENDING);
+
+        return paperAuthorMapper.toPaperAuthorResponseDTOList(pendingRequests);
     }
 
     ///----------------------------------------------------------ACTUALIZACIÓN EN LOTE (BULK)----------------------------------------------------------///
 
     @Override
     @Transactional
-    public List<PaperAuthorResponseDTO> updatePaperAuthors(String paperCode, List<PaperAuthorUpdateRequestDTO> updates) {
+    public List<PaperAuthorResponseDTO> updatePaperAuthors(
+            String paperCode,
+            List<PaperAuthorUpdateRequestDTO> updates
+    ) {
         Paper paper = getPaperEntity(paperCode);
-        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
+
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
         User currentUser = authorizationService.getAuthenticatedUserEntity();
-        boolean isSuperAdmin = currentUser.isSuperAdmin();
-        boolean isAdmin = securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR);
 
-        List<PaperAuthor> currentAuthors = paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
-        
+        boolean isSuperAdmin = currentUser.isSuperAdmin();
+        boolean isAdmin = securityEvaluator.hasRoleInCongress(
+                currentUser,
+                paper.getCongress().getCode(),
+                RoleName.ADMINISTRATOR
+        );
+
+        List<PaperAuthor> currentAuthors =
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
+
+        List<PaperAuthor> acceptedAuthors = currentAuthors.stream()
+                .filter(author -> author.getStatus() == PaperAuthorStatus.ACCEPTED)
+                .toList();
+
         // Verificar si el usuario actual es el Main Author actual
-        boolean isCurrentMainAuthor = currentAuthors.stream()
-                .anyMatch(pa -> pa.getAuthor().getUserId().equals(currentUser.getUserId()) && pa.isMainAuthor());
+        boolean isCurrentMainAuthor = acceptedAuthors.stream()
+                .anyMatch(author ->
+                        author.getAuthor().getUserId().equals(currentUser.getUserId())
+                                && author.isMainAuthor()
+                );
 
         // Control de Acceso Global para el método
         if (!isSuperAdmin && !isAdmin && !isCurrentMainAuthor) {
-            throw new AccessDeniedException("No posee permisos para modificar los autores de este trabajo.");
+            throw new AccessDeniedException(
+                    "No posee permisos para modificar los autores de este trabajo."
+            );
         }
-        
+
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper);
 
         // Validación de Integridad: Debe haber exactamente un Main Author
-        long newMainAuthorCount = updates.stream().filter(PaperAuthorUpdateRequestDTO::getIsMainAuthor).count();
-        if (newMainAuthorCount != 1) {
-            throw new ArgumentNotValidException("Debe existir exactamente un autor principal (isMainAuthor = true).");
+        if (acceptedAuthors.stream().filter(PaperAuthor::isMainAuthor).count() != 1) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe tener exactamente un autor principal."
+            );
         }
 
-        // Aplicar actualizaciones
+        if (updates == null || updates.size() != acceptedAuthors.size()) {
+            throw new ArgumentNotValidException(
+                    "Debe enviar exactamente todos los autores aceptados del trabajo."
+            );
+        }
+
+        Set<String> updatedUserCodes = new HashSet<>();
+        Set<Long> requestedOrders = new HashSet<>();
+
+        // Validar integridad de los datos recibidos
         for (PaperAuthorUpdateRequestDTO update : updates) {
-            PaperAuthor existingAuthor = currentAuthors.stream()
-                    .filter(pa -> pa.getAuthor().getCode().equals(update.getUserCode()))
+
+            if (update == null
+                    || update.getUserCode() == null
+                    || update.getAuthorOrder() == null
+                    || update.getAuthorOrder() < 1
+                    || update.getIsPresentator() == null) {
+
+                throw new ArgumentNotValidException(
+                        "Todos los autores deben tener código, orden positivo e indicador de presentador."
+                );
+            }
+
+            if (!updatedUserCodes.add(update.getUserCode())) {
+                throw new ArgumentNotValidException(
+                        "La solicitud contiene autores duplicados."
+                );
+            }
+
+            boolean authorExists = acceptedAuthors.stream()
+                    .anyMatch(author ->
+                            author.getAuthor().getCode().equals(update.getUserCode())
+                    );
+
+            if (!authorExists) {
+                throw new ResourceNotFoundException(
+                        "El usuario con código " + update.getUserCode()
+                                + " no es un autor aceptado de este trabajo."
+                );
+            }
+
+            if (!requestedOrders.add(update.getAuthorOrder())) {
+                throw new ArgumentNotValidException(
+                        "No puede haber dos autores con el mismo orden de aparición."
+                );
+            }
+        }
+
+        // Validar que los órdenes formen la secuencia 1, 2, 3... N
+        for (long expectedOrder = 1; expectedOrder <= acceptedAuthors.size(); expectedOrder++) {
+            if (!requestedOrders.contains(expectedOrder)) {
+                throw new ArgumentNotValidException(
+                        "El orden de los autores debe ser consecutivo y comenzar en 1."
+                );
+            }
+        }
+        
+    	// Validar que el autor principal ocupe siempre la primera posición
+        String mainAuthorCode = acceptedAuthors.stream()
+                .filter(PaperAuthor::isMainAuthor)
+                .map(author -> author.getAuthor().getCode())
+                .findFirst()
+                .orElseThrow(() -> new ArgumentNotValidException(
+                        "El trabajo debe tener un autor principal."
+                ));
+
+        boolean mainAuthorIsFirst = updates.stream()
+                .anyMatch(update ->
+                        update.getUserCode().equals(mainAuthorCode)
+                                && Long.valueOf(1L).equals(update.getAuthorOrder())
+                );
+
+        if (!mainAuthorIsFirst) {
+            throw new ArgumentNotValidException(
+                    "El autor principal debe ocupar siempre la primera posición (authorOrder = 1)."
+            );
+        }
+
+        // Aplicar las modificaciones
+        for (PaperAuthorUpdateRequestDTO update : updates) {
+
+            PaperAuthor existingAuthor = acceptedAuthors.stream()
+                    .filter(author ->
+                            author.getAuthor().getCode().equals(update.getUserCode())
+                    )
                     .findFirst()
-                    .orElseThrow(() -> new ResourceNotFoundException("El usuario con código " + update.getUserCode() + " no es autor de este paper (o no existe)."));
-
-            if (existingAuthor.getStatus() != PaperAuthorStatus.ACCEPTED) {
-                throw new ArgumentNotValidException("Solo se pueden modificar atributos de autores en estado ACCEPTED.");
-            }
-
-            // REGLA CLAVE: Modificar la autoría principal es exclusivo de Admins/SuperAdmins
-            if (existingAuthor.isMainAuthor() != update.getIsMainAuthor()) {
-                if (!isSuperAdmin && !isAdmin) {
-                    throw new AccessDeniedException("Solo un Administrador del congreso o un Súper Admin puede transferir la autoría principal.");
-                }
-            }
+                    .orElseThrow();
 
             // Setear nuevos valores
-            existingAuthor.setMainAuthor(update.getIsMainAuthor());
             existingAuthor.setPresentator(update.getIsPresentator());
             existingAuthor.setAuthorOrder(update.getAuthorOrder());
         }
 
-        List<PaperAuthor> savedAuthors = paperAuthorRepository.saveAll(currentAuthors);
-        
-        // Ordenamos en memoria para devolver la respuesta limpia al front
-        savedAuthors.sort(Comparator.comparingLong(PaperAuthor::getAuthorOrder));
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(savedAuthors);
-    }
+        List<PaperAuthor> savedAuthors = paperAuthorRepository.saveAll(acceptedAuthors);
 
-  @Override
+        // Ordenamos en memoria para devolver la respuesta limpia al front
+        savedAuthors.sort(Comparator.comparing(PaperAuthor::getAuthorOrder));
+
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(savedAuthors);
+    }
+    
+    @Override
     @Transactional
-    public List<PaperAuthorResponseDTO> requestToJoinPaper(String paperCode, String userCode) {
+    public PaperAuthorResponseDTO requestToJoinPaper(String paperCode, String userCode) {
         Paper paper = getPaperEntity(paperCode);
+
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
-        // Validar que el usuario que solicita sea el mismo que está logueado (No puedes pedir unirte en nombre de otro)
+        // Validar que el usuario que solicita sea el mismo que está logueado
         User currentUser = authorizationService.getAuthenticatedUserEntity();
+
         if (!currentUser.getCode().equals(userCode)) {
-            throw new AccessDeniedException("No puedes solicitar unirte en nombre de otro usuario.");
+            throw new AccessDeniedException(
+                    "No puedes solicitar unirte en nombre de otro usuario."
+            );
         }
-        
-        // Validar que participa en el congreso y no es Evaluador
-        validateParticipantCanBeAuthor(userCode, paper.getCongress());
+
+        // Validar participación activa y rol permitido
+        validateParticipantCanBeAuthor(currentUser, paper.getCongress());
 
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper);
 
-        if (paperAuthorRepository.existsByPaper_CodeAndAuthor_UserId(paperCode, currentUser.getUserId())) {
-            throw new ResourceAlreadyExistsException("Ya tienes una relación (pendiente o aceptada) con este trabajo.");
+        if (paperAuthorRepository.existsByPaper_CodeAndAuthor_UserId(
+                paperCode,
+                currentUser.getUserId()
+        )) {
+            throw new ResourceAlreadyExistsException(
+                    "Ya tienes una relación (pendiente o aceptada) con este trabajo."
+            );
         }
 
         PaperAuthor request = PaperAuthor.builder()
                 .paper(paper)
                 .author(currentUser)
-                .authorOrder(0L) // Orden 0 mientras sea PENDING
                 .isMainAuthor(false)
                 .isPresentator(false)
                 .status(PaperAuthorStatus.PENDING)
                 .build();
 
-        paperAuthorRepository.save(request);
+        PaperAuthor savedRequest = paperAuthorRepository.save(request);
 
         // TODO_EMAIL: Notificar al Main Author que recibió una nueva solicitud de co-autoría
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        return paperAuthorMapper.toPaperAuthorResponseDTO(savedRequest);
     }
 
     @Override
@@ -196,20 +323,35 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             throw new ArgumentNotValidException("El usuario ya se encuentra aceptado en este trabajo.");
         }
 
+        validateParticipantCanBeAuthor(
+                request.getAuthor(),
+                paper.getCongress()
+        );
+        
         long acceptedCount = paperAuthorRepository.countByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED);
         validateMaxAuthors(paper.getCongress(), acceptedCount + 1);
+        
+        Long nextAuthorOrder = paperAuthorRepository
+                .findByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED)
+                .stream()
+                .map(PaperAuthor::getAuthorOrder)
+                .filter(Objects::nonNull)
+                .max(Long::compareTo)
+                .orElse(0L) + 1L;
 
         request.setStatus(PaperAuthorStatus.ACCEPTED);
-        request.setAuthorOrder(acceptedCount + 1);
+        request.setAuthorOrder(nextAuthorOrder);
 
         // Al ser aceptado, si el usuario era LISTENER, se le asciende automáticamente a EXPOSITOR
-        upgradeToExpositorRoleIfNeeded(request.getAuthor(), paper.getCongress());
+        congressParticipantService.promoteListenerToExpositor(paper.getCongress().getCode(), request.getAuthor().getCode());
 
         paperAuthorRepository.save(request);
 
         // TODO_EMAIL: Notificar al usuario 'userCode' que su solicitud fue ACEPTADA
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
+        );
     }
 
     @Override
@@ -230,7 +372,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         // TODO_EMAIL: Notificar al usuario 'userCode' que su solicitud fue RECHAZADA
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
+        );
     }
 
     @Override
@@ -241,7 +385,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         verifyAdminAccess(paper, authorizationService.getAuthenticatedUserEntity()); // SOLO Admin o SuperAdmin
 
         User userToAdd = userService.getUserByUserCode(userCode);
-        validateParticipantCanBeAuthor(userCode, paper.getCongress());
+        validateParticipantCanBeAuthor(userToAdd, paper.getCongress());
 
         if (paperAuthorRepository.existsByPaper_CodeAndAuthor_UserId(paperCode, userToAdd.getUserId())) {
             throw new ResourceAlreadyExistsException("El usuario ya tiene una relación con este trabajo.");
@@ -249,60 +393,245 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         long acceptedCount = paperAuthorRepository.countByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED);
         validateMaxAuthors(paper.getCongress(), acceptedCount + 1);
+        
+        Long nextAuthorOrder = paperAuthorRepository
+                .findByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED)
+                .stream()
+                .map(PaperAuthor::getAuthorOrder)
+                .filter(Objects::nonNull)
+                .max(Long::compareTo)
+                .orElse(0L) + 1L;
 
         PaperAuthor newAuthor = PaperAuthor.builder()
                 .paper(paper)
                 .author(userToAdd)
-                .authorOrder(acceptedCount + 1)
+                .authorOrder(nextAuthorOrder)
                 .isMainAuthor(false)
                 .isPresentator(false)
                 .status(PaperAuthorStatus.ACCEPTED)
                 .build();
 
-        upgradeToExpositorRoleIfNeeded(userToAdd, paper.getCongress());
+        congressParticipantService.promoteListenerToExpositor(paper.getCongress().getCode(), userToAdd.getCode());
         paperAuthorRepository.save(newAuthor);
 
         // TODO_EMAIL: Notificar al usuario 'userCode' que fue agregado como autor directamente por un administrador
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
+        );
     }
 
     @Override
     @Transactional
-    public List<PaperAuthorResponseDTO> removeAuthorFromPaper(String paperCode, String userCode) {
+    public List<PaperAuthorResponseDTO> removeAuthorFromPaper(
+            String paperCode,
+            String userCode
+    ) {
         Paper paper = getPaperEntity(paperCode);
-        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
-        verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
 
-        PaperAuthor authorToRemove = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
-                .orElseThrow(() -> new ResourceNotFoundException("El usuario no tiene relación con este Paper."));
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
+
+        verifyAdminOrMainAuthorAccess(
+                paper,
+                authorizationService.getAuthenticatedUserEntity()
+        );
+
+        PaperAuthor authorToRemove = paperAuthorRepository
+                .findByPaper_CodeAndAuthor_Code(paperCode, userCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario no tiene relación con este Paper."
+                ));
 
         if (authorToRemove.isMainAuthor()) {
-            throw new ArgumentNotValidException("No se puede eliminar al autor principal. Debe transferir la autoría antes de eliminarlo.");
+            throw new ArgumentNotValidException(
+                    "No se puede eliminar al autor principal. Debe transferir la autoría antes de eliminarlo."
+            );
         }
 
-        if (authorToRemove.getStatus() == PaperAuthorStatus.PENDING) {
-            throw new ArgumentNotValidException("El usuario tiene una solicitud pendiente. Utilice el endpoint de rechazo.");
+        if (authorToRemove.getStatus() != PaperAuthorStatus.ACCEPTED) {
+            throw new ArgumentNotValidException(
+                    "Solo se pueden eliminar autores en estado ACCEPTED."
+            );
         }
 
-        // Recuperar la lista actual antes de borrar para reordenar
-        List<PaperAuthor> remainingAuthors = paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
-        remainingAuthors.remove(authorToRemove);
-        
+        List<PaperAuthor> currentAuthors =
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
+
+        // Obtener los autores aceptados restantes
+        List<PaperAuthor> remainingAcceptedAuthors = currentAuthors.stream()
+                .filter(author -> author.getStatus() == PaperAuthorStatus.ACCEPTED)
+                .filter(author -> !author.getAuthor().getCode().equals(userCode))
+                .toList();
+
+        if (remainingAcceptedAuthors.isEmpty()) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe conservar al menos un autor aceptado."
+            );
+        }
+
+        // Verificar que exista exactamente un autor principal
+        List<PaperAuthor> mainAuthors = remainingAcceptedAuthors.stream()
+                .filter(PaperAuthor::isMainAuthor)
+                .toList();
+
+        if (mainAuthors.size() != 1) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe tener exactamente un autor principal."
+            );
+        }
+
+        // Verificar que los autores restantes tengan un orden asignado
+        if (remainingAcceptedAuthors.stream()
+                .anyMatch(author -> author.getAuthorOrder() == null)) {
+            throw new ArgumentNotValidException(
+                    "Todos los autores aceptados deben tener un orden asignado."
+            );
+        }
+
+        PaperAuthor mainAuthor = mainAuthors.get(0);
+
+        // El autor principal siempre ocupa la primera posición
+        mainAuthor.setAuthorOrder(1L);
+
+        // Ordenar los demás autores respetando su posición relativa
+        List<PaperAuthor> otherAuthors = remainingAcceptedAuthors.stream()
+                .filter(author -> !author.isMainAuthor())
+                .sorted(Comparator.comparing(PaperAuthor::getAuthorOrder))
+                .toList();
+
+        long newOrder = 2L;
+
+        for (PaperAuthor author : otherAuthors) {
+            author.setAuthorOrder(newOrder++);
+        }
+
+        // Eliminar el autor solicitado
         paperAuthorRepository.delete(authorToRemove);
 
-        // Compactar los órdenes (1, 2, 3...) sin dejar huecos
-        long newOrder = 1;
-        for (PaperAuthor pa : remainingAuthors) {
-            if (pa.getStatus() == PaperAuthorStatus.ACCEPTED) {
-                pa.setAuthorOrder(newOrder++);
-            }
+        // Guardar los órdenes actualizados
+        paperAuthorRepository.saveAll(remainingAcceptedAuthors);
+
+        // TODO_EMAIL: Notificar al usuario que fue removido del trabajo
+
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
+        );
+    }
+    
+    @Override
+    @Transactional
+    public List<PaperAuthorResponseDTO> transferMainAuthor(
+            String paperCode,
+            String newMainAuthorCode
+    ) {
+        Paper paper = getPaperEntity(paperCode);
+
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
+
+        User currentUser = authorizationService.getAuthenticatedUserEntity();
+
+        List<PaperAuthor> currentAuthors =
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
+
+        // Verificar que exista exactamente un autor principal
+        List<PaperAuthor> mainAuthors = currentAuthors.stream()
+                .filter(PaperAuthor::isMainAuthor)
+                .toList();
+
+        if (mainAuthors.size() != 1
+                || mainAuthors.get(0).getStatus() != PaperAuthorStatus.ACCEPTED) {
+            throw new ArgumentNotValidException(
+                    "El trabajo debe tener exactamente un autor principal aceptado."
+            );
         }
-        paperAuthorRepository.saveAll(remainingAuthors);
 
-        // TODO_EMAIL: Notificar al usuario 'userCode' que ha sido removido del trabajo
+        PaperAuthor currentMainAuthor = mainAuthors.get(0);
 
-        return paperAuthorMapper.toPaperAuthorResponseDTOList(paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode));
+        // Verificar permisos del usuario autenticado
+        boolean isSuperAdmin = currentUser.isSuperAdmin();
+
+        boolean isAdmin = securityEvaluator.hasRoleInCongress(
+                currentUser,
+                paper.getCongress().getCode(),
+                RoleName.ADMINISTRATOR
+        );
+
+        boolean isCurrentMainAuthor = currentMainAuthor.getAuthor()
+                .getUserId()
+                .equals(currentUser.getUserId());
+
+        if (!isSuperAdmin && !isAdmin && !isCurrentMainAuthor) {
+            throw new AccessDeniedException(
+                    "No posee permisos para transferir la autoría principal de este trabajo."
+            );
+        }
+
+        validateCurrentUserInstitution(paper);
+
+        // Buscar al nuevo responsable
+        PaperAuthor newMainAuthor = currentAuthors.stream()
+                .filter(author -> author.getAuthor().getCode().equals(newMainAuthorCode))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario indicado no es autor de este trabajo."
+                ));
+
+        if (newMainAuthor.getStatus() != PaperAuthorStatus.ACCEPTED) {
+            throw new ArgumentNotValidException(
+                    "El nuevo responsable debe ser un autor aceptado del trabajo."
+            );
+        }
+
+        if (newMainAuthor.isMainAuthor()) {
+            throw new ArgumentNotValidException(
+                    "El usuario indicado ya es el autor principal del trabajo."
+            );
+        }
+        
+        validateParticipantCanBeAuthor(
+                newMainAuthor.getAuthor(),
+                paper.getCongress()
+        );
+
+        // Obtener los autores aceptados y verificar que todos tengan un orden asignado
+        List<PaperAuthor> acceptedAuthors = currentAuthors.stream()
+                .filter(author -> author.getStatus() == PaperAuthorStatus.ACCEPTED)
+                .toList();
+
+        if (acceptedAuthors.stream().anyMatch(author -> author.getAuthorOrder() == null)) {
+            throw new ArgumentNotValidException(
+                    "Todos los autores aceptados deben tener un orden de autoría asignado."
+            );
+        }
+
+        // Obtener los demás autores respetando su orden actual
+        List<PaperAuthor> remainingAuthors = acceptedAuthors.stream()
+                .filter(author -> !author.getAuthor().getCode().equals(newMainAuthorCode))
+                .sorted(Comparator.comparing(PaperAuthor::getAuthorOrder))
+                .toList();
+
+        // Transferir la autoría principal
+        currentMainAuthor.setMainAuthor(false);
+        newMainAuthor.setMainAuthor(true);
+
+        // El nuevo autor principal siempre ocupa la primera posición
+        newMainAuthor.setAuthorOrder(1L);
+
+        // Reasignar consecutivamente las posiciones de los demás autores
+        long nextAuthorOrder = 2L;
+
+        for (PaperAuthor author : remainingAuthors) {
+            author.setAuthorOrder(nextAuthorOrder++);
+        }
+
+        // Guardar los cambios de todos los autores aceptados
+        paperAuthorRepository.saveAll(acceptedAuthors);
+
+        // Devolver únicamente los autores aceptados
+        List<PaperAuthor> updatedAuthors =
+                paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode);
+
+        return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(updatedAuthors);
     }
 
     ///----------------------------------------------------------MÉTODOS PRIVADOS AUXILIARES----------------------------------------------------------///
@@ -332,29 +661,34 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         validateCurrentUserInstitution(paper);
     }
 
-    private void validateParticipantCanBeAuthor(String userCode, Congress congress) {
-        CongressParticipant participant = congressParticipantRepository
-        		.findActiveParticipantByUserCodeAndCongressCode(userCode, congress.getCode())
-        			.orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en este congreso."));
-
-        if (participant.getRole().getName() == RoleName.EVALUATOR) {
-            throw new ArgumentNotValidException("Un evaluador del congreso no puede postularse como autor de un trabajo.");
+    private void validateParticipantCanBeAuthor(User user, Congress congress) {
+    	if (!user.isEnabled()) {
+    	    throw new AccessDeniedException(
+    	            "La cuenta del usuario está deshabilitada y no puede ser autor de trabajos."
+    	    );
+    	}
+    	
+    	if (user.isSuperAdmin()) {
+            throw new AccessDeniedException(
+                    "Los superadministradores no pueden ser autores de trabajos."
+            );
         }
-    }
 
-    private void upgradeToExpositorRoleIfNeeded(User user, Congress congress) {
         CongressParticipant participant = congressParticipantRepository
-        		.findActiveParticipantByUserCodeAndCongressCode(user.getCode(), congress.getCode())
-        			.orElseThrow(() -> new ResourceNotFoundException("El usuario no está inscripto en el congreso."));
+                .findActiveParticipantByUserCodeAndCongressCode(
+                        user.getCode(),
+                        congress.getCode()
+                )
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario no está inscripto activamente en este congreso."
+                ));
 
-        if (participant.getRole().getName() == RoleName.LISTENER) {
-            Role expositorRole = roleRepository.findByName(RoleName.EXPOSITOR)
-                    .orElseThrow(() -> new ResourceNotFoundException("Rol EXPOSITOR no encontrado en el sistema."));
-            
-            participant.setRole(expositorRole);
-            congressParticipantRepository.save(participant);
-            
-            // TODO_EMAIL: (Opcional) Notificar al usuario que su rol fue ascendido de Oyente a Expositor
+        RoleName roleName = participant.getRole().getName();
+
+        if (roleName != RoleName.LISTENER && roleName != RoleName.EXPOSITOR) {
+            throw new AccessDeniedException(
+                    "Solo los participantes con rol LISTENER o EXPOSITOR pueden ser autores de un trabajo."
+            );
         }
     }
 
