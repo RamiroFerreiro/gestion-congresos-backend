@@ -17,9 +17,6 @@ public class PaperAuthorUpdateRequestDTO {
     @NotBlank(message = "El código de usuario es obligatorio")
     private String userCode;
 
-    @NotNull(message = "El indicador isMainAuthor es obligatorio")
-    private Boolean isMainAuthor;
-
     @NotNull(message = "El indicador isPresentator es obligatorio")
     private Boolean isPresentator;
 

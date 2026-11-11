@@ -3,9 +3,11 @@ package com.tfi.gestion_congresos_backend.mapper;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperAuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -44,5 +46,19 @@ public abstract class PaperAuthorMapper {
         )
         .map(CongressParticipant::getInstitution)
         .orElse("Desconocida");
+    }
+    
+    @Named("toAcceptedPaperAuthorResponseDTOList")
+    public List<PaperAuthorResponseDTO> toAcceptedPaperAuthorResponseDTOList(
+            List<PaperAuthor> paperAuthors
+    ) {
+        if (paperAuthors == null) {
+            return null;
+        }
+
+        return paperAuthors.stream()
+                .filter(paperAuthor -> paperAuthor.getStatus() == PaperAuthorStatus.ACCEPTED)
+                .map(this::toPaperAuthorResponseDTO)
+                .toList();
     }
 }

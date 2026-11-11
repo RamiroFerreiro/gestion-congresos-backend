@@ -510,6 +510,38 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
     }
     
     @Override
+    @Transactional
+    public void promoteListenerToExpositor(String congressCode, String userCode) {
+        CongressParticipant participant = congressParticipantRepository
+                .findActiveParticipantByUserCodeAndCongressCode(userCode, congressCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No se encontró un participante activo para el usuario y congreso indicados."
+                ));
+
+        RoleName currentRole = participant.getRole().getName();
+
+        if (currentRole == RoleName.EXPOSITOR) {
+            return;
+        }
+
+        if (currentRole != RoleName.LISTENER) {
+            throw new ArgumentNotValidException(
+                    "Solo los participantes con rol LISTENER pueden ser promovidos a EXPOSITOR."
+            );
+        }
+
+        Role expositorRole = roleRepository.findByName(RoleName.EXPOSITOR)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El rol EXPOSITOR no se encuentra configurado en el sistema."
+                ));
+
+        participant.setRole(expositorRole);
+        congressParticipantRepository.save(participant);
+        
+        // TODO_EMAIL: (Opcional) Notificar al usuario que su rol fue ascendido de Oyente a Expositor
+    }
+    
+    @Override
     @Transactional(readOnly = true)
     public CongressParticipantResponseDTO getAuthenticatedParticipantInCongress(String congressCode) {
 

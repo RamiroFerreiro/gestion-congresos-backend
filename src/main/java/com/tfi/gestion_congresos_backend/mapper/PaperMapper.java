@@ -38,6 +38,11 @@ public interface PaperMapper {
     @Mapping(target = "reviewerCode", source = "userReviewer.code")
     @Mapping(target = "reviewerFullName", expression = "java(paper.getUserReviewer() != null ? paper.getUserReviewer().getFirstName() + \" \" + paper.getUserReviewer().getLastName() : null)")
     @Mapping(target = "congressPaperTypeName", expression = "java(paper.getCongressPaperType() != null && paper.getCongressPaperType().getPaperType() != null ? paper.getCongressPaperType().getPaperType().name() : null)")
+    @Mapping(
+    	    target = "authors",
+    	    source = "authors",
+    	    qualifiedByName = "toAcceptedPaperAuthorResponseDTOList"
+    	)
     PaperDetailResponseDTO toPaperDetailResponseDTO(Paper paper);
 
     // --- MAPEOS A REVIEWER VIEW (SINGLE BLIND HANDLER) ---

@@ -17,7 +17,7 @@ public class PaperAuthorResponseDTO {
     private String institution;
     private String country;
     
-    private long authorOrder;
+    private Long authorOrder;
     private boolean isMainAuthor;
     private boolean isPresentator;
     private PaperAuthorStatus status;
