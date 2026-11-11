@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.CongressService;
@@ -45,26 +46,18 @@ public class CongressController {
 
     /// Obtener congresos (todos / activos / desactivados):
     @Operation(
-        summary = "Obtener congresos según el estado indicado",
-        description = "Obtiene todos los congresos registrados o los que estén activos o desactivados."
-    )
+        summary = "Obtener resumen congresos según el estado indicado",
+        description = "Obtiene todos los congresos registrados o los que estén activos o desactivados.")
     @ApiResponse(
         responseCode = "200",
         description = "Congresos obtenidos correctamente"
     )
     @PreAuthorize("@securityEvaluator.isSuperAdmin(authentication.principal)")
     @GetMapping
-    public ResponseEntity<List<CongressResponseDTO>> getCongresses(
-            @RequestParam(required = false) Boolean enabled
-    ) {
+    public ResponseEntity<List<CongressSummaryDTO>> getCongresses(
+            @RequestParam(required = false) Boolean enabled) {
 
-        if (enabled != null) {
-            return ResponseEntity.ok(
-                congressService.getCongressesByEnabled(enabled)
-            );
-        }
-
-        return ResponseEntity.ok(congressService.getAllCongresses());
+        return ResponseEntity.ok(congressService.getCongressesSummaryByEnabled(enabled));
     }
 
     /// Obtener un congreso por código:

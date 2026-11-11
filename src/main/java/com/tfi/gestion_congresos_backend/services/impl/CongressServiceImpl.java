@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.services.impl;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
@@ -107,19 +109,44 @@ public class CongressServiceImpl implements CongressService {
 		        .map(congressMapper::toCongressResponseDTO)
 		        .toList();
 	}
-	
+
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener todos los congresos activos/desactivados con sus participantes:
-	public List<CongressResponseDTO> getCongressesByEnabled(boolean enabled) {
-		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
-		authorizationService.validateSuperAdminPermission(authenticatedUser);
-		
-		return congressRepository.findAllByEnabledWithThematicAreas(enabled)
-				.stream()
-		        .map(congressMapper::toCongressResponseDTO)
-		        .toList();
+	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
+	///Devuelve el listado de congreso resumidos
+	public List<CongressSummaryDTO> getCongressesSummaryByEnabled(Boolean enabled) {
+
+		List<Congress> congressList = new ArrayList<>();
+
+		if(enabled != null){
+			congressList = congressRepository.findAllByEnabledWithThematicAreas(enabled);
+		}else{
+			congressList = congressRepository.findAllWithThematicAreas();
+		}
+
+		System.out.println(congressList);
+
+		return congressList.stream().map(congressMapper::toCongressResponseSummaryDTO).toList();
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
+	///Devuelve el listado de congreso completos
+	public List<CongressResponseDTO> getCongressesByEnabled(Boolean enabled) {
+
+		List<Congress> congressList = new ArrayList<>();
+
+		if(enabled != null){
+			congressList = congressRepository.findAllByEnabledWithThematicAreas(enabled);
+		}else{
+			congressList = congressRepository.findAllWithThematicAreas();
+		}
+
+		return congressList.stream().map(congressMapper::toCongressResponseDTO).toList();
+	}
+
+	
 	
 	@Override
 	@Transactional(readOnly = true)
@@ -588,4 +615,77 @@ public class CongressServiceImpl implements CongressService {
 			);
 		}
 	}
+
+	private void validateAbstractPaperTypeConfigurationForCreation(CongressRequestDTO dto) {
+		BigDecimal amount = dto.getAbstractAmount();
+		String currency = normalizeCurrency(dto.getAbstractCurrency());
+
+		if (dto.isFree()) {
+			if (amount != null && amount.compareTo(BigDecimal.ZERO) != 0) {
+				throw new ArgumentNotValidException(
+						"Un congreso gratuito solo puede configurar un importe ABSTRACT igual a cero."
+				);
+			}
+			dto.setAbstractCurrency(currency);
+			return;
+		}
+
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere un importe ABSTRACT mayor a cero."
+			);
+		}
+
+		if (currency == null) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere una moneda para el tipo ABSTRACT."
+			);
+		}
+
+		dto.setAbstractCurrency(currency);
+	}
+
+	private String normalizeCurrency(String currency) {
+		if (currency == null) {
+			return null;
+		}
+
+		String normalizedCurrency = currency.trim().toUpperCase(Locale.ROOT);
+		if (!normalizedCurrency.matches("[A-Z]{3}")) {
+			throw new ArgumentNotValidException(
+					"La moneda del tipo ABSTRACT debe ser un código ISO de tres letras."
+			);
+		}
+
+		return normalizedCurrency;
+	}
+
+	private void createAbstractPaperType(Congress congress, CongressRequestDTO request) {
+		CongressPaperType abstractPaperType = CongressPaperType.builder()
+				.congress(congress)
+				.paperType(PaperType.ABSTRACT)
+				.amount(congress.isFree() ? BigDecimal.ZERO : request.getAbstractAmount())
+				.currency(request.getAbstractCurrency())
+				.build();
+
+		congressPaperTypeRepository.save(abstractPaperType);
+	}
+
+	private void validateEconomicConfigurationIsImmutable(
+			Congress congress,
+			CongressRequestDTO request
+	) {
+		if (congress.isFree() != request.isFree()) {
+			throw new ArgumentNotValidException(
+					"No se puede modificar la condición gratuita o paga de un congreso existente."
+			);
+		}
+
+		if (request.getAbstractAmount() != null || request.getAbstractCurrency() != null) {
+			throw new ArgumentNotValidException(
+					"La configuración económica del tipo ABSTRACT solo puede definirse al crear el congreso."
+			);
+		}
+	}
+
 }
