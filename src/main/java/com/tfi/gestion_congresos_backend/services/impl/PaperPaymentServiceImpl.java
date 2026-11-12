@@ -1,7 +1,9 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -10,37 +12,47 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.tfi.gestion_congresos_backend.dtos.PaperPaymentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.UpdatePaymentStatusDTO;
+import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.PaperPayment;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import com.tfi.gestion_congresos_backend.enums.PaymentStatus;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.PaperPaymentMapper;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.FileStorageService;
 import com.tfi.gestion_congresos_backend.services.PaperPaymentService;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaperPaymentServiceImpl implements PaperPaymentService {
 
     private final PaperPaymentRepository paymentRepository;
     private final PaperAuthorRepository paperAuthorRepository;
+    private final CongressParticipantRepository congressParticipantRepository;
     private final FileStorageService fileStorageService;
     private final PaperPaymentMapper paymentMapper;
     private final PaperService paperService;
     private final AuthorizationService authorizationService;
+    private final EmailService emailService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
 
@@ -85,8 +97,22 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         //8. Consultar si ya existe un comprobante previo y validar su estado
         //Traemos el comprobante
         Optional<PaperPayment> existingPaymentOpt = paymentRepository.findByPaper_PaperId(paperId);
+        
+        //9. Determinar el estado del comprobante antes de reemplazarlo
+        boolean isFirstReceipt = existingPaymentOpt.isEmpty();
 
-        //9. Si existe un comprobante y su estado ya es APROBADO, bloqueamos la subida
+        boolean isReplacingPendingReceipt = existingPaymentOpt
+                .map(payment -> payment.getStatus() == PaymentStatus.PENDING_APPROVAL)
+                .orElse(false);
+        
+        boolean isReplacingRejectedReceipt = existingPaymentOpt
+                .map(payment -> payment.getStatus() == PaymentStatus.REJECTED)
+                .orElse(false);
+
+        boolean shouldNotifyReceiptReceived  =
+                isFirstReceipt || isReplacingPendingReceipt;
+
+        //10. Si existe un comprobante y su estado ya es APROBADO, bloqueamos la subida
         if (existingPaymentOpt.isPresent() && existingPaymentOpt.get().getStatus() == PaymentStatus.APPROVED) {
             throw new ArgumentNotValidException("El comprobante de pago para este trabajo ya ha sido APROBADO. No es posible modificarlo ni re-subir otro.");
         }
@@ -95,27 +121,42 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         // HASTA AQUÍ TODAS LAS VALIDACIONES PASARON -> RECIÉN OPERAMOS EN DISCO
         // ----------------------------------------------------------------------------------
 
-        //10. Si existía un comprobante previo (en PENDING_APPROVAL o REJECTED) y tiene ruta de archivo, lo eliminamos
+        //11. Si existía un comprobante previo (en PENDING_APPROVAL o REJECTED) y tiene ruta de archivo, lo eliminamos
         if (existingPaymentOpt.isPresent() && existingPaymentOpt.get().getFilePath() != null) {
             fileStorageService.delete(existingPaymentOpt.get().getFilePath());
         }
 
-        //11. Guardamos el nuevo archivo
+        //12. Guardamos el nuevo archivo
         String savedPath = fileStorageService.store(file, paperId);
 
-        //12. Traer el comprobante existente o instanciar uno nuevo si re-sube el comprobante
+        //13. Traer el comprobante existente o instanciar uno nuevo si re-sube el comprobante
         PaperPayment payment = existingPaymentOpt.orElseGet(() -> PaperPayment.builder().paper(paper).build());
 
-        //13. Asignar datos del comprobante
+        //14. Asignar datos del comprobante
         payment.setFileName(file.getOriginalFilename());
         payment.setFilePath(savedPath);
-        payment.setUploadDate(LocalDateTime.now());
+        payment.setUploadDate(DateUtils.now());
         payment.setStatus(PaymentStatus.PENDING_APPROVAL); 
         payment.setAmountPaid(paper.getCongressPaperType().getAmount()); 
         payment.setObservations(null);
 
-        //14. Persistir en la base de datos y retornar DTO
+        //15. Persistir en la base de datos
         PaperPayment savedPayment = paymentRepository.save(payment);
+        
+        //16. Notificar a los administradores
+        if (isReplacingRejectedReceipt) {
+
+            notifyAdministratorsAboutRejectedReceiptReplacement(savedPayment);  //Reemplazo de comprobante
+
+        } else if (shouldNotifyReceiptReceived) {
+
+            notifyAdministratorsAboutReceivedPayment(savedPayment); //Comprobante nuevo
+        }
+        
+        //17. Notificar a todos los autores aceptados (PRE-M07)
+        notifyAuthorsAboutReceivedPayment(savedPayment);
+        
+        //18. Retornar DTO
         return paymentMapper.toResponseDTO(savedPayment);
     }
 
@@ -164,6 +205,7 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
     }
 
     ///-------------------------------------------EVALUAR COMPROBANTE---------------------------------------------------------///
+    
     @Override
     @Transactional
     public PaperPaymentResponseDTO updatePaymentStatus(String paperCode, UpdatePaymentStatusDTO updateDTO) {
@@ -173,13 +215,15 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
 
         //2. Validar que el Paper exista (Lanza ResourceNotFoundException si no existe)
         Paper paper = paperService.getPaperEntityByCode(paperCode);
-        String congressCode = paper.getCongress().getCode(); 
-        
+        String congressCode = paper.getCongress().getCode();
+
         //3. Validar que sea administrador del congreso o súper administrador
-        if(!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)){
-            throw new UserDisabledException("Solo los administradores del congreso o súper administradores pueden evaluar comprobantes de pago.");
+        if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode)) {
+            throw new UserDisabledException(
+                    "Solo los administradores del congreso o súper administradores pueden evaluar comprobantes de pago."
+            );
         }
-        
+
         //4. Validar institución del administrador en el congreso
         validateCurrentUserInstitution(congressCode);
 
@@ -188,26 +232,56 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
 
         //6. REGLA DE NEGOCIO: Si el pago ya fue APROBADO, no se puede cambiar su estado
         if (payment.getStatus() == PaymentStatus.APPROVED) {
-            throw new ArgumentNotValidException("El comprobante de pago ya fue APROBADO previamente y no se puede modificar su estado.");
+            throw new ArgumentNotValidException(
+                    "El comprobante de pago ya fue APROBADO previamente y no se puede modificar su estado."
+            );
         }
 
         //7. Regla de negocio: Si se rechaza, la observación es obligatoria
-        if (updateDTO.getStatus() == PaymentStatus.REJECTED && 
-        (updateDTO.getObservations() == null || updateDTO.getObservations().trim().isEmpty())) {
-            throw new ArgumentNotValidException("Debe ingresar una observación explicando el motivo del rechazo del comprobante.");
+        if (updateDTO.getStatus() == PaymentStatus.REJECTED
+                && (updateDTO.getObservations() == null
+                || updateDTO.getObservations().trim().isEmpty())) {
+
+            throw new ArgumentNotValidException(
+                    "Debe ingresar una observación explicando el motivo del rechazo del comprobante."
+            );
         }
 
-        //8. Setear status y observations
+        
+        //8. Determinar si el comprobante está pasando a estado REJECTED por primera vez.
+        boolean shouldNotifyRejectedPayment =
+                payment.getStatus() != PaymentStatus.REJECTED
+                && updateDTO.getStatus() == PaymentStatus.REJECTED;
+
+        //9. Setear status y observations.
         payment.setStatus(updateDTO.getStatus());
         payment.setObservations(updateDTO.getObservations());
 
-        //9. Sincronizar el flag de pago en la entidad Paper si fue aprobado
+        //10. Sincronizar el flag de pago en la entidad Paper si fue aprobado y capturar la fecha de verificación
+        LocalDateTime verificationDate = null;
+
         if (updateDTO.getStatus() == PaymentStatus.APPROVED) {
             paper.setPay(true);
+            verificationDate = DateUtils.now();
         }
 
-        //10. Guardar cambios y retornar DTO
+        //11. Guardar cambios
         PaperPayment updatedPayment = paymentRepository.save(payment);
+
+        //12. Si fue aprobado, notificar a todos los autores aceptados (PRE-M08).
+        if (verificationDate != null) {
+            notifyAuthorsAboutVerifiedPayment(
+                    updatedPayment,
+                    verificationDate
+            );
+        }
+
+        //13. Si fue rechazado, notificar a todos los autores aceptados (PRE-M09).
+        if (shouldNotifyRejectedPayment) {
+            notifyAuthorsAboutRejectedPayment(updatedPayment);
+        }
+
+        //13. Retornar DTO
         return paymentMapper.toResponseDTO(updatedPayment);
     }
 
@@ -254,4 +328,180 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
                 congressCode
         );
     }
+    
+
+	private void notifyAdministratorsAboutReceivedPayment(PaperPayment payment) {
+	
+	    notifyAdministrators(
+	            payment,
+	            "ADM-M02",
+	            emailService::sendPaymentReceiptReceivedNotification
+	    );
+	}
+	
+	private void notifyAdministratorsAboutRejectedReceiptReplacement(PaperPayment payment) {
+	
+	    notifyAdministrators(
+	            payment,
+	            "ADM-M03",
+	            emailService::sendPaymentReceiptReplacedAfterRejectionNotification
+	    );
+	}
+	
+	private void notifyAdministrators(PaperPayment payment, String notificationCode, BiConsumer<User, PaperPayment> notificationSender) {
+	
+	    String congressCode = payment.getPaper().getCongress().getCode();
+	
+	    try {
+	
+	        List<CongressParticipant> administrators =
+	                congressParticipantRepository
+	                        .findActiveEnabledParticipantsByCongressCodeAndRole(
+	                                congressCode,
+	                                RoleName.ADMINISTRATOR
+	                        );
+	
+	        for (CongressParticipant administrator : administrators) {
+	
+	            try {
+	
+	                notificationSender.accept(
+	                        administrator.getUser(),
+	                        payment
+	                );
+	
+	            } catch (RuntimeException exception) {
+	
+	                log.error(
+	                        "No se pudo preparar la notificación {} para el administrador {} del trabajo {}.",
+	                        notificationCode,
+	                        administrator.getUser().getCode(),
+	                        payment.getPaper().getCode(),
+	                        exception
+	                );
+	            }
+	        }
+	
+	    } catch (RuntimeException exception) {
+	
+	        log.error(
+	                "No se pudieron obtener los administradores para la notificación {} del trabajo {}.",
+	                notificationCode,
+	                payment.getPaper().getCode(),
+	                exception
+	        );
+	    }
+	}
+	
+	private void notifyAuthorsAboutReceivedPayment(PaperPayment payment) {
+
+	    Paper paper = payment.getPaper();
+
+	    // Obtener todos los autores que aceptaron participar del trabajo.
+	    List<PaperAuthor> acceptedAuthors = paper.getAuthors().stream()
+	            .filter(paperAuthor -> paperAuthor.getStatus() == PaperAuthorStatus.ACCEPTED)
+	            .toList();
+
+	    if (acceptedAuthors.isEmpty()) {
+	        return;
+	    }
+
+	    // Enviar una notificación individual a cada autor aceptado.
+	    for (PaperAuthor paperAuthor : acceptedAuthors) {
+
+	        User recipient = paperAuthor.getAuthor();
+
+	        try {
+
+	            emailService.sendPaymentReceiptReceivedToAuthorNotification(
+	                    recipient,
+	                    payment
+	            );
+
+	        } catch (RuntimeException exception) {
+
+	            log.error(
+	                    "No se pudo preparar la notificación PRE-M07 para el autor {} del trabajo {}.",
+	                    recipient.getCode(),
+	                    paper.getCode(),
+	                    exception
+	            );
+	        }
+	    }
+	}
+	
+	private void notifyAuthorsAboutVerifiedPayment(PaperPayment payment, LocalDateTime verificationDate) {
+
+	    Paper paper = payment.getPaper();
+
+	    // Obtener todos los autores que aceptaron participar del trabajo.
+	    List<PaperAuthor> acceptedAuthors = paper.getAuthors().stream()
+	            .filter(paperAuthor -> paperAuthor.getStatus() == PaperAuthorStatus.ACCEPTED)
+	            .toList();
+
+	    if (acceptedAuthors.isEmpty()) {
+	        return;
+	    }
+
+	    // Enviar una notificación individual a cada autor aceptado.
+	    for (PaperAuthor paperAuthor : acceptedAuthors) {
+
+	        User recipient = paperAuthor.getAuthor();
+
+	        try {
+
+	            emailService.sendPaymentVerifiedToAuthorNotification(
+	                    recipient,
+	                    payment,
+	                    verificationDate
+	            );
+
+	        } catch (RuntimeException exception) {
+
+	            log.error(
+	                    "No se pudo preparar la notificación PRE-M08 para el autor {} del trabajo {}.",
+	                    recipient.getCode(),
+	                    paper.getCode(),
+	                    exception
+	            );
+	        }
+	    }
+	}
+	
+	private void notifyAuthorsAboutRejectedPayment(PaperPayment payment) {
+
+	    Paper paper = payment.getPaper();
+
+	    // Obtener todos los autores que aceptaron participar del trabajo.
+	    List<PaperAuthor> acceptedAuthors = paper.getAuthors().stream()
+	            .filter(paperAuthor -> paperAuthor.getStatus() == PaperAuthorStatus.ACCEPTED)
+	            .toList();
+
+	    if (acceptedAuthors.isEmpty()) {
+	        return;
+	    }
+
+	    // Enviar una notificación individual a cada autor aceptado.
+	    for (PaperAuthor paperAuthor : acceptedAuthors) {
+
+	        User recipient = paperAuthor.getAuthor();
+
+	        try {
+
+	            emailService.sendPaymentReceiptRejectedToAuthorNotification(
+	                    recipient,
+	                    payment
+	            );
+
+	        } catch (RuntimeException exception) {
+
+	            log.error(
+	                    "No se pudo preparar la notificación PRE-M09 para el autor {} del trabajo {}.",
+	                    recipient.getCode(),
+	                    paper.getCode(),
+	                    exception
+	            );
+	        }
+	    }
+	}
 }

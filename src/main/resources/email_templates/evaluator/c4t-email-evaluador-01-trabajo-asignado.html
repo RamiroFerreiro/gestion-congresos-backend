@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>C4T · Nuevo trabajo asignado</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f3efee;
+      color: #241b1f;
+      font-family: Arial, Helvetica, sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      style="background-color: #f3efee"
+    >
+      <tr>
+        <td align="center" style="padding: 32px 16px">
+          <table
+            role="presentation"
+            width="640"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            style="
+              width: 100%;
+              max-width: 640px;
+              background-color: #ffffff;
+              border: 1px solid #e1d6d9;
+              border-radius: 10px;
+              overflow: hidden;
+            "
+          >
+            <!-- Encabezado de marca C4T -->
+            <tr>
+              <td
+                style="
+                  padding: 24px 32px;
+                  background-color: #4c1224;
+                  border-bottom: 3px solid #7a1f3a;
+                "
+              >
+                <div
+                  style="
+                    font-family: Georgia, &quot;Times New Roman&quot;, serif;
+                    font-size: 28px;
+                    line-height: 1;
+                    font-weight: 700;
+                    color: #fffdfc;
+                  "
+                >
+                  C4T
+                </div>
+                <div
+                  style="
+                    margin-top: 7px;
+                    font-size: 10px;
+                    line-height: 1;
+                    font-weight: 700;
+                    letter-spacing: 2px;
+                    color: #f3d6de;
+                  "
+                >
+                  CALL FOR TALKS
+                </div>
+              </td>
+            </tr>
+
+            <!-- Contenido principal -->
+            <tr>
+              <td style="padding: 38px 40px 32px">
+                <div
+                  style="
+                    display: inline-block;
+                    padding: 6px 10px;
+                    border-radius: 4px;
+                    background-color: #fbf4e5;
+                    color: #725314;
+                    font-family: &quot;Courier New&quot;, monospace;
+                    font-size: 10px;
+                    line-height: 1;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                    text-transform: uppercase;
+                  "
+                >
+                  Acción requerida
+                </div>
+
+                <div
+                  style="
+                    margin-top: 18px;
+                    color: #7a1f3a;
+                    font-size: 11px;
+                    line-height: 1.2;
+                    font-weight: 700;
+                    letter-spacing: 1.2px;
+                    text-transform: uppercase;
+                  "
+                >
+                  Evaluación de trabajos
+                </div>
+                <h1
+                  style="
+                    margin: 10px 0 22px;
+                    color: #241b1f;
+                    font-family: Georgia, &quot;Times New Roman&quot;, serif;
+                    font-size: 30px;
+                    line-height: 1.2;
+                    font-weight: 700;
+                  "
+                >
+                  Tenés un nuevo trabajo para evaluar
+                </h1>
+
+                <p
+                  style="
+                    margin: 0 0 16px;
+                    color: #504247;
+                    font-size: 15px;
+                    line-height: 1.65;
+                  "
+                >
+                  Hola, <strong>{{nombre_destinatario}}</strong>:
+                </p>
+                <p
+                  style="
+                    margin: 0 0 22px;
+                    color: #504247;
+                    font-size: 15px;
+                    line-height: 1.65;
+                  "
+                >
+                  La administración te asignó un trabajo científico de
+                  <strong>{{nombre_congreso}}</strong>. Ya está disponible en tu
+                  bandeja de trabajos asignados.
+                </p>
+
+                <!-- Aviso de evaluación pendiente -->
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="
+                    margin: 0 0 24px;
+                    background-color: #fbf4e5;
+                    border-left: 4px solid #b08628;
+                  "
+                >
+                  <tr>
+                    <td style="padding: 16px 18px; color: #725314">
+                      <div
+                        style="
+                          font-size: 13px;
+                          line-height: 1.4;
+                          font-weight: 700;
+                        "
+                      >
+                        Evaluación pendiente
+                      </div>
+                      <div
+                        style="
+                          margin-top: 4px;
+                          font-size: 12px;
+                          line-height: 1.5;
+                        "
+                      >
+                        Revisá el trabajo y emití tu dictamen desde la
+                        plataforma C4T.
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Datos del trabajo -->
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="
+                    margin: 0 0 24px;
+                    background-color: #f8f5f4;
+                    border: 1px solid #e1d6d9;
+                    border-radius: 7px;
+                  "
+                >
+                  <tr>
+                    <td style="padding: 18px">
+                      <div
+                        style="
+                          margin-bottom: 7px;
+                          color: #7a1f3a;
+                          font-family: &quot;Courier New&quot;, monospace;
+                          font-size: 11px;
+                          line-height: 1.3;
+                          font-weight: 700;
+                        "
+                      >
+                        CÓDIGO {{codigo_trabajo}} · VERSIÓN {{version_trabajo}}
+                      </div>
+                      <div
+                        style="
+                          color: #241b1f;
+                          font-family:
+                            Georgia, &quot;Times New Roman&quot;, serif;
+                          font-size: 18px;
+                          line-height: 1.4;
+                          font-weight: 700;
+                        "
+                      >
+                        {{titulo_trabajo}}
+                      </div>
+                      <div
+                        style="
+                          margin-top: 9px;
+                          color: #7c6970;
+                          font-size: 12px;
+                          line-height: 1.6;
+                        "
+                      >
+                        {{nombre_congreso}} · {{lugar_congreso}}<br />Área
+                        temática: {{area_tematica}}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <div
+                  style="
+                    margin: 0 0 8px;
+                    color: #6b5a60;
+                    font-size: 11px;
+                    line-height: 1.2;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                  "
+                >
+                  Información de la asignación
+                </div>
+                <p
+                  style="
+                    margin: 0 0 25px;
+                    padding-left: 14px;
+                    border-left: 2px solid #b08628;
+                    color: #5d4d53;
+                    font-family: Georgia, &quot;Times New Roman&quot;, serif;
+                    font-size: 14px;
+                    line-height: 1.65;
+                  "
+                >
+                  Fecha de asignación: {{fecha_asignacion}}.
+                </p>
+
+                <!-- Acceso al portal, sin enlace directo al trabajo -->
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="margin: 0 0 24px"
+                >
+                  <tr>
+                    <td
+                      align="center"
+                      style="border-radius: 6px; background-color: #7a1f3a"
+                    >
+                      <a
+                        href="{{url_login}}"
+                        target="_blank"
+                        style="
+                          display: inline-block;
+                          padding: 14px 22px;
+                          border: 1px solid #7a1f3a;
+                          border-radius: 6px;
+                          color: #ffffff;
+                          font-size: 13px;
+                          line-height: 1;
+                          font-weight: 700;
+                          text-decoration: none;
+                        "
+                        >Ingresar a C4T</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+
+                <p
+                  style="
+                    margin: 0;
+                    padding-top: 20px;
+                    border-top: 1px solid #e1d6d9;
+                    color: #7c6970;
+                    font-size: 12px;
+                    line-height: 1.6;
+                  "
+                >
+                  Una vez que hayas iniciado sesión, ingresá a tu bandeja de
+                  trabajos asignados y buscá el trabajo por su código
+                  <strong>{{codigo_trabajo}}</strong> para comenzar la
+                  evaluación.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Pie -->
+            <tr>
+              <td
+                align="center"
+                style="
+                  padding: 20px 28px 24px;
+                  border-top: 1px solid #e1d6d9;
+                  background-color: #f8f5f4;
+                  color: #8c7a80;
+                  font-size: 11px;
+                  line-height: 1.65;
+                "
+              >
+                <strong style="color: #4c1224">C4T · Call for Talks</strong
+                ><br />
+                Congresos más claros. Ciencia que avanza.<br />
+                Este es un mensaje automático; no respondas a este correo.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

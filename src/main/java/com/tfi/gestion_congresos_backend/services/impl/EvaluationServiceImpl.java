@@ -6,6 +6,7 @@ import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.Evaluation;
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
@@ -18,9 +19,11 @@ import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.EvaluationMapper;
 import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
+import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
@@ -45,10 +48,12 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     private final EvaluationRepository evaluationRepository;
     private final PaperRepository paperRepository;
+    private final UserRepository userRepository;
     private final CongressService congressService;
+    private final AuthorizationService authorizationService;
+    private final EmailService emailService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final EvaluationMapper evaluationMapper;
-    private final AuthorizationService authorizationService;
     private final SecurityEvaluator securityEvaluator;
 
     @Override
@@ -95,8 +100,6 @@ public class EvaluationServiceImpl implements EvaluationService {
         Congress congress = paper.getCongress();
 
         // 1. Autorización (antes de validar el estado interno del Paper)
-        boolean isSuperAdmin = securityEvaluator.isSuperAdmin(user);
-
         boolean isEligibleReviewer =
                 securityEvaluator.isAssignedReviewer(user, paper)
                 && user.isEnabled()
@@ -106,7 +109,7 @@ public class EvaluationServiceImpl implements EvaluationService {
                         RoleName.EVALUATOR
                 );
 
-        if (!isSuperAdmin && !isEligibleReviewer) {
+        if (!isEligibleReviewer) {
             throw new UserDisabledException(
                     "Solo el evaluador asignado, con cuenta habilitada y rol EVALUATOR activo en el congreso, puede cargar una evaluación."
             );
@@ -196,9 +199,7 @@ public class EvaluationServiceImpl implements EvaluationService {
         evaluationRepository.saveAll(pending);
 
         congress.setLastEvaluationReleaseDate(now);
-
-        // TODO: notificar a los postulantes afectados cuando exista un servicio de notificaciones.
-
+        
         return new MessageResponseDTO(pending.size() + " evaluación(es) liberada(s) correctamente");
     }
 
@@ -232,19 +233,118 @@ public class EvaluationServiceImpl implements EvaluationService {
             paper.setVersion((major + 1) + ".0");   // 1.0 -> 2.0
         }
 
-
-
-        notifyAuthors(paper, evaluation.getNewStatus());
+        notifyAuthors(evaluation);
     }
 
-    // Por ahora solo loguea. Cuando exista el envío real de mails, se completa SOLO este método.
-    private void notifyAuthors(Paper paper, PaperStatus result) {
-        List<String> emails = paper.getAuthors().stream()
-                .filter(pa -> pa.getStatus() == PaperAuthorStatus.ACCEPTED)
-                .map(pa -> pa.getAuthor().getEmail())
+    private void notifyAuthors(Evaluation evaluation) {
+
+        PaperStatus result = evaluation.getNewStatus();
+
+        // Solo notificamos los resultados que tienen una plantilla asociada.
+        if (result != PaperStatus.NEEDS_REVISION
+                && result != PaperStatus.ACCEPTED
+                && result != PaperStatus.REJECTED) {
+            return;
+        }
+
+        Paper paper = evaluation.getPaper();
+
+        // Obtener los autores que aceptaron participar del trabajo.
+        List<PaperAuthor> acceptedAuthors = paper.getAuthors().stream()
+                .filter(paperAuthor -> paperAuthor.getStatus() == PaperAuthorStatus.ACCEPTED)
                 .toList();
-        log.info("[NOTIFICACION] Trabajo {} -> {} (v{}) | destinatarios: {}",
-                paper.getCode(), result, paper.getVersion(), emails);
+
+        if (acceptedAuthors.isEmpty()) {
+            return;
+        }
+
+        // Recuperar el código del evaluador desde la auditoría.
+        String evaluatorCode = evaluation.getCreatedBy();
+
+        if (evaluatorCode == null
+                || evaluatorCode.isBlank()
+                || "SYSTEM".equals(evaluatorCode)) {
+
+            log.error(
+                    "No se pueden enviar notificaciones PRE-M04/PRE-M05/PRE-M06 "
+                            + "para el trabajo {} versión {}: no se identificó al evaluador mediante createdBy.",
+                    paper.getCode(),
+                    evaluation.getEvaluatedVersion()
+            );
+
+            return;
+        }
+
+        // Recuperar una única vez el usuario que realizó la evaluación.
+        User evaluator = userRepository.findByCode(evaluatorCode).orElse(null);
+
+        if (evaluator == null) {
+            log.error(
+                    "No se pueden enviar notificaciones PRE-M04/PRE-M05/PRE-M06 "
+                            + "para el trabajo {} versión {}: no existe un usuario con código {}.",
+                    paper.getCode(),
+                    evaluation.getEvaluatedVersion(),
+                    evaluatorCode
+            );
+
+            return;
+        }
+
+        // Identificar la plantilla que corresponde al resultado.
+        String notificationCode = switch (result) {
+            case NEEDS_REVISION -> "PRE-M04";
+            case ACCEPTED -> "PRE-M05";
+            case REJECTED -> "PRE-M06";
+            default -> throw new IllegalStateException(
+                    "No existe una notificación configurada para el resultado " + result
+            );
+        };
+
+        // Enviar una notificación individual a cada autor aceptado.
+        for (PaperAuthor paperAuthor : acceptedAuthors) {
+
+            User recipient = paperAuthor.getAuthor();
+
+            try {
+
+                switch (result) {
+
+                    case NEEDS_REVISION -> emailService.sendPaperEvaluationWithObservationsNotification(
+                            recipient,
+                            paper,
+                            evaluation,
+                            evaluator
+                    );
+
+                    case ACCEPTED -> emailService.sendPaperApprovalNotification(
+                            recipient,
+                            paper,
+                            evaluation,
+                            evaluator
+                    );
+
+                    case REJECTED -> emailService.sendPaperRejectionNotification(
+                            recipient,
+                            paper,
+                            evaluation,
+                            evaluator
+                    );
+
+                    default -> throw new IllegalStateException(
+                            "No existe una notificación configurada para el resultado " + result
+                    );
+                }
+
+            } catch (RuntimeException exception) {
+                log.error(
+                        "No se pudo enviar {} al autor {} del trabajo {}.",
+                        notificationCode,
+                        recipient.getEmail(),
+                        paper.getCode(),
+                        exception
+                );
+            }
+        }
     }
     
     private void validateCurrentUserInstitution(String congressCode) {

@@ -119,4 +119,34 @@ public interface CongressParticipantRepository extends JpaRepository<CongressPar
     List<CongressParticipant> findAvailableReviewersByCongressCode(
             @Param("congressCode") String congressCode
     );
+
+    @Query("""
+        SELECT cp
+        FROM CongressParticipant cp
+        JOIN FETCH cp.user
+        WHERE cp.congress.code = :congressCode
+          AND cp.active = true
+          AND cp.user.enabled = true
+        ORDER BY cp.user.lastName ASC, cp.user.firstName ASC
+        """)
+    List<CongressParticipant> findActiveEnabledParticipantsByCongressCode(
+            @Param("congressCode") String congressCode
+    );
+    
+    /// Obtener los administradores habilitados de un congreso
+    @Query("""
+    	    SELECT cp
+    	    FROM CongressParticipant cp
+    	    JOIN FETCH cp.user
+    	    JOIN FETCH cp.role
+    	    WHERE cp.congress.code = :congressCode
+    	      AND cp.active = true
+    	      AND cp.user.enabled = true
+    	      AND cp.role.name = :role
+    	    ORDER BY cp.user.lastName ASC, cp.user.firstName ASC
+    	""")
+    	List<CongressParticipant> findActiveEnabledParticipantsByCongressCodeAndRole(
+    	        @Param("congressCode") String congressCode,
+    	        @Param("role") RoleName role
+    	);
 }

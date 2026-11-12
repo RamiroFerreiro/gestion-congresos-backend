@@ -19,11 +19,14 @@ import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class PaperServiceImpl implements PaperService {
@@ -46,6 +50,7 @@ public class PaperServiceImpl implements PaperService {
     private final UserService userService;
     private final AuthorizationService authorizationService;
     private final CongressParticipantService congressParticipantService;
+    private final EmailService emailService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
 
@@ -436,20 +441,26 @@ public class PaperServiceImpl implements PaperService {
             );
         }
 
-        // 11. Asignar el evaluador
+        // 11. Registrar la fecha de asignación
+        LocalDateTime assignmentDate = DateUtils.now();
+
+        // 12. Asignar el evaluador
         paper.setUserReviewer(reviewer);
 
-        // 12. Guardar los cambios
-        paperRepository.save(paper);
+        // 13. Guardar los cambios
+        Paper savedPaper = paperRepository.save(paper);
+
+        notifyReviewerAssignment(reviewer, savedPaper, assignmentDate);
+        
+        // 15. Notificar a los autores aceptados sobre la asignación del evaluador (PRE-M02)
+        notifyAcceptedAuthorsAboutReviewerAssignment(savedPaper, reviewer);
 
         return new MessageResponseDTO("Evaluador asignado con éxito");
     }
     
     @Override
     @Transactional
-    public MessageResponseDTO reassignReviewerToPaper(
-            String paperCode,
-            String newReviewerCode) {
+    public MessageResponseDTO reassignReviewerToPaper(String paperCode, String newReviewerCode) {
 
         // 1. Obtener el Paper
         Paper paper = getPaperEntityByCode(paperCode);
@@ -553,9 +564,20 @@ public class PaperServiceImpl implements PaperService {
             );
         }
         
-        // 14. Actualizar el evaluador asignado
+        // 14. Registrar el momento de la reasignación
+        LocalDateTime reassignmentDate = DateUtils.now();
+
+        // 15. Actualizar el evaluador asignado
         paper.setUserReviewer(newReviewer);
-        paperRepository.save(paper);
+
+        // 16. Guardar los cambios
+        Paper savedPaper = paperRepository.save(paper);
+
+        notifyReviewerReassignment(previousReviewer, savedPaper, reassignmentDate);
+        notifyReviewerAssignment(newReviewer, savedPaper, reassignmentDate);
+        
+     	// 19. Notificar a los autores aceptados sobre la nueva asignación del evaluador (PRE-M02)
+        notifyAcceptedAuthorsAboutReviewerAssignment(savedPaper, newReviewer);
 
         return new MessageResponseDTO("Evaluador reasignado con éxito");
     }
@@ -666,18 +688,187 @@ public class PaperServiceImpl implements PaperService {
         if (!pendingRequests.isEmpty()) {
             paperAuthorRepository.deleteAll(pendingRequests);
         }
+        
+        // Determinar el estado anterior del trabajo
+        PaperStatus previousStatus = paper.getStatus();
 
-        paper.setStatus(PaperStatus.UNDER_EVALUATION);
+        boolean isInitialSubmission =
+                previousStatus == PaperStatus.NOT_SUBMITTED;
 
-        Paper savedPaper = paperRepository.save(paper);
+        boolean isCorrectionSubmission =
+                previousStatus == PaperStatus.NEEDS_REVISION;
 
-        PaperDetailResponseDTO response =
-                paperMapper.toPaperDetailResponseDTO(savedPaper);
+        // Capturar el evaluador asignado antes de cambiar el estado
+        User assignedReviewer = paper.getUserReviewer();
+	
+		// Capturar el momento en que se realiza el envío
+		LocalDateTime submissionDate = DateUtils.now();
+		
+		// Cambiar el estado y persistir
+		paper.setStatus(PaperStatus.UNDER_EVALUATION);
+		
+		Paper savedPaper = paperRepository.save(paper);
+		
+		// Construir la respuesta
+		PaperDetailResponseDTO response =
+		        paperMapper.toPaperDetailResponseDTO(savedPaper);
+		
+		PaperDetailResponseDTO visibleResponse =
+		        applyPaperIdentityVisibility(savedPaper, response);
+		
 
-        return applyPaperIdentityVisibility(savedPaper, response);
+		if (isInitialSubmission) {
+		    notifyInitialSubmission(savedPaper, submissionDate);
+		}
+		
+		if (isCorrectionSubmission) {
+		    notifyCorrectionSubmission(savedPaper, assignedReviewer, submissionDate);
+		}
+
+        notifyDiscardedAuthorJoinRequests(pendingRequests, savedPaper);
+		
+		return visibleResponse;
     }
 
     ///----------------------------------------------------------LÓGICA INTERNA----------------------------------------------------------///
+
+    private void notifyReviewerAssignment(User reviewer, Paper paper, LocalDateTime assignmentDate) {
+        try {
+            emailService.sendPaperAssignedToReviewerNotification(reviewer, paper, assignmentDate);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar la notificación de asignación para el evaluador {} del trabajo {}.",
+                    reviewer.getCode(), paper.getCode(), exception);
+        }
+    }
+
+    private void notifyReviewerReassignment(User previousReviewer, Paper paper, LocalDateTime reassignmentDate) {
+        try {
+            emailService.sendPaperReviewerChangedNotification(previousReviewer, paper, reassignmentDate);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar la notificación de reasignación para el evaluador {} del trabajo {}.",
+                    previousReviewer.getCode(), paper.getCode(), exception);
+        }
+    }
+
+    private void notifyAcceptedAuthorsAboutReviewerAssignment(Paper paper, User reviewer) {
+        try {
+            List<PaperAuthor> acceptedAuthors = paperAuthorRepository.findByPaper_CodeAndStatus(
+                    paper.getCode(), PaperAuthorStatus.ACCEPTED
+            );
+
+            for (PaperAuthor paperAuthor : acceptedAuthors) {
+                User recipient = paperAuthor.getAuthor();
+                try {
+                    emailService.sendPaperReviewerAssignedToAuthorNotification(recipient, paper, reviewer);
+                } catch (RuntimeException exception) {
+                    log.error("No se pudo preparar la notificación de evaluador asignado para el autor {} del trabajo {}.",
+                            recipient.getCode(), paper.getCode(), exception);
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.error("No se pudieron obtener los autores aceptados para notificar la asignación del evaluador al trabajo {}.",
+                    paper.getCode(), exception);
+        }
+    }
+
+    private void notifyInitialSubmission(Paper paper, LocalDateTime submissionDate) {
+        notifyAdministratorsAboutNewSubmission(paper, submissionDate);
+        notifyAcceptedAuthorsAboutInitialSubmission(paper, submissionDate);
+    }
+
+    private void notifyAdministratorsAboutNewSubmission(Paper paper, LocalDateTime submissionDate) {
+        try {
+            List<CongressParticipant> administrators = congressParticipantRepository
+                    .findActiveEnabledParticipantsByCongressCodeAndRole(
+                            paper.getCongress().getCode(), RoleName.ADMINISTRATOR
+                    );
+
+            for (CongressParticipant administrator : administrators) {
+                try {
+                    emailService.sendNewPaperPendingAssignmentNotification(
+                            administrator.getUser(), paper, submissionDate
+                    );
+                } catch (RuntimeException exception) {
+                    log.error("No se pudo preparar la notificación de nuevo trabajo para el administrador {} del trabajo {}.",
+                            administrator.getUser().getCode(), paper.getCode(), exception);
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.error("No se pudieron obtener los administradores para notificar el nuevo trabajo {}.",
+                    paper.getCode(), exception);
+        }
+    }
+
+    private void notifyAcceptedAuthorsAboutInitialSubmission(Paper paper, LocalDateTime submissionDate) {
+        notifyAcceptedAuthors(paper, "envío inicial", recipient ->
+                emailService.sendPaperSubmissionConfirmationNotification(recipient, paper, submissionDate)
+        );
+    }
+
+    private void notifyCorrectionSubmission(Paper paper, User assignedReviewer, LocalDateTime submissionDate) {
+        notifyReviewerAboutCorrectedVersion(paper, assignedReviewer);
+        notifyAcceptedAuthors(paper, "envío de la corrección", recipient ->
+                emailService.sendPaperCorrectionSubmissionNotification(recipient, paper, submissionDate)
+        );
+    }
+
+    private void notifyReviewerAboutCorrectedVersion(Paper paper, User reviewer) {
+        if (reviewer == null) {
+            return;
+        }
+
+        try {
+            boolean isReviewerEligible = reviewer.isEnabled()
+                    && congressParticipantRepository
+                            .findActiveParticipantByUserCodeAndCongressCode(
+                                    reviewer.getCode(), paper.getCongress().getCode()
+                            )
+                            .map(participant -> participant.getRole().getName() == RoleName.EVALUATOR)
+                            .orElse(false);
+
+            if (isReviewerEligible) {
+                emailService.sendCorrectedPaperVersionToReviewerNotification(reviewer, paper);
+            } else {
+                log.info("Se omitió la notificación de versión corregida para el trabajo {} porque el evaluador {} ya no es elegible.",
+                        paper.getCode(), reviewer.getCode());
+            }
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar la notificación de versión corregida para el evaluador {} del trabajo {}.",
+                    reviewer.getCode(), paper.getCode(), exception);
+        }
+    }
+
+    private void notifyAcceptedAuthors(Paper paper, String notificationType, java.util.function.Consumer<User> notification) {
+        try {
+            List<PaperAuthor> acceptedAuthors = paperAuthorRepository.findByPaper_CodeAndStatus(
+                    paper.getCode(), PaperAuthorStatus.ACCEPTED
+            );
+
+            for (PaperAuthor paperAuthor : acceptedAuthors) {
+                User recipient = paperAuthor.getAuthor();
+                try {
+                    notification.accept(recipient);
+                } catch (RuntimeException exception) {
+                    log.error("No se pudo preparar la notificación de {} para el autor {} del trabajo {}.",
+                            notificationType, recipient.getCode(), paper.getCode(), exception);
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.error("No se pudieron obtener los autores aceptados para notificar el {} del trabajo {}.",
+                    notificationType, paper.getCode(), exception);
+        }
+    }
+
+    private void notifyDiscardedAuthorJoinRequests(List<PaperAuthor> pendingRequests, Paper paper) {
+        for (PaperAuthor pendingRequest : pendingRequests) {
+            try {
+                emailService.sendDiscardedAuthorJoinRequestNotification(pendingRequest.getAuthor(), paper);
+            } catch (RuntimeException exception) {
+                log.error("No se pudo preparar la notificación de descarte de coautoría para el usuario {} del trabajo {}.",
+                        pendingRequest.getAuthor().getCode(), paper.getCode(), exception);
+            }
+        }
+    }
 
     private CongressPaperType validateAndGetPaperType(Long paperTypeId, Congress congress) {
         CongressPaperType paperType = congressPaperTypeRepository.findById(paperTypeId)
