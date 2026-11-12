@@ -14,6 +14,8 @@ public interface CongressParticipantService {
     
     MessageResponseDTO registerParticipantByAdmin(String congressCode, AdminParticipantRegistrationRequestDTO requestDTO);
 
+    MessageResponseDTO registerParticipantByAdminWithoutNotification(String congressCode, AdminParticipantRegistrationRequestDTO requestDTO);
+
     List<CongressParticipantResponseDTO> getParticipantsByCongress(String congressCode, RoleName role);
 
     CongressParticipantResponseDTO getParticipantByUserCode(String congressCode, String userCode);
@@ -26,7 +28,7 @@ public interface CongressParticipantService {
 
     void updateParticipantRole(String congressCode, String userCode, RoleName newRole);
     
-    void promoteListenerToExpositor(String congressCode, String userCode);
+    boolean promoteListenerToExpositor(String congressCode, String userCode);
     
     CongressParticipantResponseDTO getAuthenticatedParticipantInCongress(String congressCode);
     

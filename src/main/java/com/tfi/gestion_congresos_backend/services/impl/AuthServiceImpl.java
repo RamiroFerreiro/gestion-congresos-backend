@@ -34,9 +34,11 @@ import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.security.JwtService;
 
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
@@ -76,6 +78,7 @@ public class AuthServiceImpl implements AuthService {
 
     ///----------------------------------------------------------CHANGE PASSWORD----------------------------------------------------------///
     
+    @Transactional
     @Override
     public MessageResponseDTO forgotPassword(ForgotPasswordRequestDTO request) {
         
@@ -145,6 +148,8 @@ public class AuthServiceImpl implements AuthService {
 
         //6. Borrar el token de recuperación
         passwordResetTokenRepository.delete(passwordResetToken);
+
+        notifyPasswordResetConfirmation(user);
 
         //7. Retonar mensaje
         return MessageResponseDTO.builder().message("Contraseña recuperada correctamente.").build();
@@ -246,6 +251,7 @@ public class AuthServiceImpl implements AuthService {
 
         //2. Obtener la entidad del usuario asociada a la solicitud de cambio y a   signar la nueva casilla de correo
         User user = emailChangeToken.getUser();
+        String previousEmail = user.getEmail();
         user.setEmail(emailChangeToken.getNewEmail());
 
         //3. Persistir los cambios en la tabla de usuarios
@@ -254,10 +260,27 @@ public class AuthServiceImpl implements AuthService {
         //4. Eliminar el token usado para no dejar basura en BD
         emailChangeTokenRepository.delete(emailChangeToken);
 
+        notifyEmailChangeCompleted(previousEmail, user);
+
         String message = "El email fue cambiado correctamente.";
         
         // 6. Retornar el mensaje de éxito del proceso completo
         return message;
     }
 
+    private void notifyPasswordResetConfirmation(User user) {
+        try {
+            emailService.sendPasswordResetConfirmationNotification(user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de contrasena restablecida para el usuario {}.", user.getCode(), exception);
+        }
+    }
+
+    private void notifyEmailChangeCompleted(String previousEmail, User user) {
+        try {
+            emailService.sendEmailChangeCompletedNotification(previousEmail, user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de cambio de email para el usuario {}.", user.getCode(), exception);
+        }
+    }
 }

@@ -23,7 +23,7 @@ public class AuditorAwareImpl implements AuditorAware<String> {
 
         // Como tu Principal es directamente la entidad User:
         if (authentication.getPrincipal() instanceof User user) {
-            return Optional.ofNullable(user.getEmail());
+            return Optional.ofNullable(user.getCode());
         }
 
         return Optional.ofNullable(authentication.getName());

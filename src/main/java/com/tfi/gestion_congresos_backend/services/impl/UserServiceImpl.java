@@ -14,6 +14,7 @@ import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.EmailChangeToken;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.InvalidCredentialsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -32,6 +33,7 @@ import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import com.tfi.gestion_congresos_backend.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Random;
@@ -42,6 +44,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
@@ -117,6 +120,8 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user = userRepository.save(user);
 
+        notifyUserRegistration(user);
+
         //Retornar de entidad a DTO
         UserResponseDTO result = userMapper.toUserResponseDTO(user);
         return result;
@@ -177,13 +182,14 @@ public class UserServiceImpl implements UserService {
                         .build();
 
         // 10. Delegar la creación de la participación
-        congressParticipantService.registerParticipantByAdmin(
+        congressParticipantService.registerParticipantByAdminWithoutNotification(
                 congressCode,
                 participantRequest
         );
 
         // 11. Enviar email con las credenciales temporales
-        emailService.sendTemporaryPasswordEmail(savedUser, temporaryPassword);
+        Congress congress = congressRepository.findByCodeWithThematicAreas(congressCode).orElseThrow();
+        emailService.sendTemporaryPasswordEmail(savedUser, temporaryPassword, congress, request.getNewRole());
 
         // 12. Retornar el usuario creado
         return userMapper.toUserResponseDTO(savedUser);
@@ -287,6 +293,8 @@ public class UserServiceImpl implements UserService {
 
         // 10. Guardar los cambios
         userRepository.save(targetUser);
+
+        notifyUserAccountDisabled(targetUser);
     }
     
     @Transactional
@@ -317,6 +325,8 @@ public class UserServiceImpl implements UserService {
 
         // 6. Guardar los cambios
         userRepository.save(targetUser);
+
+        notifyUserAccountEnabled(targetUser);
     }
 
     ///----------------------------------------------------------UPDATE----------------------------------------------------------///
@@ -365,7 +375,9 @@ public class UserServiceImpl implements UserService {
         
         // 4. Actualizar contraseña y flag
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        user.setMustChangePassword(false); 
+        user.setMustChangePassword(false);
+
+        notifyPasswordChanged(user);
 
         // 5. Persistir (opcional explicitar save si usás @Transactional)
         userRepository.save(user);
@@ -471,6 +483,38 @@ public class UserServiceImpl implements UserService {
 	    emailChangeTokenRepository.findByUser(user)
 	            .ifPresent(emailChangeTokenRepository::delete);
 	}
+
+    private void notifyUserRegistration(User user) {
+        try {
+            emailService.sendUserRegistrationNotification(user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de registro para el usuario {}.", user.getCode(), exception);
+        }
+    }
+
+    private void notifyUserAccountDisabled(User user) {
+        try {
+            emailService.sendUserAccountDisabledNotification(user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de deshabilitacion para el usuario {}.", user.getCode(), exception);
+        }
+    }
+
+    private void notifyUserAccountEnabled(User user) {
+        try {
+            emailService.sendUserAccountEnabledNotification(user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de habilitacion para el usuario {}.", user.getCode(), exception);
+        }
+    }
+
+    private void notifyPasswordChanged(User user) {
+        try {
+            emailService.sendPasswordChangedNotification(user);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo preparar el correo de cambio de contrasena para el usuario {}.", user.getCode(), exception);
+        }
+    }
 
 
     ///---------------------------------------------------- PUBLICOS AUXILIARES ---------------------------------------------------///

@@ -40,7 +40,6 @@ public class Evaluation extends AuditableEntity{
     @Column(name = "evaluated_version", nullable = false)
 	private String evaluatedVersion;
 
-    ///----------nuevo----------
     @Column(name = "is_released", nullable = false)
     private boolean isReleased;
 

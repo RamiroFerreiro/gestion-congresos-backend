@@ -14,24 +14,30 @@ import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.mapper.CongressBankDetailMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressBankDetailRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CongressBankDetailImpl implements CongressBankDetailService{
 
     private final CongressBankDetailRepository bankDetailRepository;
+    private final PaperRepository paperRepository;
     private final CongressService congressService;
     private final CongressBankDetailMapper bankDetailMapper;
     private final AuthorizationService authorizationService;
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
+    private final EmailService emailService;
 
     ///----------------------------------------------------------CREATE----------------------------------------------------------///
     
@@ -141,6 +147,8 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
         //7. Guardar los cambios    
         CongressBankDetail updatedBankDetail = bankDetailRepository.save(bankDetail);
 
+        notifyMainAuthorsWithPendingPayments(bankDetail.getCongress());
+
         //8. Devolver el DTO de respuesta
         return bankDetailMapper.toCongressBankDetailResponseDTO(updatedBankDetail);
     }
@@ -181,6 +189,18 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     	institutionValidator.validateAuthenticatedParticipantInstitution(
                 congressCode
         );
+    }
+
+    private void notifyMainAuthorsWithPendingPayments(Congress congress) {
+        for (User mainAuthor : paperRepository
+                .findMainAuthorsWithPendingPaymentsByCongressCode(congress.getCode())) {
+            try {
+                emailService.sendCongressBankDetailsUpdatedNotification(mainAuthor, congress);
+            } catch (RuntimeException exception) {
+                log.error("No se pudo preparar el correo de datos bancarios actualizados para el usuario {} del congreso {}.",
+                        mainAuthor.getCode(), congress.getCode(), exception);
+            }
+        }
     }
 }
 
