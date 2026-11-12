@@ -16,11 +16,13 @@ import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +30,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaperAuthorServiceImpl implements PaperAuthorService {
 
     private final PaperAuthorRepository paperAuthorRepository;
@@ -44,8 +48,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     private final CongressParticipantInstitutionValidator institutionValidator;
     private final SecurityEvaluator securityEvaluator;
     private final PaperAuthorMapper paperAuthorMapper;
-
-    // TODO_EMAIL: Inyectar ApplicationEventPublisher eventPublisher; para enviar los emails luego.
+    private final EmailService emailService;
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
 
@@ -240,6 +243,12 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             );
         }
 
+        Map<String, Boolean> presenterStatusBeforeUpdate = acceptedAuthors.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        author -> author.getAuthor().getCode(),
+                        PaperAuthor::isPresentator
+                ));
+
         // Aplicar las modificaciones
         for (PaperAuthorUpdateRequestDTO update : updates) {
 
@@ -256,6 +265,27 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         }
 
         List<PaperAuthor> savedAuthors = paperAuthorRepository.saveAll(acceptedAuthors);
+
+        for (PaperAuthor author : savedAuthors) {
+            boolean wasPresenter = presenterStatusBeforeUpdate.get(author.getAuthor().getCode());
+
+            if (wasPresenter != author.isPresentator()) {
+                try {
+                    emailService.sendPaperPresenterChangedNotification(
+                            author.getAuthor(),
+                            paper,
+                            author.isPresentator()
+                    );
+                } catch (RuntimeException exception) {
+                    log.error(
+                            "No se pudo preparar la notificación de cambio de presentador para el autor {} del trabajo {}.",
+                            author.getAuthor().getCode(),
+                            paperCode,
+                            exception
+                    );
+                }
+            }
+        }
 
         // Ordenamos en memoria para devolver la respuesta limpia al front
         savedAuthors.sort(Comparator.comparing(PaperAuthor::getAuthorOrder));
@@ -304,7 +334,27 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         PaperAuthor savedRequest = paperAuthorRepository.save(request);
 
-        // TODO_EMAIL: Notificar al Main Author que recibió una nueva solicitud de co-autoría
+        try {
+            PaperAuthor mainAuthor = paperAuthorRepository
+                    .findByPaper_CodeAndIsMainAuthorTrue(paperCode)
+                    .filter(author -> author.getStatus() == PaperAuthorStatus.ACCEPTED)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "El trabajo no tiene un autor principal aceptado."
+                    ));
+
+            emailService.sendNewAuthorJoinRequestNotification(
+                    mainAuthor.getAuthor(),
+                    paper,
+                    currentUser
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de nueva solicitud de coautoría del usuario {} para el trabajo {}.",
+                    currentUser.getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         return paperAuthorMapper.toPaperAuthorResponseDTO(savedRequest);
     }
@@ -343,11 +393,27 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         request.setAuthorOrder(nextAuthorOrder);
 
         // Al ser aceptado, si el usuario era LISTENER, se le asciende automáticamente a EXPOSITOR
-        congressParticipantService.promoteListenerToExpositor(paper.getCongress().getCode(), request.getAuthor().getCode());
+        boolean promotedToExpositor = congressParticipantService.promoteListenerToExpositor(
+                paper.getCongress().getCode(),
+                request.getAuthor().getCode()
+        );
 
         paperAuthorRepository.save(request);
 
-        // TODO_EMAIL: Notificar al usuario 'userCode' que su solicitud fue ACEPTADA
+        try {
+            emailService.sendAuthorJoinRequestAcceptedNotification(
+                    request.getAuthor(),
+                    paper,
+                    promotedToExpositor
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de aceptación de coautoría para el usuario {} del trabajo {}.",
+                    request.getAuthor().getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
                 paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
@@ -370,7 +436,19 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         paperAuthorRepository.delete(request);
 
-        // TODO_EMAIL: Notificar al usuario 'userCode' que su solicitud fue RECHAZADA
+        try {
+            emailService.sendAuthorJoinRequestRejectedNotification(
+                    request.getAuthor(),
+                    paper
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de rechazo de coautoría para el usuario {} del trabajo {}.",
+                    request.getAuthor().getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
                 paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
@@ -411,10 +489,48 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
                 .status(PaperAuthorStatus.ACCEPTED)
                 .build();
 
-        congressParticipantService.promoteListenerToExpositor(paper.getCongress().getCode(), userToAdd.getCode());
+        boolean promotedToExpositor = congressParticipantService.promoteListenerToExpositor(
+                paper.getCongress().getCode(),
+                userToAdd.getCode()
+        );
         paperAuthorRepository.save(newAuthor);
 
-        // TODO_EMAIL: Notificar al usuario 'userCode' que fue agregado como autor directamente por un administrador
+        try {
+            emailService.sendAuthorAddedByAdministratorNotification(
+                    userToAdd,
+                    paper,
+                    promotedToExpositor
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de incorporación administrativa para el usuario {} del trabajo {}.",
+                    userToAdd.getCode(),
+                    paperCode,
+                    exception
+            );
+        }
+
+        try {
+            PaperAuthor mainAuthor = paperAuthorRepository
+                    .findByPaper_CodeAndIsMainAuthorTrue(paperCode)
+                    .filter(author -> author.getStatus() == PaperAuthorStatus.ACCEPTED)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "El trabajo no tiene un autor principal aceptado."
+                    ));
+
+            emailService.sendAuthorAddedByAdministratorToMainAuthorNotification(
+                    mainAuthor.getAuthor(),
+                    paper,
+                    userToAdd
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación al autor principal por la incorporación administrativa del usuario {} al trabajo {}.",
+                    userToAdd.getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
                 paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
@@ -511,7 +627,19 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
         // Guardar los órdenes actualizados
         paperAuthorRepository.saveAll(remainingAcceptedAuthors);
 
-        // TODO_EMAIL: Notificar al usuario que fue removido del trabajo
+        try {
+            emailService.sendAuthorRemovedFromPaperNotification(
+                    authorToRemove.getAuthor(),
+                    paper
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de eliminación de coautoría para el usuario {} del trabajo {}.",
+                    authorToRemove.getAuthor().getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         return paperAuthorMapper.toAcceptedPaperAuthorResponseDTOList(
                 paperAuthorRepository.findByPaper_CodeOrderByAuthorOrderAsc(paperCode)
@@ -626,6 +754,36 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
         // Guardar los cambios de todos los autores aceptados
         paperAuthorRepository.saveAll(acceptedAuthors);
+
+        try {
+            emailService.sendMainAuthorTransferredNotification(
+                    currentMainAuthor.getAuthor(),
+                    paper,
+                    false
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de transferencia de autoría para el autor principal anterior {} del trabajo {}.",
+                    currentMainAuthor.getAuthor().getCode(),
+                    paperCode,
+                    exception
+            );
+        }
+
+        try {
+            emailService.sendMainAuthorTransferredNotification(
+                    newMainAuthor.getAuthor(),
+                    paper,
+                    true
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de transferencia de autoría para el nuevo autor principal {} del trabajo {}.",
+                    newMainAuthor.getAuthor().getCode(),
+                    paperCode,
+                    exception
+            );
+        }
 
         // Devolver únicamente los autores aceptados
         List<PaperAuthor> updatedAuthors =

@@ -24,14 +24,17 @@ import com.tfi.gestion_congresos_backend.repository.UserRepository;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.RoleService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CongressParticipantServiceImpl implements CongressParticipantService {
 
 	private final AuthorizationService authorizationService;
@@ -42,6 +45,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
     private final UserRepository userRepository;
     private final CongressParticipantMapper congressParticipantMapper;
     private final CongressParticipantInstitutionValidator institutionValidator;
+    private final EmailService emailService;
     
     @Override
     @Transactional
@@ -113,6 +117,21 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         // 8. Guardar la participación
         congressParticipantRepository.save(newParticipant);
 
+        try {
+            emailService.sendCongressRegistrationNotification(
+                    authenticatedUser,
+                    congress,
+                    RoleName.LISTENER
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de inscripción al congreso {} para el usuario {}.",
+                    congressCode,
+                    authenticatedUser.getCode(),
+                    exception
+            );
+        }
+
         // 9. Retornar mensaje de confirmación
         return MessageResponseDTO.builder()
                 .message(
@@ -125,6 +144,23 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
     @Override
     @Transactional
     public MessageResponseDTO registerParticipantByAdmin(String congressCode, AdminParticipantRegistrationRequestDTO requestDTO) {
+        return registerParticipantByAdmin(congressCode, requestDTO, true);
+    }
+
+    @Override
+    @Transactional
+    public MessageResponseDTO registerParticipantByAdminWithoutNotification(
+            String congressCode,
+            AdminParticipantRegistrationRequestDTO requestDTO
+    ) {
+        return registerParticipantByAdmin(congressCode, requestDTO, false);
+    }
+
+    private MessageResponseDTO registerParticipantByAdmin(
+            String congressCode,
+            AdminParticipantRegistrationRequestDTO requestDTO,
+            boolean notifyParticipant
+    ) {
 
         // 1. Obtener el usuario autenticado
         User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
@@ -195,6 +231,23 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         // 10. Guardar la participación
         congressParticipantRepository.save(newParticipant);
 
+        if (notifyParticipant) {
+            try {
+                emailService.sendCongressRegistrationNotification(
+                        targetUser,
+                        congress,
+                        requestDTO.getRole()
+                );
+            } catch (RuntimeException exception) {
+                log.error(
+                        "No se pudo preparar la notificación de inscripción administrativa al congreso {} para el usuario {}.",
+                        congressCode,
+                        targetUser.getCode(),
+                        exception
+                );
+            }
+        }
+
         // 11. Retornar confirmación
         return MessageResponseDTO.builder()
                 .message(
@@ -214,7 +267,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         // 2. Verificar que el congreso exista
-        congressService.getCongressEntityByCode(congressCode);
+        Congress congress = congressService.getCongressEntityByCode(congressCode);
 
         // 3. Validar permisos de administración
         authorizationService.validateCongressAdminPermission(
@@ -330,6 +383,20 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         // 8. Guardar los cambios
         congressParticipantRepository.save(participant);
 
+        try {
+            emailService.sendCongressParticipationCancelledNotification(
+                    participant.getUser(),
+                    congress
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de baja del congreso {} para el usuario {}.",
+                    congressCode,
+                    participant.getUser().getCode(),
+                    exception
+            );
+        }
+
         // 9. Retornar confirmación
         return MessageResponseDTO.builder()
                 .message(
@@ -429,6 +496,21 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         // 9. Guardar los cambios
         congressParticipantRepository.save(participant);
 
+        try {
+            emailService.sendCongressParticipationReactivatedNotification(
+                    participant.getUser(),
+                    congress,
+                    participant.getRole().getName()
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "No se pudo preparar la notificación de reactivación del congreso {} para el usuario {}.",
+                    congressCode,
+                    participant.getUser().getCode(),
+                    exception
+            );
+        }
+
         // 10. Retornar confirmación
         return MessageResponseDTO.builder()
                 .message(
@@ -449,7 +531,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
         // 2. Verificar que el congreso exista
-        congressService.getCongressEntityByCode(congressCode);
+        Congress congress = congressService.getCongressEntityByCode(congressCode);
 
         // 3. Validar permisos de administración
         authorizationService.validateCongressAdminPermission(
@@ -483,6 +565,8 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         boolean isCurrentlyAdmin =
                 participant.getRole().getName() == RoleName.ADMINISTRATOR;
 
+        RoleName previousRole = participant.getRole().getName();
+
         boolean isRemovingAdminRole =
                 isCurrentlyAdmin && newRole != RoleName.ADMINISTRATOR;
 
@@ -507,11 +591,21 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
 
         // 10. Guardar los cambios
         congressParticipantRepository.save(participant);
+
+        if (previousRole != newRole) {
+            try {
+                emailService.sendCongressParticipantRoleChangedNotification(
+                        participant.getUser(), congress, previousRole, newRole
+                );
+            } catch (RuntimeException exception) {
+                log.error("No se pudo preparar la notificación de cambio de rol del congreso {} para el usuario {}.", congressCode, participant.getUser().getCode(), exception);
+            }
+        }
     }
     
     @Override
     @Transactional
-    public void promoteListenerToExpositor(String congressCode, String userCode) {
+    public boolean promoteListenerToExpositor(String congressCode, String userCode) {
         CongressParticipant participant = congressParticipantRepository
                 .findActiveParticipantByUserCodeAndCongressCode(userCode, congressCode)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -521,7 +615,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
         RoleName currentRole = participant.getRole().getName();
 
         if (currentRole == RoleName.EXPOSITOR) {
-            return;
+            return false;
         }
 
         if (currentRole != RoleName.LISTENER) {
@@ -537,8 +631,7 @@ public class CongressParticipantServiceImpl implements CongressParticipantServic
 
         participant.setRole(expositorRole);
         congressParticipantRepository.save(participant);
-        
-        // TODO_EMAIL: (Opcional) Notificar al usuario que su rol fue ascendido de Oyente a Expositor
+        return true;
     }
     
     @Override
