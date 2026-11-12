@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetric
 import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
@@ -25,21 +27,26 @@ import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
 import com.tfi.gestion_congresos_backend.mapper.CongressDashboardMapper;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.FinancialMetricsProjection;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
+	private final CongressParticipantRepository congressParticipantRepository;
 	private final CongressMapper congressMapper;
 	private final AuthorizationService authorizationService;
 	private final CongressParticipantInstitutionValidator institutionValidator;
@@ -47,6 +54,7 @@ public class CongressServiceImpl implements CongressService {
 	private final PaperRepository paperRepository;
 	private final PaperPaymentRepository paperPaymentRepository;
 	private final CongressDashboardMapper dashboardMapper;
+	private final EmailService emailService;
 
 	@Override
 	public CongressDashboardResponseDTO getDashboardMetrics(String congressCode) {
@@ -172,6 +180,7 @@ public class CongressServiceImpl implements CongressService {
 		
 		// Obtener congreso:
 		Congress congress = getCongressEntityByCode(code);
+		boolean importantDatesChanged = importantDatesChanged(congress, request);
 		 
 		// Validación de fechas del congreso:
 		validateCongressDatesForUpdate(request, congress);
@@ -185,6 +194,10 @@ public class CongressServiceImpl implements CongressService {
 		congressMapper.updateCongressFromDto(request, congress);
 		 
 		Congress updatedCongress = congressRepository.save(congress);
+
+		if (importantDatesChanged) {
+			notifyActiveParticipantsAboutImportantDates(updatedCongress);
+		}
 		 
 		return congressMapper.toCongressResponseDTO(updatedCongress);
 	}
@@ -233,6 +246,42 @@ public class CongressServiceImpl implements CongressService {
 	    congress.setEnabled(targetStatus);
 	    
 	    congressRepository.save(congress);
+
+	    notifyActiveParticipantsAboutStatusChange(congress, targetStatus);
+	}
+
+	private boolean importantDatesChanged(Congress congress, CongressRequestDTO request) {
+	    return !Objects.equals(congress.getRegistrationStartDate(), request.getRegistrationStartDate())
+	            || !Objects.equals(congress.getRegistrationEndDate(), request.getRegistrationEndDate())
+	            || !Objects.equals(congress.getPresentationStartDate(), request.getPresentationStartDate())
+	            || !Objects.equals(congress.getPresentationEndDate(), request.getPresentationEndDate())
+	            || !Objects.equals(congress.getStartDate(), request.getStartDate())
+	            || !Objects.equals(congress.getEndDate(), request.getEndDate())
+	            || !Objects.equals(congress.getPlannedEvaluationReleaseDate(), request.getPlannedEvaluationReleaseDate());
+	}
+
+	private void notifyActiveParticipantsAboutImportantDates(Congress congress) {
+	    for (CongressParticipant participant : congressParticipantRepository
+	            .findActiveEnabledParticipantsByCongressCode(congress.getCode())) {
+	        try {
+	            emailService.sendCongressImportantDatesUpdatedNotification(participant.getUser(), congress);
+	        } catch (RuntimeException exception) {
+	            log.error("No se pudo preparar el correo de fechas actualizadas para el usuario {} del congreso {}.",
+	                    participant.getUser().getCode(), congress.getCode(), exception);
+	        }
+	    }
+	}
+
+	private void notifyActiveParticipantsAboutStatusChange(Congress congress, boolean enabled) {
+	    for (CongressParticipant participant : congressParticipantRepository
+	            .findActiveEnabledParticipantsByCongressCode(congress.getCode())) {
+	        try {
+	            emailService.sendCongressStatusChangedNotification(participant.getUser(), congress, enabled);
+	        } catch (RuntimeException exception) {
+	            log.error("No se pudo preparar el correo de cambio de estado para el usuario {} del congreso {}.",
+	                    participant.getUser().getCode(), congress.getCode(), exception);
+	        }
+	    }
 	}
 	
 	/// Validar rango de fechas:

@@ -95,4 +95,20 @@ public interface PaperRepository extends JpaRepository<Paper, Long> {
         WHERE p.congress.code = :congressCode
     """)
     AcademicMetricsProjection getAcademicMetricsByCongressCode(@Param("congressCode") String congressCode);
+
+    @Query("""
+        SELECT DISTINCT pa.author
+        FROM Paper p
+        JOIN p.authors pa
+        WHERE p.congress.code = :congressCode
+          AND p.congress.isFree = false
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.ACCEPTED
+          AND p.pay = false
+          AND pa.isMainAuthor = true
+          AND pa.status = com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus.ACCEPTED
+          AND pa.author.enabled = true
+        """)
+    List<com.tfi.gestion_congresos_backend.entities.User> findMainAuthorsWithPendingPaymentsByCongressCode(
+            @Param("congressCode") String congressCode
+    );
 }
