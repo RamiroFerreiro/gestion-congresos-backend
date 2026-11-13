@@ -24,6 +24,7 @@ import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.PaperService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.services.validation.PaperSummarySanitizer;
 import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class PaperServiceImpl implements PaperService {
     private final CongressParticipantService congressParticipantService;
     private final EmailService emailService;
     private final CongressParticipantInstitutionValidator institutionValidator;
+    private final PaperSummarySanitizer paperSummarySanitizer;
     private final SecurityEvaluator securityEvaluator;
 
     private static final int CODE_LENGTH = 6;
@@ -300,6 +302,7 @@ public class PaperServiceImpl implements PaperService {
         }
 
         Paper paper = paperMapper.toEntity(dto);
+        paper.setSummary(paperSummarySanitizer.sanitizeAndValidate(dto.getSummary()));
         paper.setCode(generatePaperCode());
         paper.setVersion("1.0");
         paper.setStatus(PaperStatus.NOT_SUBMITTED);
@@ -356,6 +359,7 @@ public class PaperServiceImpl implements PaperService {
 
         // MapStruct actualiza la entidad existente ignorando colecciones y campos bloqueados
         paperMapper.updateEntityFromDto(dto, paper);
+        paper.setSummary(paperSummarySanitizer.sanitizeAndValidate(dto.getSummary()));
 
         Paper savedPaper = paperRepository.save(paper);
         PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(savedPaper);

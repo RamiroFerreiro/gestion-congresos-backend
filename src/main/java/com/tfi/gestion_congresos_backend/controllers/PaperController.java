@@ -183,7 +183,9 @@ public class PaperController {
     @Operation(
             summary = "Crear un nuevo trabajo (Paper)",
             description = """
-                Crea un nuevo Paper en estado NOT_SUBMITTED. El código de trackeo se genera automáticamente. 
+                Crea un nuevo Paper en estado NOT_SUBMITTED. El código de trackeo se genera automáticamente.
+                El resumen admite HTML restringido y sanitizado: p, strong, b, em, i, u,
+                sub, sup, blockquote y br, sin atributos.
                 El primer autor enviado en la lista 'authorUserCodes' se convierte en el creador y Autor Principal (isMainAuthor = true) del trabajo.
                 Para agregar co-autores posteriormente, se debe utilizar el endpoint de solicitudes del PaperAuthorController.
                 La fecha efectiva de envío se asigna exclusivamente al enviar el trabajo a evaluación;
@@ -227,8 +229,10 @@ public class PaperController {
     @Operation(
             summary = "Actualizar metadatos de un trabajo (Guardar Progreso)",
             description = """
-                Actualiza los datos base del trabajo (Título, Resumen, Área Temática, Fecha y Tipo) sin enviarlo a revisión.
+                Actualiza los datos base del trabajo (Título, Resumen y Área Temática) sin enviarlo a revisión.
                 No afecta a la lista de autores ni a las palabras clave.
+                El resumen admite HTML restringido y sanitizado: p, strong, b, em, i, u,
+                sub, sup, blockquote y br, sin atributos.
                 Permitido únicamente en estado NOT_SUBMITTED o NEEDS_REVISION.
                 """
     )
