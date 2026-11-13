@@ -62,6 +62,7 @@ public interface PaperMapper {
     @Mapping(target = "keywords", ignore = true)
     @Mapping(target = "pay", ignore = true)
     @Mapping(target = "congressPaperType", ignore = true)
+    @Mapping(target = "submittedAt", ignore = true)
     Paper toEntity(PaperRequestDTO dto);
 
     @Mapping(target = "paperId", ignore = true)
@@ -74,5 +75,6 @@ public interface PaperMapper {
     @Mapping(target = "keywords", ignore = true)
     @Mapping(target = "pay", ignore = true)
     @Mapping(target = "congressPaperType", ignore = true)
+    @Mapping(target = "submittedAt", ignore = true)
     void updateEntityFromDto(PaperUpdateRequestDTO dto, @MappingTarget Paper paper);
 }

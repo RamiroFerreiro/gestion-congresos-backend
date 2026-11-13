@@ -20,7 +20,7 @@ public class PaperPendingReassignmentResponseDTO {
     private String thematicArea;
     private String version;
     private PaperStatus status;
-    private LocalDateTime presentationDate;
+    private LocalDateTime submittedAt;
 
     private String congressCode;
     private String congressName;
