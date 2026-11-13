@@ -65,6 +65,8 @@ public class CongressServiceImpl implements CongressService {
 		//2. Validar que el usuario sea administrador del congreso 
 		authorizationService.validateCongressAdminPermission(user, congressCode);
 
+		institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
 		//3. Validar existencia del congreso
         Congress congress = getCongressEntityByCode(congressCode);
 
@@ -92,6 +94,8 @@ public class CongressServiceImpl implements CongressService {
 	@Transactional(readOnly = true)
 	/// Obtener todos los congresos con sus participantes:
 	public List<CongressResponseDTO> getAllCongresses() {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		authorizationService.validateSuperAdminPermission(authenticatedUser);
 		
 		return congressRepository.findAllWithThematicAreas()
 				.stream()
@@ -103,6 +107,8 @@ public class CongressServiceImpl implements CongressService {
 	@Transactional(readOnly = true)
 	/// Obtener todos los congresos activos/desactivados con sus participantes:
 	public List<CongressResponseDTO> getCongressesByEnabled(boolean enabled) {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		authorizationService.validateSuperAdminPermission(authenticatedUser);
 		
 		return congressRepository.findAllByEnabledWithThematicAreas(enabled)
 				.stream()
@@ -129,6 +135,9 @@ public class CongressServiceImpl implements CongressService {
 	public CongressResponseDTO getCongressDTOByCode(String code) {
 
 	    Congress congress = getCongressEntityByCode(code);
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+	    authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+	    institutionValidator.validateAuthenticatedParticipantInstitution(code);
 
 	    return congressMapper.toCongressResponseDTO(congress);
 	}

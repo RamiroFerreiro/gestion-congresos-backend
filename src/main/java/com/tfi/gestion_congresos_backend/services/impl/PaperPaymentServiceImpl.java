@@ -306,9 +306,10 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
             throw new UserDisabledException("Solo los usuarios con rol EXPOSITOR pueden ver comprobantes de pago.");
         }
 
-        // 2. Si no es administrador, debe pertenecer al trabajo
-        if (!isAdmin && !securityEvaluator.isParticipantOfPaper(paper.getPaperId(), user.getUserId())) {
-            throw new UserDisabledException("Solo los autores pertenecientes a este trabajo pueden ver el comprobante de pago.");
+        // 2. Si no es administrador, debe ser un autor aceptado. Una solicitud
+        // PENDING no otorga acceso a documentación financiera del trabajo.
+        if (!isAdmin && !securityEvaluator.isAcceptedAuthor(user, paper)) {
+            throw new UserDisabledException("Solo los autores aceptados de este trabajo pueden ver el comprobante de pago.");
         }
 
         // 3. Validar institución del usuario en el congreso

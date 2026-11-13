@@ -39,7 +39,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     @Override
     public void validateSuperAdminPermission(User user) {
 
-        if (!securityEvaluator.isSuperAdmin(user)) {
+        if (user == null || !user.isEnabled() || !securityEvaluator.isSuperAdmin(user)) {
             throw new UserDisabledException(
                     "Solo un súper administrador puede realizar esta operación."
             );
@@ -50,7 +50,8 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     @Override
     public void validateCongressAdminPermission(User user, String congressCode) {
 
-        if (!securityEvaluator.isAdminOfCongress(user, congressCode)) {
+        if (user == null || !user.isEnabled()
+                || !securityEvaluator.isAdminOfCongress(user, congressCode)) {
             throw new UserDisabledException(
                     "No tienes permisos de administración sobre el congreso: " + congressCode
             );

@@ -591,6 +591,11 @@ public class PaperServiceImpl implements PaperService {
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
+
+        // Las palabras clave forman parte del contenido del trabajo. No basta
+        // con participar en el congreso: solo puede modificarlas su autor
+        // responsable.
+        validatePaperResponsibleAuthor(paper);
         
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
@@ -605,6 +610,11 @@ public class PaperServiceImpl implements PaperService {
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
+
+        // Las palabras clave forman parte del contenido del trabajo. No basta
+        // con participar en el congreso: solo puede modificarlas su autor
+        // responsable.
+        validatePaperResponsibleAuthor(paper);
         
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
 
