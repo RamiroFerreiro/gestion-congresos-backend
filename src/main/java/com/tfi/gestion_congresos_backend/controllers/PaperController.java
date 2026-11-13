@@ -195,7 +195,7 @@ public class PaperController {
             @ApiResponse(responseCode = "400", description = "Datos inválidos: congreso deshabilitado, área temática no válida, etc."),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
             @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
-            @ApiResponse(responseCode = "404", description = "No se encontró el congreso, el tipo de trabajo, o el autor especificado")
+            @ApiResponse(responseCode = "404", description = "No se encontró el congreso, su configuración ABSTRACT, o el autor especificado")
     })
     @PreAuthorize("isAuthenticated()")
     @PostMapping

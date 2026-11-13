@@ -1,5 +1,6 @@
 package com.tfi.gestion_congresos_backend.dtos.congress;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -62,6 +63,11 @@ public class CongressRequestDTO {
 	private Set<@NotBlank(message = "Las áreas temáticas no pueden estar vacías") String> thematicAreas;
 	
 	private boolean isFree;
+
+	// Configuración del único tipo de trabajo habilitado en el MVP (ABSTRACT).
+	// No forma parte de la entidad Congress: se usa solamente al crear el congreso.
+	private BigDecimal abstractAmount;
+	private String abstractCurrency;
 	
 	private boolean isSingleBlind;
 	

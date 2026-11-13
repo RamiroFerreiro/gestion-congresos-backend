@@ -96,7 +96,11 @@ public class CongressController {
     /// Crear un congreso:
     @Operation(
         summary = "Crear un congreso",
-        description = "Registra un nuevo congreso en el sistema."
+        description = """
+                Registra un nuevo congreso y crea automáticamente su único tipo de trabajo ABSTRACT.
+                Los congresos pagos deben informar abstractAmount y abstractCurrency. En los gratuitos,
+                ambos campos son opcionales y el importe se configura en cero.
+                """
     )
     @ApiResponses({
         @ApiResponse(
