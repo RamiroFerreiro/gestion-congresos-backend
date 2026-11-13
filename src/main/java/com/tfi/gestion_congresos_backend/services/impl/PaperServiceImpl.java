@@ -5,6 +5,7 @@ import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.*;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.PaperType;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -265,10 +266,7 @@ public class PaperServiceImpl implements PaperService {
         validateCongressEnabled(congress);
         validateThematicArea(congress, dto.getThematicArea());
 
-        CongressPaperType paperType = validateAndGetPaperType(
-                dto.getCongressPaperTypeId(),
-                congress
-        );
+        CongressPaperType paperType = getAbstractPaperType(congress);
 
         User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
@@ -356,11 +354,8 @@ public class PaperServiceImpl implements PaperService {
         Congress congress = paper.getCongress();
         validateThematicArea(congress, dto.getThematicArea());
 
-        CongressPaperType paperType = validateAndGetPaperType(dto.getCongressPaperTypeId(), congress);
-
         // MapStruct actualiza la entidad existente ignorando colecciones y campos bloqueados
         paperMapper.updateEntityFromDto(dto, paper);
-        paper.setCongressPaperType(paperType);
 
         Paper savedPaper = paperRepository.save(paper);
         PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(savedPaper);
@@ -880,14 +875,13 @@ public class PaperServiceImpl implements PaperService {
         }
     }
 
-    private CongressPaperType validateAndGetPaperType(Long paperTypeId, Congress congress) {
-        CongressPaperType paperType = congressPaperTypeRepository.findById(paperTypeId)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontró el tipo de trabajo con ID: " + paperTypeId));
-
-        if (!paperType.getCongress().getCongressId().equals(congress.getCongressId())) {
-            throw new ArgumentNotValidException("El tipo de trabajo seleccionado no pertenece al congreso con código " + congress.getCode());
-        }
-        return paperType;
+    private CongressPaperType getAbstractPaperType(Congress congress) {
+        return congressPaperTypeRepository
+                .findByCongress_CodeAndPaperType(congress.getCode(), PaperType.ABSTRACT)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El congreso con código " + congress.getCode()
+                                + " no tiene configurado el tipo de trabajo ABSTRACT."
+                ));
     }
 
     private void addKeywordInternal(Paper paper, String keyword) {

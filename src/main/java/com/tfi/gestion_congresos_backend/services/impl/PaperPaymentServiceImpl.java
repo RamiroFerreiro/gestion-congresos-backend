@@ -88,6 +88,13 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         
         //6. Validar institución del usuario en el congreso
         validateCurrentUserInstitution(congressCode);
+
+        // Los congresos gratuitos no requieren ni admiten comprobantes de pago.
+        if (paper.getCongress().isFree()) {
+            throw new ArgumentNotValidException(
+                    "No se pueden cargar comprobantes de pago para un congreso gratuito."
+            );
+        }
         
         //7. Verificar que el Paper esté en estado APROBADO
         if (paper.getStatus() != PaperStatus.ACCEPTED) {

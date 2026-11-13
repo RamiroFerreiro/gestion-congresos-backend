@@ -18,6 +18,4 @@ public class PaperUpdateRequestDTO {
     @NotBlank(message = "El resumen es obligatorio")
     private String summary;
 
-    @NotNull(message = "El tipo de trabajo es obligatorio")
-    private Long congressPaperTypeId;
 }

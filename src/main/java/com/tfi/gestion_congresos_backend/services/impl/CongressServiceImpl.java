@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -18,9 +19,11 @@ import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetric
 import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.CongressPaperType;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
+import com.tfi.gestion_congresos_backend.enums.PaperType;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
@@ -28,6 +31,7 @@ import com.tfi.gestion_congresos_backend.mapper.CongressDashboardMapper;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
+import com.tfi.gestion_congresos_backend.repository.CongressPaperTypeRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
@@ -47,6 +51,7 @@ public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
 	private final CongressParticipantRepository congressParticipantRepository;
+	private final CongressPaperTypeRepository congressPaperTypeRepository;
 	private final CongressMapper congressMapper;
 	private final AuthorizationService authorizationService;
 	private final CongressParticipantInstitutionValidator institutionValidator;
@@ -159,6 +164,9 @@ public class CongressServiceImpl implements CongressService {
 		
 		// Validar modo de publicación de evaluaciones y fecha definida:
 		validateEvaluationReleaseConfiguration(request);
+
+		// Validar la configuración del tipo ABSTRACT antes de persistir el congreso.
+		validateAbstractPaperTypeConfigurationForCreation(request);
 		 
 		Congress congress = congressMapper.toEntity(request);
 		
@@ -169,6 +177,8 @@ public class CongressServiceImpl implements CongressService {
 		congress.setEnabled(true);
 		
 		Congress savedCongress = congressRepository.save(congress);
+
+		createAbstractPaperType(savedCongress, request);
 		 
 		return congressMapper.toCongressResponseDTO(savedCongress);
 	}
@@ -190,6 +200,7 @@ public class CongressServiceImpl implements CongressService {
 		// Obtener congreso:
 		Congress congress = getCongressEntityByCode(code);
 		boolean importantDatesChanged = importantDatesChanged(congress, request);
+		validateEconomicConfigurationIsImmutable(congress, request);
 		 
 		// Validación de fechas del congreso:
 		validateCongressDatesForUpdate(request, congress);
@@ -504,5 +515,77 @@ public class CongressServiceImpl implements CongressService {
 	                "No debe especificar una fecha de publicación para el modo IMMEDIATE."
 	        );
 	    }
+	}
+
+	private void validateAbstractPaperTypeConfigurationForCreation(CongressRequestDTO dto) {
+		BigDecimal amount = dto.getAbstractAmount();
+		String currency = normalizeCurrency(dto.getAbstractCurrency());
+
+		if (dto.isFree()) {
+			if (amount != null && amount.compareTo(BigDecimal.ZERO) != 0) {
+				throw new ArgumentNotValidException(
+						"Un congreso gratuito solo puede configurar un importe ABSTRACT igual a cero."
+				);
+			}
+			dto.setAbstractCurrency(currency);
+			return;
+		}
+
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere un importe ABSTRACT mayor a cero."
+			);
+		}
+
+		if (currency == null) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere una moneda para el tipo ABSTRACT."
+			);
+		}
+
+		dto.setAbstractCurrency(currency);
+	}
+
+	private String normalizeCurrency(String currency) {
+		if (currency == null) {
+			return null;
+		}
+
+		String normalizedCurrency = currency.trim().toUpperCase(Locale.ROOT);
+		if (!normalizedCurrency.matches("[A-Z]{3}")) {
+			throw new ArgumentNotValidException(
+					"La moneda del tipo ABSTRACT debe ser un código ISO de tres letras."
+			);
+		}
+
+		return normalizedCurrency;
+	}
+
+	private void createAbstractPaperType(Congress congress, CongressRequestDTO request) {
+		CongressPaperType abstractPaperType = CongressPaperType.builder()
+				.congress(congress)
+				.paperType(PaperType.ABSTRACT)
+				.amount(congress.isFree() ? BigDecimal.ZERO : request.getAbstractAmount())
+				.currency(request.getAbstractCurrency())
+				.build();
+
+		congressPaperTypeRepository.save(abstractPaperType);
+	}
+
+	private void validateEconomicConfigurationIsImmutable(
+			Congress congress,
+			CongressRequestDTO request
+	) {
+		if (congress.isFree() != request.isFree()) {
+			throw new ArgumentNotValidException(
+					"No se puede modificar la condición gratuita o paga de un congreso existente."
+			);
+		}
+
+		if (request.getAbstractAmount() != null || request.getAbstractCurrency() != null) {
+			throw new ArgumentNotValidException(
+					"La configuración económica del tipo ABSTRACT solo puede definirse al crear el congreso."
+			);
+		}
 	}
 }

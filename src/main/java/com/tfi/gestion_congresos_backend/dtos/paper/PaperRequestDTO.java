@@ -30,6 +30,4 @@ public class PaperRequestDTO {
     @NotEmpty(message = "El trabajo debe tener al menos un autor")
     private List<@NotBlank(message = "El código de usuario no puede estar vacío") String> authorUserCodes;
 
-    @NotNull(message = "El tipo de trabajo es obligatorio")
-    private Long congressPaperTypeId;
 }
