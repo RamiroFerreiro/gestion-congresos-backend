@@ -3,7 +3,6 @@ package com.tfi.gestion_congresos_backend.dtos.paper;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -24,10 +23,6 @@ public class PaperRequestDTO {
     
     @NotEmpty(message = "Debe ingresar al menos una palabra clave")
     private Set<@NotBlank(message = "La palabra clave no puede estar vacía") String> keywords;
-
-    @NotNull(message = "La fecha de presentación es obligatoria")
-    @Future(message = "La fecha de presentación debe ser futura")
-    private LocalDateTime presentationDate;
 
     @NotBlank(message = "El código del congreso es obligatorio")
     private String congressCode;  

@@ -71,8 +71,8 @@ public class Paper extends AuditableEntity{
 	@Builder.Default
 	private Set<String> keywords = new HashSet<>();
 	
-	@Column(name = "presentation_date", nullable = false)
-	private LocalDateTime presentationDate;
+	@Column(name = "submitted_at", nullable = true)
+	private LocalDateTime submittedAt;
 	
 	@Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

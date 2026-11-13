@@ -186,11 +186,13 @@ public class PaperController {
                 Crea un nuevo Paper en estado NOT_SUBMITTED. El código de trackeo se genera automáticamente. 
                 El primer autor enviado en la lista 'authorUserCodes' se convierte en el creador y Autor Principal (isMainAuthor = true) del trabajo.
                 Para agregar co-autores posteriormente, se debe utilizar el endpoint de solicitudes del PaperAuthorController.
+                La fecha efectiva de envío se asigna exclusivamente al enviar el trabajo a evaluación;
+                los borradores no requieren estar dentro del período de presentación.
                 """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Trabajo creado correctamente"),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos: congreso deshabilitado, área temática no válida, fecha fuera de ventana, etc."),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos: congreso deshabilitado, área temática no válida, etc."),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
             @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró el congreso, el tipo de trabajo, o el autor especificado")
@@ -343,6 +345,10 @@ public class PaperController {
                       para descartarlas antes de enviar el trabajo.
                     - Si se confirma el descarte, las solicitudes pendientes se eliminan
                       y el trabajo se envía dentro de la misma transacción.
+                    - Un envío inicial debe realizarse dentro del período de presentación del congreso.
+                    - Un reenvío de corrección debe realizarse antes de su fecha límite y antes
+                      del inicio del evento.
+                    - La fecha efectiva de envío es asignada por el backend.
 
                     **Parámetro confirmDiscardPendingRequests:**
                     - false (predeterminado): no autoriza descartar solicitudes pendientes.

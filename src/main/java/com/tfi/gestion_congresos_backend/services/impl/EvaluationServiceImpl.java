@@ -149,7 +149,7 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         // 6. Resultado y deadline
-        validateResultAndDeadline(requestDTO);
+        validateResultAndDeadline(requestDTO, paper.getCongress());
 
         Evaluation evaluation = evaluationMapper.toEntity(requestDTO);
         evaluation.setPaper(paper);
@@ -210,13 +210,19 @@ public class EvaluationServiceImpl implements EvaluationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paper no encontrado con código: " + paperCode));
     }
 
-    private void validateResultAndDeadline(EvaluationRequestDTO dto) {
+    private void validateResultAndDeadline(EvaluationRequestDTO dto, Congress congress) {
         if (!ALLOWED_RESULTS.contains(dto.getNewStatus())) {
             throw new ArgumentNotValidException(
                 "El resultado de una evaluación solo puede ser " + ALLOWED_RESULTS + ".");
         }
         if (dto.getNewStatus() == PaperStatus.NEEDS_REVISION && dto.getNewDeadline() == null) {
             throw new ArgumentNotValidException("Una evaluación con resultado NEEDS_REVISION requiere una nueva fecha de cierre.");
+        }
+        if (dto.getNewStatus() == PaperStatus.NEEDS_REVISION
+                && !dto.getNewDeadline().isBefore(congress.getStartDate())) {
+            throw new ArgumentNotValidException(
+                    "La fecha límite para una corrección debe ser anterior al inicio del evento."
+            );
         }
         if (dto.getNewStatus() != PaperStatus.NEEDS_REVISION && dto.getNewDeadline() != null) {
             throw new ArgumentNotValidException("La nueva fecha de cierre solo aplica cuando el resultado es NEEDS_REVISION.");

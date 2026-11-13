@@ -264,7 +264,6 @@ public class PaperServiceImpl implements PaperService {
         validateCurrentUserInstitution(congress.getCode());
         validateCongressEnabled(congress);
         validateThematicArea(congress, dto.getThematicArea());
-        validatePresentationDateWithinWindow(congress, dto.getPresentationDate());
 
         CongressPaperType paperType = validateAndGetPaperType(
                 dto.getCongressPaperTypeId(),
@@ -356,7 +355,6 @@ public class PaperServiceImpl implements PaperService {
 
         Congress congress = paper.getCongress();
         validateThematicArea(congress, dto.getThematicArea());
-        validatePresentationDateWithinWindow(congress, dto.getPresentationDate());
 
         CongressPaperType paperType = validateAndGetPaperType(dto.getCongressPaperTypeId(), congress);
 
@@ -711,11 +709,13 @@ public class PaperServiceImpl implements PaperService {
         // Capturar el evaluador asignado antes de cambiar el estado
         User assignedReviewer = paper.getUserReviewer();
 	
-		// Capturar el momento en que se realiza el envío
+		// Capturar y validar el momento real del envío una única vez.
 		LocalDateTime submissionDate = DateUtils.now();
+		validateSubmissionDate(paper, previousStatus, submissionDate);
 		
 		// Cambiar el estado y persistir
 		paper.setStatus(PaperStatus.UNDER_EVALUATION);
+		paper.setSubmittedAt(submissionDate);
 		
 		Paper savedPaper = paperRepository.save(paper);
 		
@@ -945,10 +945,59 @@ public class PaperServiceImpl implements PaperService {
         }
     }
 
-    private void validatePresentationDateWithinWindow(Congress congress, LocalDateTime presentationDate) {
-        if (presentationDate.isBefore(congress.getPresentationStartDate())
-                || presentationDate.isAfter(congress.getPresentationEndDate())) {
-            throw new ArgumentNotValidException("La fecha de presentación debe estar dentro de la ventana del congreso.");
+    private void validateSubmissionDate(
+            Paper paper,
+            PaperStatus previousStatus,
+            LocalDateTime submissionDate
+    ) {
+        Congress congress = paper.getCongress();
+
+        if (previousStatus == PaperStatus.NOT_SUBMITTED) {
+            validateInitialSubmissionWithinWindow(congress, submissionDate);
+            return;
+        }
+
+        if (previousStatus == PaperStatus.NEEDS_REVISION) {
+            validateCorrectionSubmissionDeadline(paper, submissionDate);
+        }
+    }
+
+    private void validateInitialSubmissionWithinWindow(
+            Congress congress,
+            LocalDateTime submissionDate
+    ) {
+        if (submissionDate.isBefore(congress.getPresentationStartDate())
+                || submissionDate.isAfter(congress.getPresentationEndDate())) {
+            throw new ArgumentNotValidException(
+                    "El envío inicial debe realizarse dentro del período de presentación de trabajos."
+            );
+        }
+    }
+
+    private void validateCorrectionSubmissionDeadline(Paper paper, LocalDateTime submissionDate) {
+        Congress congress = paper.getCongress();
+
+        if (!submissionDate.isBefore(congress.getStartDate())) {
+            throw new ArgumentNotValidException(
+                    "No se pueden enviar correcciones una vez iniciado el evento."
+            );
+        }
+
+        Evaluation correctionEvaluation = evaluationRepository
+                .findByPaper_CodeOrderByEvaluationDateDesc(paper.getCode())
+                .stream()
+                .filter(Evaluation::isReleased)
+                .filter(evaluation -> evaluation.getNewStatus() == PaperStatus.NEEDS_REVISION)
+                .findFirst()
+                .orElseThrow(() -> new ArgumentNotValidException(
+                        "No se encontró una evaluación publicada que habilite el reenvío de la corrección."
+                ));
+
+        LocalDateTime newDeadline = correctionEvaluation.getNewDeadline();
+        if (newDeadline == null || submissionDate.isAfter(newDeadline)) {
+            throw new ArgumentNotValidException(
+                    "El plazo definido para enviar la corrección ha vencido."
+            );
         }
     }
 

@@ -24,7 +24,7 @@ public class PaperResponseDTO {
     private PaperStatus status;
     private String summary;
     private Set<String> keywords;
-    private LocalDateTime presentationDate;
+    private LocalDateTime submittedAt;
     
     private Long congressId;
     private String congressName;
