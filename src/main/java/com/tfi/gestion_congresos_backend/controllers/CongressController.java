@@ -52,6 +52,7 @@ public class CongressController {
         responseCode = "200",
         description = "Congresos obtenidos correctamente"
     )
+    @PreAuthorize("@securityEvaluator.isSuperAdmin(authentication.principal)")
     @GetMapping
     public ResponseEntity<List<CongressResponseDTO>> getCongresses(
             @RequestParam(required = false) Boolean enabled
@@ -81,6 +82,7 @@ public class CongressController {
             description = "No se encontró un congreso con el código especificado"
         )
     })
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{code}")
     public ResponseEntity<CongressResponseDTO> getCongressByCode(
             @PathVariable String code
