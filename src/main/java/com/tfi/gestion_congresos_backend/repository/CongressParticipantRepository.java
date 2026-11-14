@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -11,6 +12,9 @@ import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 
 public interface CongressParticipantRepository extends JpaRepository<CongressParticipant, Long> {
+
+    @EntityGraph(attributePaths = "user")
+    List<CongressParticipant> findByCongress_CongressId(Long congressId);
 
     /// Verificar si un usuario activo tiene un rol en un congreso:
     @Query("""

@@ -20,6 +20,22 @@ import java.util.Optional;
 @Repository
 public interface PaperRepository extends JpaRepository<Paper, Long>, JpaSpecificationExecutor<Paper> {
 
+    @Query("""
+        SELECT DISTINCT p
+        FROM Paper p
+        LEFT JOIN FETCH p.authors pa
+        LEFT JOIN FETCH pa.author
+        WHERE p.congress.congressId = :congressId
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.ACCEPTED
+          AND (p.congress.isFree = true OR EXISTS (
+              SELECT pp.paperPaymentId
+              FROM PaperPayment pp
+              WHERE pp.paper = p
+                AND pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.APPROVED
+          ))
+        """)
+    List<Paper> findEligibleForAbstractBook(@Param("congressId") Long congressId);
+
     /// Busca todos los papers de un congreso por su ID:
     @Query("""
         SELECT DISTINCT p 
