@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
@@ -16,6 +17,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -147,8 +152,8 @@ public class PaperController {
     }
 
     @Operation(
-            summary = "Obtener todos los trabajos de un congreso",
-            description = "Obtiene la lista resumida de todos los trabajos de un congreso, identificado por su código."
+            summary = "Obtener trabajos de un congreso paginados y filtrados",
+            description = "Obtiene una página de trabajos resumidos de un congreso especificando su código, permitiendo aplicar filtros por estado, evaluador asignado, estado de pago y búsqueda por texto."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
@@ -157,9 +162,14 @@ public class PaperController {
             @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
-    @GetMapping
-    public ResponseEntity<List<PaperSummaryResponseDTO>> getPapersByCongress(@RequestParam String congressCode) {
-        return ResponseEntity.ok(paperService.getPapersByCongressCode(congressCode));
+    @GetMapping("/{congressCode}/papers")
+    public ResponseEntity<Page<PaperSummaryResponseDTO>> getPapersByCongress(
+            @PathVariable String congressCode,
+            @ModelAttribute PaperFilterDTO filter,
+            @PageableDefault(size = 10, sort = "presentationDate", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        Page<PaperSummaryResponseDTO> papersPage = paperService.getPaperSummariesByCongress(congressCode, filter, pageable);
+        return ResponseEntity.ok(papersPage);
     }
 
     @Operation(

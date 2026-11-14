@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.services;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
@@ -12,6 +13,9 @@ import com.tfi.gestion_congresos_backend.entities.Paper;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 public interface PaperService {
     // GETS
 	List<PaperSummaryResponseDTO> getAssignedPapers(String congressCode, String reviewerCode);
@@ -21,7 +25,8 @@ public interface PaperService {
     Paper getPaperByPaperId(Long paperId);
     PaperDetailResponseDTO getPaperByCode(String code);
     Paper getPaperEntityByCode(String code);
-    List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode);
+    //List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode);
+    Page<PaperSummaryResponseDTO> getPaperSummariesByCongress(String congressCode, PaperFilterDTO filter, Pageable pageable);
 
     // CREATE & UPDATE
     PaperDetailResponseDTO createPaper(PaperRequestDTO dto);

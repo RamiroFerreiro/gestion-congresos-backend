@@ -16,6 +16,8 @@ import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepositor
 import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
+import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.specification.PaperSpecification;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
@@ -30,6 +32,9 @@ import com.tfi.gestion_congresos_backend.utils.DateUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -244,16 +249,30 @@ public class PaperServiceImpl implements PaperService {
                 .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + code));
     }
 
+
     @Override
     @Transactional(readOnly = true)
-    public List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode) {
+    public Page<PaperSummaryResponseDTO> getPaperSummariesByCongress(String congressCode, PaperFilterDTO filter, Pageable pageable) {
+
+        // 1. Validar que el congreso exista
         Congress congress = congressService.getCongressEntityByCode(congressCode);
-        
+
         // Validar institución del usuario en el congreso
-        validateCurrentUserInstitution(congressCode);
-        
-        List<Paper> papers = paperRepository.findByCongressIdWithDetails(congress.getCongressId());
-        return paperMapper.toPaperSummaryResponseDTOList(papers);
+        //validateCurrentUserInstitution(congressCode);
+
+        // 2. Crear la Specification dinámica combinando congressCode + filtros
+        Specification<Paper> spec = PaperSpecification.filterPapers(congressCode, filter);
+
+        // 3. Ejecutar la consulta en el repositorio pasando spec y pageable
+        // 3. Ejecutar la proyección dinámica fluida nativa
+        Page<PaperSummaryProjection> projectionPage = paperRepository.findBy(
+                spec, 
+                q -> q.as(PaperSummaryProjection.class).page(pageable)
+        );
+        //Page<PaperSummaryProjection> projectionPage = paperRepository.findBy(spec, pageable);
+
+        // 4. Mapear a DTO con MapStruct
+        return projectionPage.map(paperMapper::toSummaryResponseDTO);
     }
 
     ///----------------------------------------------------------CREATE & UPDATE----------------------------------------------------------///

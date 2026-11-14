@@ -2,9 +2,14 @@ package com.tfi.gestion_congresos_backend.mapper;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.*;
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.UserSimpleProjection;
+
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
@@ -13,10 +18,42 @@ import java.util.List;
 @Mapper(componentModel = "spring", uses = {PaperAuthorMapper.class}, unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface PaperMapper {
 
-    // --- MAPEOS A SUMMARY ---
-    @Mapping(target = "congressCode", source = "congress.code")
-    @Mapping(target = "congressName", source = "congress.name")
-    PaperSummaryResponseDTO toPaperSummaryResponseDTO(Paper paper);
+    // =========================================================================
+    // 1. MAPEO DESDE ENTIDAD (Paper -> PaperSummaryResponseDTO)
+    // =========================================================================
+    @Mapping(target = "congressPaperType", source = "paper.congressPaperType.paperType")
+    @Mapping(target = "reviewerName", source = "paper.userReviewer", qualifiedByName = "formatReviewerFullName")
+    PaperSummaryResponseDTO toSummaryResponseDTO(Paper paper);
+
+    List<PaperSummaryResponseDTO> toSummaryResponseDTOList(List<Paper> papers);
+
+    // =========================================================================
+    // 2. MAPEO DESDE PROYECCIÓN (PaperSummaryProjection -> PaperSummaryResponseDTO)
+    // =========================================================================
+    @Mapping(target = "congressPaperType", source = "projection.congressPaperType.paperType")
+    @Mapping(target = "reviewerName", source = "projection.userReviewer", qualifiedByName = "formatReviewerProjectionFullName")
+    PaperSummaryResponseDTO toSummaryResponseDTO(PaperSummaryProjection projection);
+
+    List<PaperSummaryResponseDTO> toSummaryResponseDTOFromProjections(List<PaperSummaryProjection> projections);
+
+    // =========================================================================
+    // MÉTODOS AUXILIARES / HELPERS
+    // =========================================================================
+    @Named("formatReviewerFullName")
+    default String formatReviewerFullName(User userReviewer) {
+        if (userReviewer == null) {
+            return null;
+        }
+        return userReviewer.getFirstName() + " " + userReviewer.getLastName();
+    }
+
+    @Named("formatReviewerProjectionFullName")
+    default String formatReviewerName(UserSimpleProjection reviewer) {
+        if (reviewer == null) {
+            return null;
+        }
+        return reviewer.getFirstName() + " " + reviewer.getLastName();
+    }
 
     List<PaperSummaryResponseDTO> toPaperSummaryResponseDTOList(List<Paper> papers);
     
