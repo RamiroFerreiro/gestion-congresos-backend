@@ -1,6 +1,5 @@
 package com.tfi.gestion_congresos_backend.dtos.auth;
 
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 import lombok.*;
 
 @Getter
@@ -15,4 +14,5 @@ public class LoginResponseDTO {
     private String email;
     private String token;
     private boolean mustChangePassword;
+    private boolean superAdmin;
 }
