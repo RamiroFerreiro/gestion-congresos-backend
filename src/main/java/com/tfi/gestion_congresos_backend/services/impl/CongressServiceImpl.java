@@ -3,7 +3,6 @@ package com.tfi.gestion_congresos_backend.services.impl;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -11,6 +10,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
@@ -115,18 +115,9 @@ public class CongressServiceImpl implements CongressService {
 	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
 	///Devuelve el listado de congreso resumidos
 	public List<CongressSummaryDTO> getCongressesSummaryByEnabled(Boolean enabled) {
-
-		List<Congress> congressList = new ArrayList<>();
-
-		if(enabled != null){
-			congressList = congressRepository.findAllByEnabledWithThematicAreas(enabled);
-		}else{
-			congressList = congressRepository.findAllWithThematicAreas();
-		}
-
-		System.out.println(congressList);
-
-		return congressList.stream().map(congressMapper::toCongressResponseSummaryDTO).toList();
+		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
+				.map(congressMapper::toCongressResponseSummaryDTO)
+				.toList();
 	}
 
 	@Override
@@ -134,16 +125,27 @@ public class CongressServiceImpl implements CongressService {
 	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
 	///Devuelve el listado de congreso completos
 	public List<CongressResponseDTO> getCongressesByEnabled(Boolean enabled) {
+		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
+				.map(congressMapper::toCongressResponseDTO)
+				.toList();
+	}
 
-		List<Congress> congressList = new ArrayList<>();
+	private List<Congress> getCongressesVisibleToAuthenticatedUser(Boolean enabled) {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
 
-		if(enabled != null){
-			congressList = congressRepository.findAllByEnabledWithThematicAreas(enabled);
-		}else{
-			congressList = congressRepository.findAllWithThematicAreas();
+		if (authenticatedUser.isSuperAdmin()) {
+			return enabled == null
+					? congressRepository.findAllWithThematicAreas()
+					: congressRepository.findAllByEnabledWithThematicAreas(enabled);
 		}
 
-		return congressList.stream().map(congressMapper::toCongressResponseDTO).toList();
+		if (Boolean.FALSE.equals(enabled)) {
+			throw new AccessDeniedException(
+					"Solo los superadministradores pueden consultar congresos deshabilitados."
+			);
+		}
+
+		return congressRepository.findAllByEnabledWithThematicAreas(true);
 	}
 
 	

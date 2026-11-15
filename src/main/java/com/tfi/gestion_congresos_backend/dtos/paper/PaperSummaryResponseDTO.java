@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.dtos.paper;
 
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.PaperType;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -18,15 +19,17 @@ public class PaperSummaryResponseDTO {
     private String version;
 
     // Tipo de Trabajo
-    private String congressPaperType; // Ej: "POSTER"
+    private PaperType congressPaperType;
 
     // Estado Académico y Asignación
     private PaperStatus status;
+    private String congressCode;
+    private String congressName;
     private String reviewerName;
     
     // Estado Financiero
     private boolean pay;
 
     // Fechas y Autoría
-    private LocalDateTime presentationDate;
+    private LocalDateTime submittedAt;
 }

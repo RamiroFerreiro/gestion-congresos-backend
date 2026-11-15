@@ -46,13 +46,20 @@ public class CongressController {
 
     /// Obtener congresos (todos / activos / desactivados):
     @Operation(
-        summary = "Obtener resumen congresos según el estado indicado",
-        description = "Obtiene todos los congresos registrados o los que estén activos o desactivados.")
-    @ApiResponse(
-        responseCode = "200",
-        description = "Congresos obtenidos correctamente"
+        summary = "Obtener resumen de congresos según su estado",
+        description = """
+            Obtiene un listado resumido de congresos.
+            Los usuarios autenticados que no son superadministradores solo pueden consultar congresos habilitados;
+            el parámetro enabled se interpreta como true cuando se omite. Los superadministradores pueden consultar
+            todos los congresos o filtrar explícitamente por habilitados o deshabilitados.
+            """
     )
-    @PreAuthorize("@securityEvaluator.isSuperAdmin(authentication.principal)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Congresos obtenidos correctamente"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+        @ApiResponse(responseCode = "403", description = "Solo los superadministradores pueden consultar congresos deshabilitados")
+    })
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<List<CongressSummaryDTO>> getCongresses(
             @RequestParam(required = false) Boolean enabled) {

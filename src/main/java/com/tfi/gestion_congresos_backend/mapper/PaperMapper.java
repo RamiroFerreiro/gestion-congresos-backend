@@ -21,17 +21,27 @@ public interface PaperMapper {
     // =========================================================================
     // 1. MAPEO DESDE ENTIDAD (Paper -> PaperSummaryResponseDTO)
     // =========================================================================
+    @Mapping(target = "congressCode", source = "paper.congress.code")
+    @Mapping(target = "congressName", source = "paper.congress.name")
     @Mapping(target = "congressPaperType", source = "paper.congressPaperType.paperType")
-    @Mapping(target = "reviewerName", source = "paper.userReviewer", qualifiedByName = "formatReviewerFullName")
-    PaperSummaryResponseDTO toSummaryResponseDTO(Paper paper);
+    @Mapping(
+        target = "reviewerName",
+        expression = "java(paper.getCongress() != null && paper.getCongress().isSingleBlind() ? formatReviewerFullName(paper.getUserReviewer()) : null)"
+    )
+    PaperSummaryResponseDTO toPaperSummaryResponseDTO(Paper paper);
 
     List<PaperSummaryResponseDTO> toSummaryResponseDTOList(List<Paper> papers);
 
     // =========================================================================
     // 2. MAPEO DESDE PROYECCIÓN (PaperSummaryProjection -> PaperSummaryResponseDTO)
     // =========================================================================
+    @Mapping(target = "congressCode", source = "projection.congress.code")
+    @Mapping(target = "congressName", source = "projection.congress.name")
     @Mapping(target = "congressPaperType", source = "projection.congressPaperType.paperType")
-    @Mapping(target = "reviewerName", source = "projection.userReviewer", qualifiedByName = "formatReviewerProjectionFullName")
+    @Mapping(
+        target = "reviewerName",
+        expression = "java(projection.getCongress() != null && projection.getCongress().isSingleBlind() ? formatReviewerName(projection.getUserReviewer()) : null)"
+    )
     PaperSummaryResponseDTO toSummaryResponseDTO(PaperSummaryProjection projection);
 
     List<PaperSummaryResponseDTO> toSummaryResponseDTOFromProjections(List<PaperSummaryProjection> projections);
