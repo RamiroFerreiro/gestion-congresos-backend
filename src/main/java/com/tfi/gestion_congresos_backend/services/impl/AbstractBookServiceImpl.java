@@ -23,6 +23,7 @@ import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AbstractBookService;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 import com.tfi.gestion_congresos_backend.utils.AbstractBookWordGenerator;
 
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class AbstractBookServiceImpl implements AbstractBookService {
     private final SecurityEvaluator securityEvaluator;
     private final PaperRepository paperRepository;
     private final CongressParticipantRepository participantRepository;
+    private final CongressParticipantInstitutionValidator institutionValidator;
 
     @Override
     @Transactional(readOnly = true)
@@ -123,5 +125,7 @@ public class AbstractBookServiceImpl implements AbstractBookService {
         if (!securityEvaluator.isAdminOfCongress(authenticatedUser, congress.getCode())) {
             throw new UserDisabledException("Solo el administrador del congreso puede consultar o generar el Libro de Resúmenes.");
         }
+
+        institutionValidator.validateAuthenticatedParticipantInstitution(congress.getCode());
     }
 }
