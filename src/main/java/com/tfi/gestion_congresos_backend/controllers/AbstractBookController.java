@@ -37,14 +37,14 @@ public class AbstractBookController {
             summary = "Consultar trabajos del Libro de Resúmenes",
             description = """
                     Devuelve los trabajos que cumplen las condiciones para incorporarse al Libro de Resúmenes.
-                    
+
                     **Condiciones de inclusión:**
                     - El trabajo debe estar académicamente aprobado (`ACCEPTED`).
                     - Si el congreso es pago, además debe tener el pago verificado.
-                    
+
                     **Campos:** código, título, área temática, resumen, palabras clave y autores ordenados
                     (nombre, apellido, institución y email).
-                    
+
                     **Restricciones de acceso:**
                     - Requiere autenticación.
                     - El usuario debe ser **Administrador** del congreso o **Súper Administrador**.
@@ -67,13 +67,13 @@ public class AbstractBookController {
             description = """
                     Genera un documento Word (.docx) con la información estructurada de los trabajos
                     seleccionados, lista para armar el Libro de Resúmenes.
-                    
+
                     Cada trabajo incluye código, título, área temática, autores (en orden, con institución y email),
                     palabras clave y resumen.
 
                     Solo incluye trabajos académicamente aprobados (`ACCEPTED`). En congresos pagos,
                     el comprobante debe estar verificado (`APPROVED`). Los congresos gratuitos no requieren pago.
-                    
+
                     **Restricciones de acceso:**
                     - Requiere autenticación.
                     - El usuario debe ser **Administrador** del congreso o **Súper Administrador**.
