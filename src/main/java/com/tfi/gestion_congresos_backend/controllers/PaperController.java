@@ -162,7 +162,7 @@ public class PaperController {
             @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{congressCode}/papers")
+    @GetMapping("/congresses/{congressCode}")
     public ResponseEntity<Page<PaperSummaryResponseDTO>> getPapersByCongress(
             @PathVariable String congressCode,
             @ModelAttribute PaperFilterDTO filter,

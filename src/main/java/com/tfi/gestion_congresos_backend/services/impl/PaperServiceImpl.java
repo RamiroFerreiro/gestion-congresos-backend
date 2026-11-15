@@ -257,21 +257,19 @@ public class PaperServiceImpl implements PaperService {
         // 1. Validar que el congreso exista
         Congress congress = congressService.getCongressEntityByCode(congressCode);
 
-        // Validar institución del usuario en el congreso
-        //validateCurrentUserInstitution(congressCode);
+        // 2. Validar institución del usuario en el congreso
+        validateCurrentUserInstitution(congressCode);
 
-        // 2. Crear la Specification dinámica combinando congressCode + filtros
+        // 3. Crear la Specification dinámica combinando congressCode + filtros
         Specification<Paper> spec = PaperSpecification.filterPapers(congressCode, filter);
 
-        // 3. Ejecutar la consulta en el repositorio pasando spec y pageable
-        // 3. Ejecutar la proyección dinámica fluida nativa
+        // 4. Ejecutar la consulta en el repositorio pasando spec y pageable
         Page<PaperSummaryProjection> projectionPage = paperRepository.findBy(
                 spec, 
                 q -> q.as(PaperSummaryProjection.class).page(pageable)
         );
-        //Page<PaperSummaryProjection> projectionPage = paperRepository.findBy(spec, pageable);
 
-        // 4. Mapear a DTO con MapStruct
+        // 5. Mapear a DTO con MapStruct
         return projectionPage.map(paperMapper::toSummaryResponseDTO);
     }
 

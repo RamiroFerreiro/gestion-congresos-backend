@@ -10,10 +10,12 @@ public interface PaperSummaryProjection {
     String getThematicArea();
     String getVersion();
     PaperStatus getStatus();
+    LocalDateTime getSubmittedAt();
     boolean isPay();
     LocalDateTime getPresentationDate();
 
     //Relaciones de la Entidad Paper
+    CongressSummaryProjection getCongress();
     CongressPaperTypeProjection getCongressPaperType();
     UserSimpleProjection getUserReviewer();
 }
