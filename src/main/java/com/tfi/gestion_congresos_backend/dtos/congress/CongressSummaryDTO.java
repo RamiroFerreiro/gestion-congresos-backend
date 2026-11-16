@@ -15,9 +15,12 @@ public class CongressSummaryDTO {
     private String name;
     private String place;
     
+    private LocalDateTime registrationStartDate;
+    private LocalDateTime registrationEndDate;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private LocalDateTime presentationEndDate; // Fecha límite Call for Papers
+    private LocalDateTime presentationStartDate;
+    private LocalDateTime presentationEndDate;
     private Set<String> thematicAreas;
     
     private Boolean isFree;

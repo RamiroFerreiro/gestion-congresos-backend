@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
@@ -90,6 +91,27 @@ public class CongressController {
 
         return ResponseEntity.ok(
             congressService.getCongressDTOByCode(code)
+        );
+    }
+
+    @Operation(
+        summary = "Obtener reglas para la presentación de trabajos",
+        description = "Devuelve únicamente la configuración necesaria para crear o editar un trabajo. Requiere una participación activa con institución completa."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Reglas obtenidas correctamente"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+        @ApiResponse(responseCode = "403", description = "El usuario debe completar su institución"),
+        @ApiResponse(responseCode = "404", description = "No se encontró el congreso o una participación activa del usuario")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/{code}/paper-submission-rules")
+    public ResponseEntity<CongressPaperSubmissionRulesDTO> getPaperSubmissionRules(
+            @PathVariable String code
+    ) {
+
+        return ResponseEntity.ok(
+            congressService.getPaperSubmissionRulesByCongressCode(code)
         );
     }
 

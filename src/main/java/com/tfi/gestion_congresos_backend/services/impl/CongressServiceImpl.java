@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
@@ -174,6 +175,15 @@ public class CongressServiceImpl implements CongressService {
 	    institutionValidator.validateAuthenticatedParticipantInstitution(code);
 
 	    return congressMapper.toCongressResponseDTO(congress);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public CongressPaperSubmissionRulesDTO getPaperSubmissionRulesByCongressCode(String code) {
+		Congress congress = getCongressEntityByCode(code);
+		institutionValidator.validateAuthenticatedParticipantInstitution(code);
+
+		return congressMapper.toCongressPaperSubmissionRulesDTO(congress);
 	}
 	
 	@Override
