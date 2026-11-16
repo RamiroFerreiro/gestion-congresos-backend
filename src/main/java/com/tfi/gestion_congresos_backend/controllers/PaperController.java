@@ -166,7 +166,7 @@ public class PaperController {
     public ResponseEntity<Page<PaperSummaryResponseDTO>> getPapersByCongress(
             @PathVariable String congressCode,
             @ModelAttribute PaperFilterDTO filter,
-            @PageableDefault(size = 10, sort = "presentationDate", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
         Page<PaperSummaryResponseDTO> papersPage = paperService.getPaperSummariesByCongress(congressCode, filter, pageable);
         return ResponseEntity.ok(papersPage);

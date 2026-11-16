@@ -12,7 +12,6 @@ public interface PaperSummaryProjection {
     PaperStatus getStatus();
     LocalDateTime getSubmittedAt();
     boolean isPay();
-    LocalDateTime getPresentationDate();
 
     //Relaciones de la Entidad Paper
     CongressSummaryProjection getCongress();
