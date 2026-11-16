@@ -5,6 +5,7 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
@@ -15,6 +16,7 @@ public interface CongressMapper {
 	// De entidad a DTO de respuesta:
     CongressResponseDTO toCongressResponseDTO(Congress congress);
     CongressSummaryDTO toCongressResponseSummaryDTO(Congress congress);
+    CongressPaperSubmissionRulesDTO toCongressPaperSubmissionRulesDTO(Congress congress);
 
     // De DTO de creación a entidad:
     Congress toEntity(CongressRequestDTO dto);

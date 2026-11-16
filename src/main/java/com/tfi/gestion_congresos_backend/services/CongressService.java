@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.services;
 import java.util.List;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
@@ -18,6 +19,8 @@ public interface CongressService {
 	List<CongressSummaryDTO> getCongressesSummaryByEnabled(Boolean enabled);
 	
 	CongressResponseDTO getCongressDTOByCode(String code);
+
+	CongressPaperSubmissionRulesDTO getPaperSubmissionRulesByCongressCode(String code);
 	
 	CongressResponseDTO createCongress(CongressRequestDTO congressRequestDTO);
 	

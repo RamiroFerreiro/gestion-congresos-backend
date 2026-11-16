@@ -710,7 +710,7 @@ public class PaperServiceImpl implements PaperService {
 
         // Descartar solicitudes únicamente si el responsable confirmó
         if (!pendingRequests.isEmpty()) {
-            paperAuthorRepository.deleteAll(pendingRequests);
+            paper.getAuthors().removeAll(pendingRequests);
         }
         
         // Determinar el estado anterior del trabajo
