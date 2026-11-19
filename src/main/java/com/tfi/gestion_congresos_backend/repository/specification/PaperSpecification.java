@@ -8,7 +8,9 @@ import org.springframework.util.StringUtils;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 
 public class PaperSpecification {
@@ -53,6 +55,31 @@ public class PaperSpecification {
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * Limita el listado a los trabajos cuya asignación actual pertenece al evaluador.
+     */
+    public static Specification<Paper> assignedToReviewer(Long reviewerId) {
+        return (root, query, cb) -> cb.equal(
+                root.get("userReviewer").get("userId"),
+                reviewerId
+        );
+    }
+
+    /**
+     * Limita el listado a los trabajos en los que el usuario es autor aceptado.
+     */
+    public static Specification<Paper> acceptedAuthor(Long userId) {
+        return (root, query, cb) -> {
+            var author = root.join("authors", JoinType.INNER);
+            query.distinct(true);
+
+            return cb.and(
+                    cb.equal(author.get("author").get("userId"), userId),
+                    cb.equal(author.get("status"), PaperAuthorStatus.ACCEPTED)
+            );
         };
     }
 }

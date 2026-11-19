@@ -153,7 +153,7 @@ public class PaperController {
 
     @Operation(
             summary = "Obtener trabajos de un congreso paginados y filtrados",
-            description = "Obtiene una página de trabajos resumidos de un congreso especificando su código, permitiendo aplicar filtros por estado, evaluador asignado, estado de pago y búsqueda por texto."
+            description = "Obtiene una página de trabajos resumidos de un congreso especificando su código, permitiendo aplicar filtros por estado, evaluador asignado, estado de pago y búsqueda por texto. Los administradores del congreso y superadministradores ven todos los trabajos; los evaluadores solo ven los actualmente asignados y los autores aceptados solo sus propios trabajos."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
@@ -311,8 +311,6 @@ public class PaperController {
 
                     **Reglas de negocio:**
                     - El trabajo debe tener un evaluador asignado.
-                    - El evaluador anterior debe haber dejado de cumplir
-                      las condiciones para evaluar en el congreso.
                     - El nuevo evaluador debe tener cuenta global habilitada,
                       participación activa y rol EVALUATOR.
                     - No se permite reasignar trabajos ACCEPTED o REJECTED.

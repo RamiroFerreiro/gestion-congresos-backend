@@ -255,13 +255,32 @@ public class PaperServiceImpl implements PaperService {
     public Page<PaperSummaryResponseDTO> getPaperSummariesByCongress(String congressCode, PaperFilterDTO filter, Pageable pageable) {
 
         // 1. Validar que el congreso exista
-        Congress congress = congressService.getCongressEntityByCode(congressCode);
+        congressService.getCongressEntityByCode(congressCode);
 
         // 2. Validar institución del usuario en el congreso
         validateCurrentUserInstitution(congressCode);
 
-        // 3. Crear la Specification dinámica combinando congressCode + filtros
+        // 3. Limitar el listado a los trabajos que el usuario puede consultar.
+        // Administradores y superadministradores pueden ver todos los trabajos;
+        // los evaluadores solo los que tienen asignados y los autores aceptados
+        // solo aquellos en los que participan.
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
         Specification<Paper> spec = PaperSpecification.filterPapers(congressCode, filter);
+
+        boolean canViewAll = securityEvaluator.isSuperAdmin(authenticatedUser)
+                || securityEvaluator.isAdminOfCongress(authenticatedUser, congressCode);
+
+        if (!canViewAll) {
+            if (securityEvaluator.isEvaluatorOfCongress(authenticatedUser, congressCode)) {
+                spec = spec.and(
+                        PaperSpecification.assignedToReviewer(authenticatedUser.getUserId())
+                );
+            } else {
+                spec = spec.and(
+                        PaperSpecification.acceptedAuthor(authenticatedUser.getUserId())
+                );
+            }
+        }
 
         // 4. Ejecutar la consulta en el repositorio pasando spec y pageable
         Page<PaperSummaryProjection> projectionPage = paperRepository.findBy(
@@ -521,29 +540,14 @@ public class PaperServiceImpl implements PaperService {
             );
         }
 
-        // 8. Verificar que el evaluador anterior haya dejado de ser elegible
-        boolean previousReviewerStillEligible =
-                previousReviewer.isEnabled()
-                && securityEvaluator.hasRoleInCongress(
-                        previousReviewer,
-                        congressCode,
-                        RoleName.EVALUATOR
-                );
-
-        if (previousReviewerStillEligible) {
-            throw new ArgumentNotValidException(
-                    "El evaluador asignado todavía se encuentra habilitado para evaluar en este congreso."
-            );
-        }
-
-        // 9. Evitar reasignar al mismo evaluador
+        // 8. Evitar reasignar al mismo evaluador
         if (previousReviewer.getCode().equals(newReviewerCode)) {
             throw new ArgumentNotValidException(
                     "El nuevo evaluador debe ser diferente del evaluador anterior."
             );
         }
 
-        // 10. Buscar la participación activa del nuevo evaluador
+        // 9. Buscar la participación activa del nuevo evaluador
         CongressParticipant newReviewerParticipant =
                 congressParticipantRepository.findActiveParticipantByUserCodeAndCongressCode(
                 		newReviewerCode,
@@ -554,21 +558,21 @@ public class PaperServiceImpl implements PaperService {
 
         User newReviewer = newReviewerParticipant.getUser();
 
-        // 11. Verificar que la cuenta global esté habilitada
+        // 10. Verificar que la cuenta global esté habilitada
         if (!newReviewer.isEnabled()) {
             throw new ArgumentNotValidException(
                     "No se puede asignar un evaluador cuya cuenta esté deshabilitada."
             );
         }
 
-        // 12. Verificar que tenga el rol EVALUATOR en este congreso
+        // 11. Verificar que tenga el rol EVALUATOR en este congreso
         if (newReviewerParticipant.getRole().getName() != RoleName.EVALUATOR) {
             throw new ArgumentNotValidException(
                     "El usuario seleccionado no tiene el rol EVALUATOR en este congreso."
             );
         }
 
-        // 13. Verificar que el nuevo evaluador no sea autor del trabajo
+        // 12. Verificar que el nuevo evaluador no sea autor del trabajo
         if (securityEvaluator.isParticipantOfPaper(
                 paper.getPaperId(),
                 newReviewer.getUserId())) {
@@ -578,19 +582,21 @@ public class PaperServiceImpl implements PaperService {
             );
         }
         
-        // 14. Registrar el momento de la reasignación
+        // 13. Registrar el momento de la reasignación
         LocalDateTime reassignmentDate = DateUtils.now();
 
-        // 15. Actualizar el evaluador asignado
+        // 14. Actualizar el evaluador asignado. Las evaluaciones anteriores
+        // permanecen vinculadas al paper y quedan disponibles para quien
+        // recibe la asignación actual.
         paper.setUserReviewer(newReviewer);
 
-        // 16. Guardar los cambios
+        // 15. Guardar los cambios
         Paper savedPaper = paperRepository.save(paper);
 
         notifyReviewerReassignment(previousReviewer, savedPaper, reassignmentDate);
         notifyReviewerAssignment(newReviewer, savedPaper, reassignmentDate);
         
-     	// 19. Notificar a los autores aceptados sobre la nueva asignación del evaluador (PRE-M02)
+        // 18. Notificar a los autores aceptados sobre la nueva asignación del evaluador (PRE-M02)
         notifyAcceptedAuthorsAboutReviewerAssignment(savedPaper, newReviewer);
 
         return new MessageResponseDTO("Evaluador reasignado con éxito");
