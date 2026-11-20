@@ -3,6 +3,7 @@ package com.tfi.gestion_congresos_backend.controllers;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ParticipantPaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Set;
+
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 @RestController
 @RequestMapping("/api/papers")
@@ -170,6 +173,28 @@ public class PaperController {
 
         Page<PaperSummaryResponseDTO> papersPage = paperService.getPaperSummariesByCongress(congressCode, filter, pageable);
         return ResponseEntity.ok(papersPage);
+    }
+
+    @Operation(
+            summary = "Obtener la bandeja personal de trabajos del participante",
+            description = "Devuelve de forma paginada únicamente los trabajos del congreso en los que el usuario autenticado es autor ACCEPTED. Incluye el estado de pago, la posibilidad de cargar comprobante y la última actividad visible para el autor, sin exponer información de evaluadores."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Bandeja personal obtenida correctamente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Institución incompleta para el congreso"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el congreso o una participación activa")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/congresses/{congressCode}/mine")
+    public ResponseEntity<Page<ParticipantPaperSummaryResponseDTO>> getMyPapersByCongress(
+            @PathVariable String congressCode,
+            @RequestParam(required = false) PaperStatus status,
+            @PageableDefault(size = 10, sort = "lastActivityAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return ResponseEntity.ok(
+                paperService.getMyPaperSummariesByCongress(congressCode, status, pageable)
+        );
     }
 
     @Operation(
