@@ -35,8 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -64,13 +67,15 @@ public class EvaluationServiceImpl implements EvaluationService {
         Paper paper = findPaperOrThrow(paperCode);
         Congress congress = paper.getCongress();
 
+        boolean isAdministrativeViewer = securityEvaluator.isSuperAdmin(user)
+                || securityEvaluator.isAdminOfCongress(user, congress.getCode());
+        boolean isAssignedReviewer = !isAdministrativeViewer
+                && securityEvaluator.isAssignedReviewer(user, paper);
+        boolean privileged = isAdministrativeViewer || isAssignedReviewer;
+        boolean isAcceptedAuthor = !privileged
+                && securityEvaluator.isAcceptedAuthor(user, paper);
 
-        
-        boolean privileged = securityEvaluator.isSuperAdminOr(user, () ->
-                securityEvaluator.isAssignedReviewer(user, paper)
-                || securityEvaluator.isAdminOfCongress(user, congress.getCode()));
-
-        if (!privileged && !securityEvaluator.isAcceptedAuthor(user, paper)) {
+        if (!privileged && !isAcceptedAuthor) {
             throw new UserDisabledException(
                     "No tenés permisos para ver las evaluaciones de este trabajo.");
         }
@@ -88,7 +93,20 @@ public class EvaluationServiceImpl implements EvaluationService {
                     .toList();
         }
 
-        return evaluations.stream().map(evaluationMapper::toResponseDTO).collect(Collectors.toList());
+        List<EvaluationResponseDTO> response = evaluations.stream()
+                .map(evaluationMapper::toResponseDTO)
+                .collect(Collectors.toList());
+
+        response.forEach(this::clearEvaluatorIdentity);
+
+        boolean canViewEvaluatorIdentity = isAdministrativeViewer
+                || (isAcceptedAuthor && congress.isSingleBlind());
+
+        if (canViewEvaluatorIdentity) {
+            populateEvaluatorIdentity(evaluations, response);
+        }
+
+        return response;
     }
 
     @Override
@@ -208,6 +226,50 @@ public class EvaluationServiceImpl implements EvaluationService {
     private Paper findPaperOrThrow(String paperCode) {
         return paperRepository.findByCode(paperCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Paper no encontrado con código: " + paperCode));
+    }
+
+    private void clearEvaluatorIdentity(EvaluationResponseDTO evaluationResponse) {
+        evaluationResponse.setEvaluatorCode(null);
+        evaluationResponse.setEvaluatorFullName(null);
+    }
+
+    private void populateEvaluatorIdentity(
+            List<Evaluation> evaluations,
+            List<EvaluationResponseDTO> response
+    ) {
+        Set<String> evaluatorCodes = evaluations.stream()
+                .map(Evaluation::getCreatedBy)
+                .filter(this::isHistoricalEvaluatorCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (evaluatorCodes.isEmpty()) {
+            return;
+        }
+
+        Map<String, User> evaluatorsByCode = userRepository.findByCodeIn(evaluatorCodes)
+                .stream()
+                .collect(Collectors.toMap(User::getCode, Function.identity()));
+
+        for (int index = 0; index < evaluations.size(); index++) {
+            String evaluatorCode = evaluations.get(index).getCreatedBy();
+            User evaluator = evaluatorsByCode.get(evaluatorCode);
+
+            if (evaluator == null) {
+                continue;
+            }
+
+            EvaluationResponseDTO evaluationResponse = response.get(index);
+            evaluationResponse.setEvaluatorCode(evaluatorCode);
+            evaluationResponse.setEvaluatorFullName(
+                    evaluator.getFirstName() + " " + evaluator.getLastName()
+            );
+        }
+    }
+
+    private boolean isHistoricalEvaluatorCode(String evaluatorCode) {
+        return evaluatorCode != null
+                && !evaluatorCode.isBlank()
+                && !"SYSTEM".equals(evaluatorCode);
     }
 
     private void validateResultAndDeadline(EvaluationRequestDTO dto, Congress congress) {
