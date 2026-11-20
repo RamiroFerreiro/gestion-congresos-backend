@@ -20,6 +20,7 @@ import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import com.tfi.gestion_congresos_backend.enums.PaymentStatus;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaperActivityType;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
@@ -142,10 +143,13 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         //14. Asignar datos del comprobante
         payment.setFileName(file.getOriginalFilename());
         payment.setFilePath(savedPath);
-        payment.setUploadDate(DateUtils.now());
+        LocalDateTime uploadDate = DateUtils.now();
+        payment.setUploadDate(uploadDate);
         payment.setStatus(PaymentStatus.PENDING_APPROVAL); 
         payment.setAmountPaid(paper.getCongressPaperType().getAmount()); 
         payment.setObservations(null);
+        paper.setLastActivityType(ParticipantPaperActivityType.PAYMENT_UPLOADED);
+        paper.setLastActivityAt(uploadDate);
 
         //15. Persistir en la base de datos
         PaperPayment savedPayment = paymentRepository.save(payment);
@@ -270,6 +274,12 @@ public class PaperPaymentServiceImpl implements PaperPaymentService {
         if (updateDTO.getStatus() == PaymentStatus.APPROVED) {
             paper.setPay(true);
             verificationDate = DateUtils.now();
+            paper.setLastActivityType(ParticipantPaperActivityType.PAYMENT_VERIFIED);
+            paper.setLastActivityAt(verificationDate);
+        } else if (updateDTO.getStatus() == PaymentStatus.REJECTED) {
+            LocalDateTime rejectionDate = DateUtils.now();
+            paper.setLastActivityType(ParticipantPaperActivityType.PAYMENT_REJECTED);
+            paper.setLastActivityAt(rejectionDate);
         }
 
         //11. Guardar cambios
