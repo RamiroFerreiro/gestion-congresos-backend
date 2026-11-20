@@ -4,6 +4,9 @@ package com.tfi.gestion_congresos_backend.repository;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantPaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +52,44 @@ public interface PaperRepository extends JpaRepository<Paper, Long>, JpaSpecific
     boolean existsByCode(String code);
 
     Optional<Paper> findByCode(String code);
+
+    @Query(value = """
+        SELECT p.code AS code,
+               p.title AS title,
+               p.version AS version,
+               p.status AS status,
+               p.submittedAt AS submittedAt,
+               pa.isMainAuthor AS responsibleAuthor,
+               c.isFree AS freeCongress,
+               pp.status AS rawPaymentStatus,
+               p.lastActivityType AS lastActivityType,
+               p.lastActivityAt AS lastActivityAt
+        FROM Paper p
+        JOIN p.congress c
+        JOIN p.authors pa
+        LEFT JOIN PaperPayment pp ON pp.paper = p
+        WHERE c.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedStatus
+          AND (:status IS NULL OR p.status = :status)
+        """,
+        countQuery = """
+        SELECT COUNT(p)
+        FROM Paper p
+        JOIN p.congress c
+        JOIN p.authors pa
+        WHERE c.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedStatus
+          AND (:status IS NULL OR p.status = :status)
+        """)
+    Page<ParticipantPaperSummaryProjection> findParticipantPaperSummaries(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedStatus") PaperAuthorStatus acceptedStatus,
+            @Param("status") PaperStatus status,
+            Pageable pageable
+    );
     
     /// Busca los trabajos asignados a un evaluador dentro de un congreso
     @EntityGraph(attributePaths = "congress")

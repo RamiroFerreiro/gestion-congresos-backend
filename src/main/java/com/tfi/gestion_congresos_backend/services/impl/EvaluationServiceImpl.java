@@ -11,6 +11,7 @@ import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaperActivityType;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -26,6 +27,7 @@ import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -172,16 +174,17 @@ public class EvaluationServiceImpl implements EvaluationService {
         Evaluation evaluation = evaluationMapper.toEntity(requestDTO);
         evaluation.setPaper(paper);
         evaluation.setEvaluatedVersion(paper.getVersion());   // ANTES del resultado: el snapshot debe decir "1.0"
-        evaluation.setEvaluationDate(LocalDateTime.now());
+        evaluation.setEvaluationDate(DateUtils.now());
         evaluation.setNewStatus(requestDTO.getNewStatus());
 
         boolean immediate = congress.getEvaluationReleaseMode() == EvaluationReleaseMode.IMMEDIATE;
         evaluation.setReleased(immediate);
-        evaluation.setReleasedAt(immediate ? LocalDateTime.now() : null);
+        evaluation.setReleasedAt(immediate ? DateUtils.now() : null);
 
         Evaluation saved = evaluationRepository.save(evaluation);
         if (immediate) {
             applyResult(saved);
+            recordEvaluationReleasedActivity(saved.getPaper(), saved.getReleasedAt());
         }
         return evaluationMapper.toResponseDTO(saved);
     }
@@ -207,12 +210,13 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         List<Evaluation> pending = evaluationRepository.findByPaper_Congress_CodeAndIsReleasedFalse(congressCode);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateUtils.now();
 
         for (Evaluation evaluation : pending) {
             evaluation.setReleased(true);
             evaluation.setReleasedAt(now);
             applyResult(evaluation);
+            recordEvaluationReleasedActivity(evaluation.getPaper(), now);
         }
         evaluationRepository.saveAll(pending);
 
@@ -302,6 +306,11 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         notifyAuthors(evaluation);
+    }
+
+    private void recordEvaluationReleasedActivity(Paper paper, LocalDateTime releasedAt) {
+        paper.setLastActivityType(ParticipantPaperActivityType.EVALUATION_RELEASED);
+        paper.setLastActivityAt(releasedAt);
     }
 
     private void notifyAuthors(Evaluation evaluation) {

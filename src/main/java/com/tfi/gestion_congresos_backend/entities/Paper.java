@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaperActivityType;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
@@ -73,6 +74,13 @@ public class Paper extends AuditableEntity{
 	
 	@Column(name = "submitted_at", nullable = true)
 	private LocalDateTime submittedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_activity_type")
+    private ParticipantPaperActivityType lastActivityType;
+
+    @Column(name = "last_activity_at")
+    private LocalDateTime lastActivityAt;
 	
 	@Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
