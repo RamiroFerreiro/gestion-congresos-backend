@@ -16,6 +16,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
@@ -25,6 +26,8 @@ import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.CongressPaperType;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperType;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
@@ -39,6 +42,8 @@ import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.FinancialMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomeAcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomePaymentMetricsProjection;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
@@ -63,6 +68,52 @@ public class CongressServiceImpl implements CongressService {
 	private final PaperPaymentRepository paperPaymentRepository;
 	private final CongressDashboardMapper dashboardMapper;
 	private final EmailService emailService;
+
+	@Override
+	@Transactional(readOnly = true)
+	public ParticipantHomeResponseDTO getParticipantHome(String congressCode) {
+		Congress congress = getCongressEntityByCode(congressCode);
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		CongressParticipant participant = institutionValidator
+				.requireAuthenticatedActiveParticipantWithInstitution(congressCode);
+
+		RoleName role = participant.getRole().getName();
+		if (role != RoleName.LISTENER && role != RoleName.EXPOSITOR) {
+			throw new AccessDeniedException(
+					"Solo los participantes con rol LISTENER o EXPOSITOR pueden acceder al inicio personal."
+			);
+		}
+
+		ParticipantHomeAcademicMetricsProjection academicMetrics = paperRepository
+				.getParticipantHomeAcademicMetrics(
+						congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+
+		long paymentsWithoutValidReceipt = 0;
+		long paymentsPendingApproval = 0;
+		long paymentsVerified = 0;
+		if (!congress.isFree()) {
+			ParticipantHomePaymentMetricsProjection paymentMetrics = paperRepository
+					.getParticipantHomePaymentMetrics(
+							congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+			paymentsWithoutValidReceipt = paymentMetrics.getPaymentsWithoutValidReceipt();
+			paymentsPendingApproval = paymentMetrics.getPaymentsPendingApproval();
+			paymentsVerified = paymentMetrics.getPaymentsVerified();
+		}
+
+		return ParticipantHomeResponseDTO.builder()
+				.congressCode(congress.getCode())
+				.congressName(congress.getName())
+				.place(congress.getPlace())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.totalAssociatedPapers(academicMetrics.getTotalAssociatedPapers())
+				.drafts(academicMetrics.getDrafts())
+				.needsRevision(academicMetrics.getNeedsRevision())
+				.underEvaluation(academicMetrics.getUnderEvaluation())
+				.paymentsWithoutValidReceipt(paymentsWithoutValidReceipt)
+				.paymentsPendingApproval(paymentsPendingApproval)
+				.paymentsVerified(paymentsVerified)
+				.build();
+	}
 
 	@Override
 	public CongressDashboardResponseDTO getDashboardMetrics(String congressCode) {

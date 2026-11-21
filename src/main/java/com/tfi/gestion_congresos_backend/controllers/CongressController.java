@@ -20,6 +20,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.CongressService;
@@ -276,5 +277,22 @@ public class CongressController {
 
         CongressDashboardResponseDTO dashboardMetrics = congressService.getDashboardMetrics(congressCode);
         return ResponseEntity.ok(dashboardMetrics);
+    }
+
+    @Operation(
+        summary = "Obtener inicio personal del participante",
+        description = "Devuelve Ãºnicamente las mÃ©tricas propias de trabajos y pagos del participante autenticado. "
+                + "Requiere una participaciÃ³n activa, instituciÃ³n completa y rol LISTENER o EXPOSITOR."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Resumen personal obtenido correctamente"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado o token invÃ¡lido"),
+        @ApiResponse(responseCode = "403", description = "ParticipaciÃ³n inactiva, instituciÃ³n incompleta o rol no elegible"),
+        @ApiResponse(responseCode = "404", description = "No se encontrÃ³ el congreso")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/{congressCode}/participant-home")
+    public ResponseEntity<ParticipantHomeResponseDTO> getParticipantHome(@PathVariable String congressCode) {
+        return ResponseEntity.ok(congressService.getParticipantHome(congressCode));
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
+import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
@@ -50,5 +51,34 @@ public class CongressParticipantInstitutionValidator {
                     "Debés completar tu institución antes de acceder a las funcionalidades del congreso."
             );
         }
+    }
+
+    /**
+     * Validates the participant requirements for personal participant-only resources.
+     * Unlike the historical validator above, a missing/inactive participation is an
+     * authorization failure and super administrators are not exempt: these resources
+     * are available exclusively to actual congress participants.
+     */
+    @Transactional(readOnly = true)
+    public CongressParticipant requireAuthenticatedActiveParticipantWithInstitution(String congressCode) {
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+        if (!authenticatedUser.isEnabled()) {
+            throw new UserDisabledException("El usuario autenticado se encuentra deshabilitado.");
+        }
+
+        CongressParticipant participant = congressParticipantRepository
+                .findActiveParticipantByUserCodeAndCongressCode(authenticatedUser.getCode(), congressCode)
+                .orElseThrow(() -> new AccessDeniedException(
+                        "El usuario no posee una participaciÃ³n activa en el congreso."
+                ));
+
+        if (participant.getInstitution() == null || participant.getInstitution().isBlank()) {
+            throw new AccessDeniedException(
+                    "DebÃ©s completar tu instituciÃ³n antes de acceder a las funcionalidades del congreso."
+            );
+        }
+
+        return participant;
     }
 }
