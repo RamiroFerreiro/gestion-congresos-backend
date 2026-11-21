@@ -5,6 +5,8 @@ import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.ParticipantPaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomeAcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomePaymentMetricsProjection;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
@@ -89,6 +91,47 @@ public interface PaperRepository extends JpaRepository<Paper, Long>, JpaSpecific
             @Param("acceptedStatus") PaperAuthorStatus acceptedStatus,
             @Param("status") PaperStatus status,
             Pageable pageable
+    );
+
+    @Query("""
+        SELECT COUNT(DISTINCT p) AS totalAssociatedPapers,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED THEN 1 ELSE 0 END), 0) AS drafts,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NEEDS_REVISION THEN 1 ELSE 0 END), 0) AS needsRevision,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.UNDER_EVALUATION THEN 1 ELSE 0 END), 0) AS underEvaluation
+        FROM Paper p
+        JOIN p.authors pa
+        WHERE p.congress.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedAuthorStatus
+        """)
+    ParticipantHomeAcademicMetricsProjection getParticipantHomeAcademicMetrics(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedAuthorStatus") PaperAuthorStatus acceptedAuthorStatus
+    );
+
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN pp.paperPaymentId IS NULL
+                              OR pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.REJECTED
+                         THEN 1 ELSE 0 END), 0) AS paymentsWithoutValidReceipt,
+               COALESCE(SUM(CASE WHEN pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.PENDING_APPROVAL
+                         THEN 1 ELSE 0 END), 0) AS paymentsPendingApproval,
+               COALESCE(SUM(CASE WHEN pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.APPROVED
+                         THEN 1 ELSE 0 END), 0) AS paymentsVerified
+        FROM Paper p
+        JOIN p.authors pa
+        LEFT JOIN PaperPayment pp ON pp.paper = p
+        WHERE p.congress.code = :congressCode
+          AND p.congress.isFree = false
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.ACCEPTED
+          AND pa.author.userId = :userId
+          AND pa.isMainAuthor = true
+          AND pa.status = :acceptedAuthorStatus
+        """)
+    ParticipantHomePaymentMetricsProjection getParticipantHomePaymentMetrics(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedAuthorStatus") PaperAuthorStatus acceptedAuthorStatus
     );
     
     /// Busca los trabajos asignados a un evaluador dentro de un congreso

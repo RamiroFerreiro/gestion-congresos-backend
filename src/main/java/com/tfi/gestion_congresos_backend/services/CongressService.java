@@ -6,6 +6,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
@@ -33,5 +34,7 @@ public interface CongressService {
 	Congress getCongressEntityByCode(String code);
 
 	CongressDashboardResponseDTO getDashboardMetrics(String congressCode);
+
+	ParticipantHomeResponseDTO getParticipantHome(String congressCode);
 
 }
