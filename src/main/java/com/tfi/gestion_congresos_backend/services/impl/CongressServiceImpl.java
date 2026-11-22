@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRu
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.MyCongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
@@ -170,6 +172,41 @@ public class CongressServiceImpl implements CongressService {
 		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
 				.map(congressMapper::toCongressResponseSummaryDTO)
 				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<MyCongressSummaryDTO> getMyCongresses() {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+		if (authenticatedUser.isSuperAdmin()) {
+			return congressRepository.findAllWithThematicAreas().stream()
+					.map(congress -> toMyCongressSummary(congress, "SUPER_ADMIN", null))
+					.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+					.toList();
+		}
+
+		return congressParticipantRepository.findActiveParticipationsByUserId(authenticatedUser.getUserId())
+				.stream()
+				.map(participant -> toMyCongressSummary(
+						participant.getCongress(), participant.getRole().getName().name(), participant.getInstitution()))
+				.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+				.toList();
+	}
+
+	private MyCongressSummaryDTO toMyCongressSummary(Congress congress, String role, String institution) {
+		return MyCongressSummaryDTO.builder()
+				.code(congress.getCode())
+				.name(congress.getName())
+				.place(congress.getPlace())
+				.enabled(congress.isEnabled())
+				.startDate(congress.getStartDate())
+				.endDate(congress.getEndDate())
+				.presentationStartDate(congress.getPresentationStartDate())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.role(role)
+				.institution(institution)
+				.build();
 	}
 
 	@Override
