@@ -21,6 +21,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRu
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.MyCongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.CongressService;
@@ -64,6 +65,21 @@ public class CongressController {
             @RequestParam(required = false) Boolean enabled) {
 
         return ResponseEntity.ok(congressService.getCongressesSummaryByEnabled(enabled));
+    }
+
+    @Operation(
+        summary = "Obtener mis congresos",
+        description = "Devuelve las participaciones activas del usuario autenticado, incluso en congresos deshabilitados. "
+                + "Para un súper administrador devuelve todos los congresos con rol SUPER_ADMIN."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Congresos obtenidos correctamente"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/mine")
+    public ResponseEntity<List<MyCongressSummaryDTO>> getMyCongresses() {
+        return ResponseEntity.ok(congressService.getMyCongresses());
     }
 
     /// Obtener un congreso por código:
