@@ -4,13 +4,10 @@ import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
-import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.Paper;
-import com.tfi.gestion_congresos_backend.entities.PaperAuthor;
 import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
-import com.tfi.gestion_congresos_backend.exception.UserDisabledException;
 import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 
@@ -103,9 +100,22 @@ public class SecurityEvaluator {
     }
 
     public boolean isAssignedReviewer(User user, Paper paper) {
-        return user != null
-                && paper.getUserReviewer() != null
-                && paper.getUserReviewer().getUserId().equals(user.getUserId());
+        if (user == null
+                || !user.isEnabled()
+                || paper == null
+                || paper.getCongress() == null
+                || paper.getUserReviewer() == null
+                || !paper.getUserReviewer().getUserId().equals(user.getUserId())) {
+            return false;
+        }
+
+        // La asignación histórica no es suficiente: el usuario debe conservar
+        // una participación activa con rol EVALUATOR en ese congreso.
+        return hasRoleInCongress(
+                user,
+                paper.getCongress().getCode(),
+                RoleName.EVALUATOR
+        );
     }
 
     public boolean isAcceptedAuthor(User user, Paper paper) {
@@ -113,9 +123,6 @@ public class SecurityEvaluator {
                 pa.getStatus() == PaperAuthorStatus.ACCEPTED
                 && pa.getAuthor().getUserId().equals(user.getUserId()));
     }
-
-
-
 
 
 }

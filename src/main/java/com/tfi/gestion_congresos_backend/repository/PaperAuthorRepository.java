@@ -30,5 +30,16 @@ public interface PaperAuthorRepository extends JpaRepository<PaperAuthor, Long> 
     long countByPaper_CodeAndStatus(String paperCode, PaperAuthorStatus status);
 
     Optional<PaperAuthor> findByPaper_CodeAndIsMainAuthorTrue(String paperCode);
+    
+    List<PaperAuthor> findByPaper_CodeAndStatus(
+            String paperCode,
+            PaperAuthorStatus status
+    );
+    
+    boolean existsByPaper_CodeAndAuthor_UserIdAndStatus(
+            String paperCode,
+            Long userId,
+            PaperAuthorStatus status
+    );
 }
 

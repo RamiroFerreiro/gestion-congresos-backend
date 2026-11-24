@@ -1,25 +1,35 @@
 package com.tfi.gestion_congresos_backend.services;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ParticipantPaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Paper;
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 import java.util.List;
 import java.util.Set;
 
-// Se deben implementar metodos CRUD
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface PaperService {
     // GETS
-    List<PaperSummaryResponseDTO> getAssignedPapers(String reviewerCode);
+	List<PaperSummaryResponseDTO> getAssignedPapers(String congressCode, String reviewerCode);
+	List<PaperPendingReassignmentResponseDTO> getPapersPendingReassignment(String congressCode);
+	List<ReviewerWorkloadResponseDTO> getAvailableReviewersWithWorkload(String congressCode);
     PaperDetailResponseDTO getPaperById(Long paperId);
     Paper getPaperByPaperId(Long paperId);
     PaperDetailResponseDTO getPaperByCode(String code);
     Paper getPaperEntityByCode(String code);
-    List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode);
+    //List<PaperSummaryResponseDTO> getPapersByCongressCode(String congressCode);
+    Page<PaperSummaryResponseDTO> getPaperSummariesByCongress(String congressCode, PaperFilterDTO filter, Pageable pageable);
+    Page<ParticipantPaperSummaryResponseDTO> getMyPaperSummariesByCongress(String congressCode, PaperStatus status, Pageable pageable);
 
     // CREATE & UPDATE
     PaperDetailResponseDTO createPaper(PaperRequestDTO dto);
@@ -31,5 +41,6 @@ public interface PaperService {
 
     // EVALUADORES Y SUBMIT
     MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
-    PaperDetailResponseDTO submitPaper(String paperCode);
+    MessageResponseDTO reassignReviewerToPaper(String paperCode, String newReviewerCode);
+    PaperDetailResponseDTO submitPaper(String paperCode, boolean confirmDiscardPendingRequests);
 }

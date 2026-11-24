@@ -1,14 +1,11 @@
 package com.tfi.gestion_congresos_backend.entities;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -20,9 +17,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -86,20 +80,12 @@ public class Congress extends AuditableEntity {
         name = "congress_thematic_areas", // Nombre de la tabla secundaria.
         joinColumns = @JoinColumn(name = "congresses_id") // FK hacia la tabla congresses.
     )
-
-		
     @Column(name = "thematic_area") // Nombre de la columna que guarda cada String.
 	@Builder.Default
     private Set<String> thematicAreas = new HashSet<>();
 	
 	@Column(name = "enabled", nullable = false)
 	private boolean enabled;
-	
-	@OneToMany(mappedBy = "congress", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<CongressParticipant> participants = new ArrayList<>();
-	
-
-	///-----nuevo----
 	
 	@Column(name = "is_free", nullable = false)
     private boolean isFree;
@@ -115,8 +101,8 @@ public class Congress extends AuditableEntity {
     @Column(name = "evaluation_release_mode", nullable = false)
     private EvaluationReleaseMode evaluationReleaseMode; // Enum: BATCH, IMMEDIATE
 
-	@Column(name = "scheduled_evaluation_release_date")
-    private LocalDateTime scheduledEvaluationReleaseDate;
+	@Column(name = "planned_evaluation_release_date")
+    private LocalDateTime plannedEvaluationReleaseDate;
 
 	@Column(name = "last_evaluation_release_date")
     private LocalDateTime lastEvaluationReleaseDate;

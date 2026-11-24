@@ -11,11 +11,8 @@ import com.tfi.gestion_congresos_backend.entities.User;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import java.util.Date;
 import java.util.function.Function;
 
@@ -88,10 +85,17 @@ public class JwtServiceImpl implements JwtService {
     //valida token si corresponde a usuario y fecha de vencimiento
     @Override
     public boolean isTokenValid(String token, User user) {
-        
+
+        // 1. Verificar que el usuario exista y tenga su cuenta habilitada
+        if (user == null || !user.isEnabled()) {
+            return false;
+        }
+
+        // 2. Verificar que el token corresponda al usuario
         String username = extractUsername(token);
 
-        return username.equals(user.getEmail())&& !isTokenExpired(token);
+        // 3. Verificar que el token no haya vencido
+        return username.equals(user.getEmail()) && !isTokenExpired(token);
     }
     
 }

@@ -2,6 +2,7 @@ package com.tfi.gestion_congresos_backend.dtos.user;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -23,11 +24,9 @@ public class CompleteFirstLoginRequestDTO {
     private String confirmPassword;
     
     @NotNull(message = "El DNI es obligatorio")
+    @Positive(message = "El DNI es un entero positivo")
     private Long dni;
 
     @NotBlank(message = "El país es obligatorio")
     private String country;
-
-    @NotBlank(message = "La institución es obligatoria")
-    private String institution;
 }

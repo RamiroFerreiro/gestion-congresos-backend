@@ -20,7 +20,7 @@ public class PaperDetailResponseDTO {
     private PaperStatus status;
     private String summary;
     private Set<String> keywords;
-    private LocalDateTime presentationDate;
+    private LocalDateTime submittedAt;
     private boolean pay;
 
     private String congressCode;

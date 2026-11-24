@@ -1,103 +1,301 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Random;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Comparator;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.MyCongressSummaryDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
+import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
+import com.tfi.gestion_congresos_backend.entities.CongressPaperType;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
-import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
+import com.tfi.gestion_congresos_backend.enums.PaperType;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
 import com.tfi.gestion_congresos_backend.exception.ResourceNotFoundException;
+import com.tfi.gestion_congresos_backend.mapper.CongressDashboardMapper;
 import com.tfi.gestion_congresos_backend.mapper.CongressMapper;
-import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
 import com.tfi.gestion_congresos_backend.repository.CongressRepository;
-import com.tfi.gestion_congresos_backend.repository.RoleRepository;
-import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
+import com.tfi.gestion_congresos_backend.repository.CongressParticipantRepository;
+import com.tfi.gestion_congresos_backend.repository.CongressPaperTypeRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
+import com.tfi.gestion_congresos_backend.repository.PaperRepository;
+import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.FinancialMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomeAcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomePaymentMetricsProjection;
+import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
-import com.tfi.gestion_congresos_backend.services.UserService;
+import com.tfi.gestion_congresos_backend.services.EmailService;
+import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CongressServiceImpl implements CongressService {
 	
 	private final CongressRepository congressRepository;
+	private final CongressParticipantRepository congressParticipantRepository;
+	private final CongressPaperTypeRepository congressPaperTypeRepository;
 	private final CongressMapper congressMapper;
+	private final AuthorizationService authorizationService;
+	private final CongressParticipantInstitutionValidator institutionValidator;
+
+	private final PaperRepository paperRepository;
+	private final PaperPaymentRepository paperPaymentRepository;
+	private final CongressDashboardMapper dashboardMapper;
+	private final EmailService emailService;
+
+	@Override
+	@Transactional(readOnly = true)
+	public ParticipantHomeResponseDTO getParticipantHome(String congressCode) {
+		Congress congress = getCongressEntityByCode(congressCode);
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		CongressParticipant participant = institutionValidator
+				.requireAuthenticatedActiveParticipantWithInstitution(congressCode);
+
+		RoleName role = participant.getRole().getName();
+		if (role != RoleName.LISTENER && role != RoleName.EXPOSITOR) {
+			throw new AccessDeniedException(
+					"Solo los participantes con rol LISTENER o EXPOSITOR pueden acceder al inicio personal."
+			);
+		}
+
+		ParticipantHomeAcademicMetricsProjection academicMetrics = paperRepository
+				.getParticipantHomeAcademicMetrics(
+						congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+
+		long paymentsWithoutValidReceipt = 0;
+		long paymentsPendingApproval = 0;
+		long paymentsVerified = 0;
+		if (!congress.isFree()) {
+			ParticipantHomePaymentMetricsProjection paymentMetrics = paperRepository
+					.getParticipantHomePaymentMetrics(
+							congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+			paymentsWithoutValidReceipt = paymentMetrics.getPaymentsWithoutValidReceipt();
+			paymentsPendingApproval = paymentMetrics.getPaymentsPendingApproval();
+			paymentsVerified = paymentMetrics.getPaymentsVerified();
+		}
+
+		return ParticipantHomeResponseDTO.builder()
+				.congressCode(congress.getCode())
+				.congressName(congress.getName())
+				.place(congress.getPlace())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.totalAssociatedPapers(academicMetrics.getTotalAssociatedPapers())
+				.drafts(academicMetrics.getDrafts())
+				.needsRevision(academicMetrics.getNeedsRevision())
+				.underEvaluation(academicMetrics.getUnderEvaluation())
+				.paymentsWithoutValidReceipt(paymentsWithoutValidReceipt)
+				.paymentsPendingApproval(paymentsPendingApproval)
+				.paymentsVerified(paymentsVerified)
+				.build();
+	}
+
+	@Override
+	public CongressDashboardResponseDTO getDashboardMetrics(String congressCode) {
+
+		//1. Traer usuario autenticado
+		User user = authorizationService.getAuthenticatedUserEntity();
+
+		//2. Validar que el usuario sea administrador del congreso 
+		authorizationService.validateCongressAdminPermission(user, congressCode);
+
+		institutionValidator.validateAuthenticatedParticipantInstitution(congressCode);
+
+		//3. Validar existencia del congreso
+        Congress congress = getCongressEntityByCode(congressCode);
+
+        //4. Consultar las proyecciones agregadas en BD
+        AcademicMetricsProjection academicProj = paperRepository.getAcademicMetricsByCongressCode(congressCode);
+        FinancialMetricsProjection financialProj = paperPaymentRepository.getFinancialMetricsByCongressCode(congressCode);
+
+        //5. Delegar todo el mapeo y cálculo de porcentajes a MapStruct
+        return dashboardMapper.toDashboardResponseDTO(congress, academicProj, financialProj);
+	}
+
+	private MetricValueDTO buildMetricValue(long count, long total) {
+		if (total == 0) {
+			return MetricValueDTO.builder().count(0).percentage(0.0).build();
+		}
+		double percentage = BigDecimal.valueOf((double) count / total * 100)
+				.setScale(2, RoundingMode.HALF_UP)
+				.doubleValue();
+
+		return MetricValueDTO.builder().count(count).percentage(percentage).build();
+	}
 	
-	private static final int CODE_LENGTH = 6;
 	
 	@Override
 	@Transactional(readOnly = true)
 	/// Obtener todos los congresos con sus participantes:
 	public List<CongressResponseDTO> getAllCongresses() {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		authorizationService.validateSuperAdminPermission(authenticatedUser);
 		
-		List<Congress> congresses = congressRepository.findAllCongressesWithParticipants();
-		
-		
-		List<CongressResponseDTO> result = congresses.stream()
-												.map(congressMapper::toCongressResponseDTO)
-												.toList();
-		return result;
+		return congressRepository.findAllWithThematicAreas()
+				.stream()
+		        .map(congressMapper::toCongressResponseDTO)
+		        .toList();
 	}
-	
+
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener todos los congresos activos/desactivados con sus participantes:
-	public List<CongressResponseDTO> getCongressesByEnabled(boolean enabled) {
-		
-		List<Congress> congresses = congressRepository.findAllCongressesByEnabledWithParticipants(enabled);
-		
-		
-		List<CongressResponseDTO> result = congresses.stream()
+	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
+	///Devuelve el listado de congreso resumidos
+	public List<CongressSummaryDTO> getCongressesSummaryByEnabled(Boolean enabled) {
+		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
+				.map(congressMapper::toCongressResponseSummaryDTO)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<MyCongressSummaryDTO> getMyCongresses() {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+		if (authenticatedUser.isSuperAdmin()) {
+			return congressRepository.findAllWithThematicAreas().stream()
+					.map(congress -> toMyCongressSummary(congress, "SUPER_ADMIN", null))
+					.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+					.toList();
+		}
+
+		return congressParticipantRepository.findActiveParticipationsByUserId(authenticatedUser.getUserId())
+				.stream()
+				.map(participant -> toMyCongressSummary(
+						participant.getCongress(), participant.getRole().getName().name(), participant.getInstitution()))
+				.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+				.toList();
+	}
+
+	private MyCongressSummaryDTO toMyCongressSummary(Congress congress, String role, String institution) {
+		return MyCongressSummaryDTO.builder()
+				.code(congress.getCode())
+				.name(congress.getName())
+				.place(congress.getPlace())
+				.enabled(congress.isEnabled())
+				.startDate(congress.getStartDate())
+				.endDate(congress.getEndDate())
+				.presentationStartDate(congress.getPresentationStartDate())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.role(role)
+				.institution(institution)
+				.build();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	///Obtener todos los congresos activos/desactivados con Boolean (objecto)
+	///Devuelve el listado de congreso completos
+	public List<CongressResponseDTO> getCongressesByEnabled(Boolean enabled) {
+		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
 				.map(congressMapper::toCongressResponseDTO)
 				.toList();
-		return result;
+	}
+
+	private List<Congress> getCongressesVisibleToAuthenticatedUser(Boolean enabled) {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+		if (authenticatedUser.isSuperAdmin()) {
+			return enabled == null
+					? congressRepository.findAllWithThematicAreas()
+					: congressRepository.findAllByEnabledWithThematicAreas(enabled);
+		}
+
+		if (Boolean.FALSE.equals(enabled)) {
+			throw new AccessDeniedException(
+					"Solo los superadministradores pueden consultar congresos deshabilitados."
+			);
+		}
+
+		return congressRepository.findAllByEnabledWithThematicAreas(true);
+	}
+
+	
+	
+	@Override
+	@Transactional(readOnly = true)
+	/// Obtener la entidad de un congreso por su código:
+	public Congress getCongressEntityByCode(String code) {
+
+	    return congressRepository.findByCodeWithThematicAreas(code)
+	            .orElseThrow(() ->
+	                new ResourceNotFoundException(
+	                    "Congreso no encontrado con código: " + code
+	                )
+	            );
 	}
 	
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener un congreso con sus participantes por su ID:
-	public CongressResponseDTO getCongressById(Long congressId) {
-		 
-		Congress congress = congressRepository.findByCongressId(congressId)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));;
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
+	/// Obtener el DTO de un congreso por su código:
+	public CongressResponseDTO getCongressDTOByCode(String code) {
+
+	    Congress congress = getCongressEntityByCode(code);
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+	    authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+	    institutionValidator.validateAuthenticatedParticipantInstitution(code);
+
+	    return congressMapper.toCongressResponseDTO(congress);
 	}
-	
+
 	@Override
 	@Transactional(readOnly = true)
-	/// Obtener una entidad congreso con sus participantes por su ID:
-	public Congress getCongressByCongressId(Long congressId) {
-		 
-		Congress congress = congressRepository.findByCongressId(congressId)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con ID: " + congressId));;
-		 
-		return congress;
+	public CongressPaperSubmissionRulesDTO getPaperSubmissionRulesByCongressCode(String code) {
+		Congress congress = getCongressEntityByCode(code);
+		institutionValidator.validateAuthenticatedParticipantInstitution(code);
+
+		return congressMapper.toCongressPaperSubmissionRulesDTO(congress);
 	}
 	
 	@Override
 	@Transactional
 	/// Crear un congreso:
-	public CongressResponseDTO createCongress(CongressRequestDTO congressRequestDTO) {
+	public CongressResponseDTO createCongress(CongressRequestDTO request) {
+		
+		// Validar permisos:
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+	    authorizationService.validateSuperAdminPermission(authenticatedUser);
 		
 		// Validación de fechas del congreso:
-		validateCongressDates(congressRequestDTO);
+		validateCongressDatesForCreation(request);
+		
+		// Validación de rango de palabras clave límite:
+		validateKeywordLimits(request);
+		
+		// Validar modo de publicación de evaluaciones y fecha definida:
+		validateEvaluationReleaseConfiguration(request);
+
+		// Validar la configuración del tipo ABSTRACT antes de persistir el congreso.
+		validateAbstractPaperTypeConfigurationForCreation(request);
 		 
-		Congress congress = congressMapper.toEntity(congressRequestDTO);
+		Congress congress = congressMapper.toEntity(request);
 		
 		// Generamos un código para el congreso:
 		congress.setCode(generateCongressCode());
@@ -105,18 +303,58 @@ public class CongressServiceImpl implements CongressService {
 		// Activamos el congreso:
 		congress.setEnabled(true);
 		
-		congress = congressRepository.save(congress);
+		Congress savedCongress = congressRepository.save(congress);
+
+		createAbstractPaperType(savedCongress, request);
 		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
+		return congressMapper.toCongressResponseDTO(savedCongress);
+	}
+	
+	@Override
+	@Transactional
+	/// Actualizar un congreso:
+	public CongressResponseDTO updateCongress(String code, CongressRequestDTO request) {
+		
+		// Obtener usuario autenticado:
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		
+		// Validar permisos:
+		authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+		
+		// Validar institución del administrador:
+		institutionValidator.validateAuthenticatedParticipantInstitution(code);
+		
+		// Obtener congreso:
+		Congress congress = getCongressEntityByCode(code);
+		boolean importantDatesChanged = importantDatesChanged(congress, request);
+		validateEconomicConfigurationIsImmutable(congress, request);
 		 
-		return result;
+		// Validación de fechas del congreso:
+		validateCongressDatesForUpdate(request, congress);
+		
+		// Validación de rango de palabras clave límite:
+		validateKeywordLimits(request);
+		
+		// Validar modo de publicación de evaluaciones y fecha definida:
+		validateEvaluationReleaseConfiguration(request);
+		 
+		congressMapper.updateCongressFromDto(request, congress);
+		 
+		Congress updatedCongress = congressRepository.save(congress);
+
+		if (importantDatesChanged) {
+			notifyActiveParticipantsAboutImportantDates(updatedCongress);
+		}
+		 
+		return congressMapper.toCongressResponseDTO(updatedCongress);
 	}
 	
 	@Override
 	@Transactional
 	/// Desactivar un congreso:
 	public MessageResponseDTO disableCongress(String code) {
-	    changeCongressStatus(code, false);
+	    
+		changeCongressStatus(code, false);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso desactivado con éxito");
@@ -126,82 +364,28 @@ public class CongressServiceImpl implements CongressService {
 	@Transactional
 	/// Activar un congreso:
 	public MessageResponseDTO enableCongress(String code) {
-	    changeCongressStatus(code, true);
+	    
+		changeCongressStatus(code, true);
 	    
 	    // Devolver mensaje de respuesta:
 	 	return new MessageResponseDTO("Congreso activado con éxito");
 	}
-	 
-	@Override
-	@Transactional
-	/// Actualizar un congreso:
-	public CongressResponseDTO updateCongress(String code, CongressRequestDTO congressRequestDTO) {
-		 
-		Congress congress = congressRepository.findByCode(code)
-				 								.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
-		 
-		// Validación de fechas del congreso:
-		validateCongressDates(congressRequestDTO);
-		 
-		congressMapper.updateCongressFromDto(congressRequestDTO, congress);
-		 
-		congress = congressRepository.save(congress);
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
-	}
-	
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un usuario de determinado rol en un congreso:
-	public boolean existsByCongressIdAndUserIdAndRoleName(Long congressId, Long userId, RoleName role) {
-		return congressRepository.existsByCongressIdAndUserIdAndRole(congressId, userId, role);
-	}
-	
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un congreso por su ID:
-	public boolean existsById(Long congressId) {
-		return congressRepository.existsById(congressId);
-	}
-	
-	@Override
-	@Transactional
-	/// Agregar un participante a un congreso:
-	public MessageResponseDTO addParticipantToCongress(String code, String participantCode) {
 
-		/* 
-		// Buscar congreso:
-		Congress congress = getCongressByCode(code);
-		
-		// Buscar participante:
-		User participant = userService.getUserByUserCode(participantCode);
-		
-		// Validar que el participante no esté inscripto previamente en el congreso:
-		if (congressRepository.existsByCodeAndParticipantsCode(code, participantCode)) {
-			throw new ResourceAlreadyExistsException("El participante con código " + participantCode + " ya está inscripto en el congreso con código " + code + ".");
-		}
-		
-		///ESTO SE ROMPE POR CAMBIAR EL MANY TO MANY DE CONGRESS A USER
-		/// AHORA ES ONE TO MANY A LA TABLE INTERMEDIA
-		/// AHORA LIST ANTES ERA SET
-
-		//Añadir el participante al congreso:
-		congress.getParticipants().add(participant);
-		congressRepository.save(congress);
-		
-		*/
-		// Devolver mensaje de respuesta:
-		return new MessageResponseDTO("Participante agregado con éxito");
-	}
-	
-	@Transactional
 	/// Cambiar de estado un congreso:
 	private void changeCongressStatus(String code, boolean targetStatus) {
-	    Congress congress = congressRepository.findByCode(code)
-	            				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
-	   
+	    
+		// Obtener usuario autenticado:
+	    User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+	    // Validar permisos:
+	    authorizationService.validateCongressAdminPermission(authenticatedUser, code);
+	    
+	    // Validar institución del administrador:
+	    institutionValidator.validateAuthenticatedParticipantInstitution(code);
+	    
+	    // Obtener congreso:
+	    Congress congress = getCongressEntityByCode(code);
+	            				
 	    if (congress.isEnabled() == targetStatus) {
 	    	throw new ResourceAlreadyExistsException("El congreso ya se encontraba en ese estado");
 	    }
@@ -209,135 +393,326 @@ public class CongressServiceImpl implements CongressService {
 	    congress.setEnabled(targetStatus);
 	    
 	    congressRepository.save(congress);
+
+	    notifyActiveParticipantsAboutStatusChange(congress, targetStatus);
 	}
-	 
-	/**
-	 * Valida que una lista de fechas mantenga un orden cronológico estricto o no superpuesto.
-	 * Retorna true si cada fecha es anterior (o igual) a la que le sigue.
-	 */
+
+	private boolean importantDatesChanged(Congress congress, CongressRequestDTO request) {
+	    return !Objects.equals(congress.getRegistrationStartDate(), request.getRegistrationStartDate())
+	            || !Objects.equals(congress.getRegistrationEndDate(), request.getRegistrationEndDate())
+	            || !Objects.equals(congress.getPresentationStartDate(), request.getPresentationStartDate())
+	            || !Objects.equals(congress.getPresentationEndDate(), request.getPresentationEndDate())
+	            || !Objects.equals(congress.getStartDate(), request.getStartDate())
+	            || !Objects.equals(congress.getEndDate(), request.getEndDate())
+	            || !Objects.equals(congress.getPlannedEvaluationReleaseDate(), request.getPlannedEvaluationReleaseDate());
+	}
+
+	private void notifyActiveParticipantsAboutImportantDates(Congress congress) {
+	    for (CongressParticipant participant : congressParticipantRepository
+	            .findActiveEnabledParticipantsByCongressCode(congress.getCode())) {
+	        try {
+	            emailService.sendCongressImportantDatesUpdatedNotification(participant.getUser(), congress);
+	        } catch (RuntimeException exception) {
+	            log.error("No se pudo preparar el correo de fechas actualizadas para el usuario {} del congreso {}.",
+	                    participant.getUser().getCode(), congress.getCode(), exception);
+	        }
+	    }
+	}
+
+	private void notifyActiveParticipantsAboutStatusChange(Congress congress, boolean enabled) {
+	    for (CongressParticipant participant : congressParticipantRepository
+	            .findActiveEnabledParticipantsByCongressCode(congress.getCode())) {
+	        try {
+	            emailService.sendCongressStatusChangedNotification(participant.getUser(), congress, enabled);
+	        } catch (RuntimeException exception) {
+	            log.error("No se pudo preparar el correo de cambio de estado para el usuario {} del congreso {}.",
+	                    participant.getUser().getCode(), congress.getCode(), exception);
+	        }
+	    }
+	}
+	
+	/// Validar rango de fechas:
+	private boolean isValidDateRange(
+	        LocalDateTime startDate,
+	        LocalDateTime endDate
+	) {
+	    return startDate != null
+	            && endDate != null
+	            && startDate.isBefore(endDate);
+	}
+	
+	/// Validar secuencia de fechas:
 	private boolean isChronologicalSequence(LocalDateTime... dates) {
-	     
-		for (int i = 0; i < dates.length - 1; i++) {
-	         
-			// Si la fecha actual es posterior a la siguiente, la secuencia es inválida
+
+	    for (int i = 0; i < dates.length - 1; i++) {
+
 	        if (dates[i].isAfter(dates[i + 1])) {
 	            return false;
 	        }
 	    }
-	     
-		return true;
+
+	    return true;
 	}
-	 
-	/**
-	 * Valida que un rango individual de fechas sea coherente:
-	 * - Ambas fechas deben ser futuras (posteriores a 'now').
-	 * - La fecha de inicio debe ser estrictamente anterior a la fecha de fin.
-	 */
-	private boolean isValidDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-	     
-		if (startDate == null || endDate == null) {
-	        return false;
+	
+	/// Validar que todas las fechas sean futuras:
+	private boolean areAllDatesInFuture(LocalDateTime now, LocalDateTime... dates) {
+
+	    for (LocalDateTime date : dates) {
+	        if (date == null || !date.isAfter(now)) {
+	            return false;
+	        }
 	    }
-	     
-	    LocalDateTime now = LocalDateTime.now();
+
+	    return true;
+	}
 	
-	    boolean areInFuture = startDate.isAfter(now) && endDate.isAfter(now);
-	    boolean isValidSequence = startDate.isBefore(endDate);
-	
-	    return areInFuture && isValidSequence;
+	/// Validar si es una fecha futura o si no cambió:
+	private boolean isFutureOrUnchanged(
+	        LocalDateTime newDate,
+	        LocalDateTime currentDate,
+	        LocalDateTime now
+	) {
+	    return newDate != null
+	            && (newDate.equals(currentDate) || newDate.isAfter(now));
 	}
 
-	/**
-	 * Valida la totalidad de las fechas de un congreso (coherencia individual y orden global):
-	 */
-	private void validateCongressDates(CongressRequestDTO dto) {
-		 
-		// Extracción de fechas:
-		LocalDateTime registrationStartDate = dto.getRegistrationStartDate();
-		LocalDateTime registrationEndDate = dto.getRegistrationEndDate();
-		LocalDateTime presentationStartDate = dto.getPresentationStartDate();
-		LocalDateTime presentationEndDate = dto.getPresentationEndDate();
-		LocalDateTime startDate = dto.getStartDate();
-		LocalDateTime endDate = dto.getEndDate();
-	
-		// 1. Validar que cada par individual sea coherente (inicio < fin y futuras):
-		boolean isRegistrationValid = isValidDateRange(registrationStartDate, registrationEndDate);
-	    boolean isPresentationValid = isValidDateRange(presentationStartDate, presentationEndDate);
-	    boolean isCongressValid = isValidDateRange(startDate, endDate);
-	
+	/// Validar rangos y secuencia de fechas:
+	private void validateDateRangesAndSequence(CongressRequestDTO dto) {
+
+	    // 1. Validar que cada rango sea coherente (inicio < fin):
+
+	    boolean isRegistrationValid = isValidDateRange(
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate()
+	    );
+
+	    boolean isPresentationValid = isValidDateRange(
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate()
+	    );
+
+	    boolean isCongressValid = isValidDateRange(
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
 	    if (!isRegistrationValid || !isPresentationValid || !isCongressValid) {
 	        throw new ArgumentNotValidException(
-	            "Las fechas de cada etapa deben ser futuras y la fecha de inicio debe ser anterior a la de fin."
+	                "La fecha de inicio de cada etapa debe ser anterior a su fecha de fin."
 	        );
 	    }
-	
-	    // 2. Validar el orden cronológico entre las etapas del congreso:
-	    // inicio inscripción <= fin inscripción <= inicio presentación <= fin presentación <= inicio congreso <= fin congreso
+
+	    // 2. Validar el orden cronológico entre las etapas:
+	    // inicio inscripción <= fin inscripción
+	    // <= inicio presentación <= fin presentación
+	    // <= inicio congreso <= fin congreso.
+
 	    boolean isSequenceValid = isChronologicalSequence(
-	    		registrationStartDate,
-	    		registrationEndDate,
-	    		presentationStartDate,
-	    		presentationEndDate,
-	    		startDate,
-	    		endDate
-	    		);
-	
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate(),
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate(),
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
 	    if (!isSequenceValid) {
 	        throw new ArgumentNotValidException(
-	            "La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
+	                "La secuencia de etapas es inválida. La inscripción y presentación deben ocurrir antes del inicio del congreso."
+	        );
+	    }
+	}
+	
+	/// Validar fechas al crear un congreso:
+	private void validateCongressDatesForCreation(CongressRequestDTO dto) {
+
+	    LocalDateTime now = LocalDateTime.now();
+
+	    // Validar rangos y secuencia cronológica:
+	    validateDateRangesAndSequence(dto);
+
+	    // Comprobar que las seis fechas sean futuras:
+	    boolean areDatesFuture = areAllDatesInFuture(
+	            now,
+	            dto.getRegistrationStartDate(),
+	            dto.getRegistrationEndDate(),
+	            dto.getPresentationStartDate(),
+	            dto.getPresentationEndDate(),
+	            dto.getStartDate(),
+	            dto.getEndDate()
+	    );
+
+	    if (!areDatesFuture) {
+	        throw new ArgumentNotValidException(
+	                "Todas las fechas del congreso deben ser futuras al momento de su creación."
+	        );
+	    }
+
+	    // Validar la fecha opcional de publicación de evaluaciones:
+	    LocalDateTime scheduledDate = dto.getPlannedEvaluationReleaseDate();
+
+	    if (scheduledDate != null && !scheduledDate.isAfter(now)) {
+	        throw new ArgumentNotValidException(
+	                "La fecha de publicación programada de evaluaciones debe ser futura."
+	        );
+	    }
+	}
+	
+	/// Validar fechas al modificar un congreso:
+	private void validateCongressDatesForUpdate(
+	        CongressRequestDTO dto,
+	        Congress congress
+	) {
+
+	    LocalDateTime now = LocalDateTime.now();
+
+	    // Validar rangos y secuencia cronológica:
+	    validateDateRangesAndSequence(dto);
+
+	    // Comprobar que las fechas modificadas sean futuras
+	    // o que conserven exactamente el valor anterior:
+	    boolean areDatesValid =
+	            isFutureOrUnchanged(dto.getRegistrationStartDate(), congress.getRegistrationStartDate(), now)
+	            && isFutureOrUnchanged(dto.getRegistrationEndDate(), congress.getRegistrationEndDate(), now)
+	            && isFutureOrUnchanged(dto.getPresentationStartDate(), congress.getPresentationStartDate(), now)
+	            && isFutureOrUnchanged(dto.getPresentationEndDate(), congress.getPresentationEndDate(), now)
+	            && isFutureOrUnchanged(dto.getStartDate(), congress.getStartDate(), now)
+	            && isFutureOrUnchanged(dto.getEndDate(), congress.getEndDate(), now);
+
+	    if (!areDatesValid) {
+	        throw new ArgumentNotValidException(
+	                "Las fechas que se modifiquen deben ser futuras. Las fechas pasadas solo pueden conservarse sin cambios."
+	        );
+	    }
+
+	    // Validar la fecha opcional de publicación de evaluaciones:
+	    LocalDateTime newScheduledDate = dto.getPlannedEvaluationReleaseDate();
+	    LocalDateTime currentScheduledDate = congress.getPlannedEvaluationReleaseDate();
+
+	    if (newScheduledDate != null
+	            && !isFutureOrUnchanged(newScheduledDate, currentScheduledDate, now)) {
+
+	        throw new ArgumentNotValidException(
+	                "La fecha de publicación programada debe ser futura si se modifica."
 	        );
 	    }
 	}
 	
 	/// Genera un código de congreso no duplicado:
 	private String generateCongressCode() {
-        String code;
-        do {
-            code = generateRandomNumericCode(CODE_LENGTH);
-        } while (congressRepository.existsByCode(code));
-        return code;
-    }
+		String code;
 
-	/// Genera un código numérico aleatorio de la longitud indicada:
-    private String generateRandomNumericCode(int length) {
-        int max = (int) Math.pow(10, length) - 1;
-        int randomNumber = new Random().nextInt(max + 1);
-        return String.format("%0" + length + "d", randomNumber);
-    }
+	    do {
+	        code = "%06d".formatted(
+	            ThreadLocalRandom.current().nextInt(1_000_000)
+	        );
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Obtener una entidad congreso con sus participantes por su code:
-	public Congress getCongressByCode(String code) {
-		return congressRepository.findByCode(code)
-				.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));
+	    } while (congressRepository.existsByCode(code));
+
+	    return code;
+    }
+	
+	/// Validar rango de palabras clave límite:
+	private void validateKeywordLimits(CongressRequestDTO dto) {
+
+	    Integer min = dto.getMinKeywords();
+	    Integer max = dto.getMaxKeywords();
+
+	    if (min != null && max != null && min > max) {
+	        throw new ArgumentNotValidException(
+	                "La cantidad mínima de palabras clave no puede superar la cantidad máxima."
+	        );
+	    }
 	}
 	
-	@Override
-	@Transactional(readOnly = true)
-	/// Obtener un congreso en DTO con sus participantes por su code:
-	public CongressResponseDTO getCongressDTOByCode(String code) {
-		 
-		Congress congress = congressRepository.findByCode(code)
-												.orElseThrow(() -> new ResourceNotFoundException("Congreso no encontrado con código: " + code));;
-		 
-		CongressResponseDTO result = congressMapper.toCongressResponseDTO(congress);
-		 
-		return result;
+	/// Validar modo de publicación de evaluaciones y fecha definida:
+	private void validateEvaluationReleaseConfiguration(CongressRequestDTO dto) {
+
+	    EvaluationReleaseMode mode = dto.getEvaluationReleaseMode();
+	    LocalDateTime scheduledDate = dto.getPlannedEvaluationReleaseDate();
+
+	    if (mode == EvaluationReleaseMode.BATCH && scheduledDate == null) {
+	        throw new ArgumentNotValidException(
+	                "Debe especificar una fecha de publicación para el modo BATCH."
+	        );
+	    }
+
+	    if (mode == EvaluationReleaseMode.IMMEDIATE && scheduledDate != null) {
+	        throw new ArgumentNotValidException(
+	                "No debe especificar una fecha de publicación para el modo IMMEDIATE."
+	        );
+	    }
 	}
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un congreso por su code:
-	public boolean existsByCode(String code) {
-		return congressRepository.existsByCode(code);
+	private void validateAbstractPaperTypeConfigurationForCreation(CongressRequestDTO dto) {
+		BigDecimal amount = dto.getAbstractAmount();
+		String currency = normalizeCurrency(dto.getAbstractCurrency());
+
+		if (dto.isFree()) {
+			if (amount != null && amount.compareTo(BigDecimal.ZERO) != 0) {
+				throw new ArgumentNotValidException(
+						"Un congreso gratuito solo puede configurar un importe ABSTRACT igual a cero."
+				);
+			}
+			dto.setAbstractCurrency(currency);
+			return;
+		}
+
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere un importe ABSTRACT mayor a cero."
+			);
+		}
+
+		if (currency == null) {
+			throw new ArgumentNotValidException(
+					"Un congreso pago requiere una moneda para el tipo ABSTRACT."
+			);
+		}
+
+		dto.setAbstractCurrency(currency);
 	}
 
-	@Override
-	@Transactional(readOnly = true)
-	/// Determinar si existe un usuario de determinado rol en un congreso, buscando por code:
-	public boolean existsByCongressCodeAndUserCodeAndRoleName(String congressCode, String userCode, RoleName role) {
-		return congressRepository.existsByCongressCodeAndUserCodeAndRole(congressCode, userCode, role);
+	private String normalizeCurrency(String currency) {
+		if (currency == null) {
+			return null;
+		}
+
+		String normalizedCurrency = currency.trim().toUpperCase(Locale.ROOT);
+		if (!normalizedCurrency.matches("[A-Z]{3}")) {
+			throw new ArgumentNotValidException(
+					"La moneda del tipo ABSTRACT debe ser un código ISO de tres letras."
+			);
+		}
+
+		return normalizedCurrency;
 	}
 
+	private void createAbstractPaperType(Congress congress, CongressRequestDTO request) {
+		CongressPaperType abstractPaperType = CongressPaperType.builder()
+				.congress(congress)
+				.paperType(PaperType.ABSTRACT)
+				.amount(congress.isFree() ? BigDecimal.ZERO : request.getAbstractAmount())
+				.currency(request.getAbstractCurrency())
+				.build();
+
+		congressPaperTypeRepository.save(abstractPaperType);
+	}
+
+	private void validateEconomicConfigurationIsImmutable(
+			Congress congress,
+			CongressRequestDTO request
+	) {
+		if (congress.isFree() != request.isFree()) {
+			throw new ArgumentNotValidException(
+					"No se puede modificar la condición gratuita o paga de un congreso existente."
+			);
+		}
+
+		if (request.getAbstractAmount() != null || request.getAbstractCurrency() != null) {
+			throw new ArgumentNotValidException(
+					"La configuración económica del tipo ABSTRACT solo puede definirse al crear el congreso."
+			);
+		}
+	}
 }

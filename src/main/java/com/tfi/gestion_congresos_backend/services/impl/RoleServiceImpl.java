@@ -5,17 +5,15 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.tfi.gestion_congresos_backend.dtos.RoleResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Role;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
+import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.mapper.RoleMapper;
 import com.tfi.gestion_congresos_backend.services.RoleService;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import com.tfi.gestion_congresos_backend.repository.RoleRepository;
-
 
 @Service
 @RequiredArgsConstructor
@@ -48,4 +46,19 @@ public class RoleServiceImpl implements RoleService {
                 .toList();
     }
     
+    @Override
+    public void validateAssignableRole(RoleName role) {
+
+        if (role == null) {
+            throw new ArgumentNotValidException(
+                    "Debe especificarse un rol para el participante."
+            );
+        }
+
+        if (role == RoleName.UNKNOWN) {
+            throw new ArgumentNotValidException(
+                    "El rol UNKNOWN no puede asignarse a un participante."
+            );
+        }
+    }
 }

@@ -15,10 +15,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.*;
 
 @Entity
-@Table(name = "congress_paper_types")
+@Table(
+        name = "congress_paper_types",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_congress_paper_type",
+                columnNames = {"congress_id", "paper_type"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,7 +45,7 @@ public class CongressPaperType {
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
-    @Column(name = "currency", length = 3, nullable = false)
+    @Column(name = "currency", length = 3)
     private String currency; 
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -12,4 +12,10 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
 
     List<Evaluation> findByPaper_Congress_CodeAndIsReleasedFalse(String congressCode);
     boolean existsByPaper_CodeAndEvaluatedVersion(String paperCode, String evaluatedVersion);
+    
+    /// Verifica si existe una evaluación pendiente de liberar para una versión específica
+    boolean existsByPaper_CodeAndEvaluatedVersionAndIsReleasedFalse(
+            String paperCode,
+            String evaluatedVersion
+    );
 }

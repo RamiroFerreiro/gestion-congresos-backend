@@ -1,6 +1,5 @@
 package com.tfi.gestion_congresos_backend.controllers;
 
-import com.tfi.gestion_congresos_backend.dtos.UpdateUserRoleRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
@@ -9,23 +8,17 @@ import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UpdateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.UserResponseDTO;
-import com.tfi.gestion_congresos_backend.enums.RoleName;
-import com.tfi.gestion_congresos_backend.services.AuthService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,18 +32,6 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
-
-    ///----------------------------------------------------------TEST PRUEBA----------------------------------------------------------///
-    @Operation(
-            summary = "Endpoint de prueba",
-            description = "Endpoint utilizado para verificar que la API se encuentra disponible."
-    )
-    @ApiResponse(responseCode = "200",description = "La API respondió correctamente")  
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/test")
-    public Map<String, String> test() {
-        return Map.of("mensaje", "Hola desde Spring Boot");
-    }
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
     @Operation(
@@ -73,53 +54,6 @@ public class UserController {
     public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
 
         return ResponseEntity.ok(userService.getAllUsers());
-    }
-
-    @Operation(
-        summary = "Obtener los usuarios de un congreso específico",
-        description = """
-            Devuelve el listado de usuarios participantes pertenecientes de forma exclusiva al congreso indicado.
-            
-            **Políticas de Control de Acceso:**
-            - **Súper Admin:** Puede consultar el listado de usuarios de cualquier congreso.
-            - **Admin del Congreso:** Requiere poseer obligatoriamente el rol `ADMINISTRATOR` en estado activo sobre el `congressCode` enviado.
-            - **Otros roles / Sin relación:** Denegado con `403 Forbidden`.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Listado de participantes del congreso recuperado exitosamente"),
-        @ApiResponse(responseCode = "401", description = "No autenticado"),
-        @ApiResponse(responseCode = "403", description = "No posee permisos de administración sobre el congreso especificado")
-    })
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/by-congress")
-    public ResponseEntity<List<UserResponseDTO>> getUsersByCongress(@RequestParam String congressCode) {
-        return ResponseEntity.ok(userService.getUsersByCongress(congressCode));
-    }
-
-    @Operation(
-        summary = "Obtener el detalle de un usuario en un congreso específico",
-        description = """
-            Recupera la información de un usuario asegurando que pertenezca al congreso indicado.
-            
-            **Secuencia de Validaciones:**
-            1. Verifica la existencia del usuario objetivo (`404 Not Found`).
-            2. Otorga acceso directo si el solicitante es Súper Admin.
-            3. Valida que el solicitante sea Administrador activo del `congressCode` enviado (`403 Forbidden`).
-            4. Valida que el usuario objetivo participe en ese mismo congreso (`404 Not Found`).
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Usuario obtenido correctamente"),
-        @ApiResponse(responseCode = "401", description = "No autenticado"),
-        @ApiResponse(responseCode = "403", description = "No tienes permisos de administración sobre el congreso especificado"),
-        @ApiResponse(responseCode = "404", description = "No se encontró un usuario activo con el código especificado")
-    })
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{userCode}")
-    public ResponseEntity<UserResponseDTO> getUserByCodeAndCongress(@PathVariable String userCode, @RequestParam String congressCode){
-
-        return ResponseEntity.ok(userService.getUserByCodeAndCongress(congressCode, userCode));
     }
 
     @Operation(
@@ -146,7 +80,7 @@ public class UserController {
             
             **Flujo y reglas de negocio:**
             - Requiere estar autenticado y ser **ADMINISTRATOR** del congreso especificado.
-            - El email no debe estar registrado previamente. IMPORTANTE: El usuario no debe existir ya que se invoca 'completeFirstLogin' que busca el único congreso al que participa para actualizar sus datos. Si ya tiene cuenta, el usuario debe inscribirse manualmente. Si no recuerda su contraseña, la tiene que recuperar.
+            - El email no debe estar registrado previamente. Este flujo está destinado a crear una cuenta global nueva y registrarla automáticamente en el congreso indicado. Si el usuario ya posee una cuenta, debe utilizarse el endpoint de inscripción administrativa de un usuario existente. Si no recuerda su contraseña, la tiene que recuperar.
             - No permite asignar el rol `ADMINISTRATOR` a través de este flujo.
             - Genera una clave temporal y activa la bandera `mustChangePassword = true`.
             - Asigna al usuario al congreso con `institution = PENDIENTE` (a completar por el usuario).
@@ -155,7 +89,7 @@ public class UserController {
     )
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Usuario creado y registrado exitosamente en el congreso"),
-        @ApiResponse(responseCode = "400", description = "Solicitud inválida: el rol indicado es ADMINISTRATOR o los campos no superan las validaciones"),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: los campos no superan las validaciones"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado o token JWT inválido"),
         @ApiResponse(responseCode = "403", description = "Acceso denegado: el usuario no posee permisos de administración sobre el congreso"),
         @ApiResponse(responseCode = "404", description = "Congreso o Rol no encontrado"),
@@ -201,62 +135,111 @@ public class UserController {
     }
 
     @Operation(
-        summary = "Completar onboarding de primer inicio de sesión",
-        description = """
-            Permite a un usuario creado por un administrador validar su contraseña temporal recibida por correo,
-            establecer su nueva clave definitiva y completar los datos obligatorios de su perfil (DNI, País e Institución)
-            en una única transacción.
-            
-            **Detalles del Flujo:**
-            1. El usuario debe autenticarse previamente en `/api/auth/login` usando su clave temporal para obtener el JWT token.
-            2. La solicitud requiere que la cuenta tenga activa la bandera `mustChangePassword = true`.
-            3. Se delega la validación de contraseñas reutilizando la lógica interna de `changePassword(...)`.
-            4. Una vez procesada la solicitud de forma correcta, se actualizan las entidades `User` y `CongressParticipant`,
-               y se desactiva la bandera `mustChangePassword`, otorgando acceso completo al sistema.
-            """,
-        security = @SecurityRequirement(name = "bearerAuth")
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Perfil y contraseña completados exitosamente."),
-        @ApiResponse(responseCode = "400",description = "Solicitud inválida: La contraseña temporal es incorrecta, la nueva clave no coincide/no cumple el formato o faltan datos requeridos del perfil."),
-        @ApiResponse(responseCode = "401",description = "No autorizado: El token JWT es inválido, ha expirado o no fue provisto."),
-        @ApiResponse(responseCode = "404", description = "Recurso no encontrado: No existe la inscripción al congreso para el usuario.")
-    })
-    @PostMapping("/first-login")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<MessageResponseDTO> completeFirstLogin( @Valid @RequestBody CompleteFirstLoginRequestDTO request) {
-        
-        MessageResponseDTO response = userService.completeFirstLogin(request);
-        return ResponseEntity.ok(response);
-    }
+    	    summary = "Completar onboarding de primer inicio de sesión",
+    	    description = """
+    	        Permite a un usuario creado por un administrador validar su contraseña
+    	        temporal recibida por correo, establecer su nueva clave definitiva y
+    	        completar los datos obligatorios de su perfil (DNI y país).
 
+    	        **Detalles del Flujo:**
 
-    ///----------------------------------------------------------DELETE----------------------------------------------------------///
+    	        1. El usuario debe autenticarse previamente en `/api/auth/login`
+    	           utilizando su contraseña temporal para obtener el JWT.
+    	        2. La solicitud requiere que la cuenta tenga activa la bandera
+    	           `mustChangePassword = true`.
+    	        3. Se delega la validación de contraseñas reutilizando la lógica
+    	           de `changePassword(...)`.
+    	        4. Se actualizan los datos globales de `User` y se desactiva
+    	           la bandera `mustChangePassword`.
+
+    	        La operación no modifica las inscripciones del usuario a los congresos.
+    	        La institución corresponde a cada participación y se gestiona
+    	        independientemente de este proceso.
+    	        """,
+    	    security = @SecurityRequirement(name = "bearerAuth")
+	)
+	@ApiResponses({
+	    @ApiResponse(
+	        responseCode = "200",
+	        description = "Perfil y contraseña completados exitosamente."
+	    ),
+	    @ApiResponse(
+	        responseCode = "400",
+	        description = "Solicitud inválida: la contraseña temporal es incorrecta, la nueva clave no coincide o no cumple los requisitos, faltan datos obligatorios o el usuario ya completó su primer inicio de sesión."
+	    ),
+	    @ApiResponse(
+	        responseCode = "401",
+	        description = "No autorizado: el token JWT es inválido, ha expirado o no fue provisto."
+	    )
+	})
+	@PostMapping("/first-login")
+	@PreAuthorize("isAuthenticated()")
+	public ResponseEntity<MessageResponseDTO> completeFirstLogin(
+	        @Valid @RequestBody CompleteFirstLoginRequestDTO request) {
+
+	    MessageResponseDTO response = userService.completeFirstLogin(request);
+	    return ResponseEntity.ok(response);
+	}
+
+    ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
     @Operation(
-        summary = "Desactivar un usuario del sistema (Baja lógica global)",
-        description = """
-            Realiza la baja lógica global de una cuenta de usuario en la plataforma cambiando su estado "enabled" a "false".
-            
-            **Políticas de Acceso:**
-            - **Restricción Estricta:** Exclusivo para usuarios con "isSuperAdmin = true".
-            - **Efecto Global:** Un usuario desactivado pierde el acceso a la plataforma.
-            - Los administradores de congreso o el propio usuario no pueden ejecutar la baja global desde este endpoint.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "204", description = "Usuario eliminado correctamente"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado. Se requieren permisos de Súper Admin"),
-        @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
-    })
-    @PreAuthorize("isAuthenticated()")
-    @DeleteMapping("/{code}")
-    public ResponseEntity<Void> deleteUser(@PathVariable String code) {
+    	    summary = "Deshabilitar un usuario del sistema (Baja lógica global)",
+    	    description = """
+    	        Realiza la baja lógica global de una cuenta de usuario estableciendo
+    	        su estado enabled en false.
 
-        userService.deleteUser(code);
+    	        **Políticas de acceso:**
+    	        - Exclusivo para superadministradores.
+    	        - El usuario deshabilitado pierde el acceso a la plataforma.
+    	        - No modifica las participaciones del usuario en los congresos.
+    	        - No permite la autodesactivación.
+    	        - No permite deshabilitar al último superadministrador habilitado.
+    	        - No permite dejar congresos sin administradores habilitados.
+    	        """
+    	)
+    	@ApiResponses({
+    	    @ApiResponse(responseCode = "204", description = "Usuario deshabilitado correctamente"),
+    	    @ApiResponse(responseCode = "400", description = "La operación no puede realizarse por las restricciones de negocio"),
+    	    @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+    	    @ApiResponse(responseCode = "403", description = "Se requieren permisos de superadministrador"),
+    	    @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
+    	})
+    	@PreAuthorize("isAuthenticated()")
+    	@DeleteMapping("/{code}")
+    	public ResponseEntity<Void> disableUser(@PathVariable String code) {
 
-        return ResponseEntity.noContent().build();
-    }
+    	    userService.disableUser(code);
 
+    	    return ResponseEntity.noContent().build();
+    	}
+    
+    @Operation(
+    	    summary = "Habilitar un usuario del sistema",
+    	    description = """
+    	        Reactiva globalmente una cuenta previamente deshabilitada,
+    	        estableciendo su estado enabled en true.
+
+    	        **Políticas de acceso:**
+    	        - Exclusivo para superadministradores.
+    	        - No modifica las participaciones del usuario en los congresos.
+    	        - Conserva el historial de la baja lógica anterior.
+    	        """
+    	)
+    	@ApiResponses({
+    	    @ApiResponse(responseCode = "204", description = "Usuario habilitado correctamente"),
+    	    @ApiResponse(responseCode = "400", description = "El usuario ya se encuentra habilitado"),
+    	    @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+    	    @ApiResponse(responseCode = "403", description = "Se requieren permisos de superadministrador"),
+    	    @ApiResponse(responseCode = "404", description = "No se encontró un usuario con el código especificado")
+    	})
+    	@PreAuthorize("isAuthenticated()")
+    	@PatchMapping("/{code}/enable")
+    	public ResponseEntity<Void> enableUser(@PathVariable String code) {
+
+    	    userService.enableUser(code);
+
+    	    return ResponseEntity.noContent().build();
+    	}
 
     ///----------------------------------------------------------PUT----------------------------------------------------------///
     @Operation(
@@ -280,11 +263,11 @@ public class UserController {
         @ApiResponse(responseCode = "200", description = "Usuario actualizado correctamente"),
         @ApiResponse(responseCode = "400", description = "Los datos enviados no son válidos"),
         @ApiResponse(responseCode = "401", description = "No autenticado"),
-        @ApiResponse(responseCode = "403", description = "No posee permisos para modificar este usuario (requiere ser el mismo usuario o su Admin de congreso)"),
+        @ApiResponse(responseCode = "403", description = "No posee permisos para modificar este usuario (requiere ser el mismo usuario o su Súper Admin)"),
         @ApiResponse(responseCode = "404", description = "No se encontró ningún usuario con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
-    @PutMapping("/{code}")
+    @PutMapping("/{userCode}")
     public ResponseEntity<UserResponseDTO> updateUser(@PathVariable String userCode, @Valid @RequestBody UpdateUserRequestDTO request) {
 
         return ResponseEntity.ok(userService.updateUser(userCode, request));
@@ -292,35 +275,17 @@ public class UserController {
 
     ///----------------------------------------------------------PATCH----------------------------------------------------------///
     @Operation(
-        summary = "Actualizar el rol de un usuario en un congreso",
-        description = """
-            Modifica parcialmente la inscripción de un usuario actualizando únicamente el rol asignado en un congreso específico.
-            
-            **Políticas de Acceso:**
-            - **Súper Admin:** Puede modificar cualquier rol en cualquier congreso.
-            - **Admin de Congreso:** Requiere ser administrador activo sobre el `congressCode` enviado y que el usuario pertenezca al mismo.
-            - **Otros roles:** Denegado (`403 Forbidden`).
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Rol actualizado correctamente"),
-        @ApiResponse(responseCode = "400", description = "El rol enviado no es un valor válido del Enum"),
-        @ApiResponse(responseCode = "401", description = "No autenticado"),
-        @ApiResponse(responseCode = "403", description = "No posee permisos de administración sobre el congreso especificado"),
-        @ApiResponse(responseCode = "404", description = "El usuario no pertenece al congreso o el rol no existe")
-    })
-    @PreAuthorize("isAuthenticated()")
-    @PatchMapping("{congressCode}/{userCode}/role")
-    public ResponseEntity<UserResponseDTO> updateUserRole(@PathVariable String congressCode, @PathVariable String userCode, @RequestBody RoleName newRole) {
-        userService.updateUserRole(congressCode, userCode, newRole);
-        return ResponseEntity.ok().build();
-    }
-
-    @Operation(
         summary = "Cambiar o actualizar contraseña",
-        description = "Permite al usuario autenticado cambiar su contraseña actual por una nueva. " +
-                    "Este mismo endpoint atiende tanto el cambio voluntario desde el perfil como el primer ingreso obligatorio " +
-                    "tras la asignación de una contraseña provisoria por un administrador (desactivando el indicador mustChangePassword)."
+        description = """
+        	Permite al usuario autenticado cambiar su contraseña actual por una nueva.
+
+        	Este endpoint está destinado al cambio voluntario de contraseña
+        	desde el perfil del usuario.
+	
+        	Para las cuentas que requieren completar el primer inicio de sesión
+        	tras recibir una contraseña temporal, debe utilizarse el endpoint
+        	`/first-login`.
+        	"""
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Contraseña actualizada correctamente"),

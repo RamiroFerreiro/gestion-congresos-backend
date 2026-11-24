@@ -8,88 +8,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.tfi.gestion_congresos_backend.entities.Congress;
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 
 public interface CongressRepository extends JpaRepository<Congress, Long> {
 	
-	/* 
-	/// Obtener todos los congresos con sus participantes asociados:
-	@Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas")
-    List<Congress> findAllCongressesWithParticipants();
-	
-	/// Obtener los congresos activos/desactivados/todos con sus participantes asociados:
-	@Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas WHERE c.enabled = :enabled")
-    List<Congress> findAllCongressesByEnabledWithParticipants(@Param("enabled") boolean enabled);
-	
-	/// Obtener un congreso con sus participantes asociados por ID:
-	@Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas WHERE c.congressId = :congressId")
-    Optional<Congress> findByCongressId(@Param("congressId") Long congressId);
-	
-	/// Determinar si existe un usuario por su ID con determinado rol en un congreso específico:
-	@Query("SELECT COUNT(p) > 0 FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.congressId = :congressId AND p.userId = :userId AND r.name = :role")
-	boolean existsByCongressIdAndUserIdAndRole(Long congressId, Long userId, RoleName role);
-	
-	/// Determinar si existe un participante específico en un congreso determinado:
-	boolean existsByCodeAndParticipantsCode(String code, String participantCode);
-
-	 /// Obtener un congreso con sus participantes asociados por code:
-    @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.participants p LEFT JOIN FETCH p.role LEFT JOIN FETCH c.thematicAreas WHERE c.code = :code")
-    Optional<Congress> findByCode(@Param("code") String code);
-
-    /// Determinar si existe un congreso por su code (derivado, Spring Data lo resuelve solo):
-    boolean existsByCode(String code);
-
-    /// Determinar si existe un usuario con determinado rol en un congreso, buscando por code:
-    @Query("SELECT COUNT(p) > 0 FROM Congress c JOIN c.participants p JOIN p.role r WHERE c.code = :congressCode AND p.code = :userCode AND r.name = :role")
-    boolean existsByCongressCodeAndUserCodeAndRole(String congressCode, String userCode, RoleName role);
-
-	
-	*/
-	///CHEQUEAR SI FUNCIONA, SE COMENTA PARA LEVANTAR EL PROYECTO.
-
-
 	/// Obtener todos los congresos con sus áreas temáticas asociadas:
-    /// Obtener todos los congresos con sus áreas temáticas asociadas:
     @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.thematicAreas")
-    List<Congress> findAllCongressesWithParticipants();
+    List<Congress> findAllWithThematicAreas();
 
-    /// Obtener los congresos por estado de habilitación:
+    /// Obtener los congresos por estado de habilitación con sus áreas temáticas asociadas:
     @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.thematicAreas WHERE c.enabled = :enabled")
-    List<Congress> findAllCongressesByEnabledWithParticipants(@Param("enabled") boolean enabled);
+    List<Congress> findAllByEnabledWithThematicAreas(@Param("enabled") boolean enabled);
 
-    /// Obtener un congreso por ID:
+    /// Obtener un congreso por ID con sus áreas temáticas asociadas:
     @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.thematicAreas WHERE c.congressId = :congressId")
-    Optional<Congress> findByCongressId(@Param("congressId") Long congressId);
+    Optional<Congress> findByCongressIdWithThematicAreas(@Param("congressId") Long congressId);
 
-    /// Obtener un congreso por código:
+    /// Obtener un congreso por código con sus áreas temáticas asociadas:
     @Query("SELECT DISTINCT c FROM Congress c LEFT JOIN FETCH c.thematicAreas WHERE c.code = :code")
-    Optional<Congress> findByCode(@Param("code") String code);
+    Optional<Congress> findByCodeWithThematicAreas(@Param("code") String code);
 
     /// Determinar si existe un congreso por su código:
     boolean existsByCode(String code);
-
-    /// Determinar si existe un usuario por su ID con determinado rol en un congreso:
-    @Query("SELECT COUNT(cp) > 0 FROM CongressParticipant cp " +
-        "WHERE cp.congress.congressId = :congressId " +
-        "AND cp.user.userId = :userId " +
-        "AND cp.role.name = :role")
-    boolean existsByCongressIdAndUserIdAndRole(
-            @Param("congressId") Long congressId, 
-            @Param("userId") Long userId, 
-            @Param("role") RoleName role
-    );
-
-    /// Determinar si existe un usuario con determinado rol en un congreso buscando por código:
-    @Query("SELECT COUNT(cp) > 0 FROM CongressParticipant cp " +
-        "WHERE cp.congress.code = :congressCode " +
-        "AND cp.user.code = :userCode " +
-        "AND cp.role.name = :role")
-    boolean existsByCongressCodeAndUserCodeAndRole(
-            @Param("congressCode") String congressCode, 
-            @Param("userCode") String userCode, 
-            @Param("role") RoleName role
-    );
-
-	boolean existsByCodeAndParticipants_User_Code(String code, String userCode);
-
 }

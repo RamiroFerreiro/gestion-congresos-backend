@@ -2,7 +2,6 @@ package com.tfi.gestion_congresos_backend.services;
 
 import java.util.List;
 
-import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.dtos.auth.ChangeEmailRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.AdminCreateUserRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.ChangePasswordRequestDTO;
@@ -28,10 +27,6 @@ public interface UserService {
     ///Controllers
     List<UserResponseDTO> getAllUsers();
 
-    List<UserResponseDTO> getUsersByCongress(String congressCode);
-
-    UserResponseDTO getUserByCodeAndCongress(String congressCode, String userCode);
-
     UserResponseDTO getAuthenticatedUser();
 
     //Auxiliares
@@ -39,21 +34,23 @@ public interface UserService {
 
     User getUserByUserId(Long userId); 
 
-    User getUserByUserCode(String code); 
+    User getUserByUserCode(String code);
 
-    User getAuthenticatedUserEntity(); 
-
-    List<UserResponseDTO> getParticipantsByCongressAndRole(String code, RoleName role); //probar
-
+    /*
     ///-----------------------------------------------------DELETE-----------------------------------------------------///
 
     void deleteUser(String userCode);
+    */
+    
+    ///-----------------------------------------------------DISABLE / ENABLE-----------------------------------------------------///
+
+    void disableUser(String userCode);
+
+    void enableUser(String userCode);
 
     ///-----------------------------------------------------UPDATE-----------------------------------------------------///
 
     UserResponseDTO updateUser(String userCode, UpdateUserRequestDTO userRequestDTO);
-
-    void updateUserRole(String congressCode, String userCode, RoleName newRole); 
 
     MessageResponseDTO changePassword(ChangePasswordRequestDTO request); 
 

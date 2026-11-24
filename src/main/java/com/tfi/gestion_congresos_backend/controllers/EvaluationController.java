@@ -16,6 +16,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,12 +30,19 @@ public class EvaluationController {
     ///----------------------------------------------------------GETS----------------------------------------------------------///
     @Operation(
             summary = "Obtener historial de evaluaciones de un trabajo",
-            description = "Obtiene la lista de evaluaciones asociadas a un Paper específico, ordenadas por fecha descendente."
+            description = """
+                    Obtiene la lista de evaluaciones asociadas a un Paper específico, ordenadas por fecha descendente.
+                    Los autores ACCEPTED solo reciben evaluaciones liberadas. Los campos evaluatorCode y
+                    evaluatorFullName se informan para administradores del congreso y superadministradores,
+                    y para autores ACCEPTED únicamente en modalidad simple ciego. En modalidad doble ciego,
+                    y para evaluadores asignados sin privilegios administrativos, ambos campos son null.
+                    """
     )
     @ApiResponse(
             responseCode = "200",
             description = "Evaluaciones obtenidas correctamente"
     )
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/paper/{paperCode}")
     public ResponseEntity<List<EvaluationResponseDTO>> getEvaluationsByPaperCode(@PathVariable String paperCode) {
         return ResponseEntity.ok(evaluationService.getEvaluationsByPaperCode(paperCode));
@@ -59,6 +67,7 @@ public class EvaluationController {
                     description = "No se encontró un Paper con el código especificado"
             )
     })
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/paper/{paperCode}")
     public ResponseEntity<EvaluationResponseDTO> createEvaluation(
             @PathVariable String paperCode,
@@ -85,6 +94,7 @@ public class EvaluationController {
                     description = "No se encontró un congreso con el código especificado"
             )
     })
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/congress/{congressCode}/release")
     public ResponseEntity<MessageResponseDTO> releasePendingEvaluations(@PathVariable String congressCode) {
         return ResponseEntity.ok(evaluationService.releasePendingEvaluations(congressCode));
