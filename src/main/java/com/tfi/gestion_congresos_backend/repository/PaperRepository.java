@@ -19,6 +19,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+import com.tfi.gestion_congresos_backend.repository.projection.CoauthorshipPaperProjection;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +57,40 @@ public interface PaperRepository extends JpaRepository<Paper, Long>, JpaSpecific
     boolean existsByCode(String code);
 
     Optional<Paper> findByCode(String code);
+
+    // All coauthorship decisions and submission serialize on this parent row.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Paper p where p.code = :code")
+    Optional<Paper> findByCodeForUpdate(@Param("code") String code);
+
+    @Query(value = """
+        SELECT p.code AS code, p.title AS title, p.thematicArea AS thematicArea,
+               COUNT(a) AS acceptedAuthorCount, c.maxNumberOfAuthors AS maxNumberOfAuthors
+        FROM Paper p JOIN p.congress c
+        LEFT JOIN p.authors a ON a.status = com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus.ACCEPTED
+        WHERE c.code = :congressCode
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED
+          AND NOT EXISTS (SELECT mine FROM PaperAuthor mine WHERE mine.paper = p AND mine.author.userId = :userId)
+          AND (:search IS NULL OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%')))
+          AND (:area IS NULL OR p.thematicArea = :area)
+        GROUP BY p.paperId, p.code, p.title, p.thematicArea, c.maxNumberOfAuthors
+        HAVING c.maxNumberOfAuthors IS NULL OR COUNT(a) < c.maxNumberOfAuthors
+        """, countQuery = """
+        SELECT COUNT(p) FROM Paper p JOIN p.congress c
+        WHERE c.code = :congressCode
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED
+          AND NOT EXISTS (SELECT mine FROM PaperAuthor mine WHERE mine.paper = p AND mine.author.userId = :userId)
+          AND (:search IS NULL OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%')))
+          AND (:area IS NULL OR p.thematicArea = :area)
+          AND (c.maxNumberOfAuthors IS NULL OR
+              (SELECT COUNT(a) FROM PaperAuthor a WHERE a.paper = p
+               AND a.status = com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus.ACCEPTED) < c.maxNumberOfAuthors)
+        """)
+    Page<CoauthorshipPaperProjection> findAvailableForCoauthorship(
+            @Param("congressCode") String congressCode, @Param("userId") Long userId,
+            @Param("search") String search, @Param("area") String area, Pageable pageable);
 
     @Query(value = """
         SELECT p.code AS code,

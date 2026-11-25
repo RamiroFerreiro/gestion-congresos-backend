@@ -677,7 +677,8 @@ public class PaperServiceImpl implements PaperService {
             String paperCode,
             boolean confirmDiscardPendingRequests
     ) {
-        Paper paper = getPaperEntityByCode(paperCode);
+        Paper paper = paperRepository.findByCodeForUpdate(paperCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + paperCode));
 
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());

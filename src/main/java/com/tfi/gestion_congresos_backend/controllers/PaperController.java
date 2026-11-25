@@ -10,6 +10,10 @@ import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
+import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
+import com.tfi.gestion_congresos_backend.dtos.paper.CoauthorshipPaperResponseDTO;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -39,6 +43,15 @@ import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 public class PaperController {
 
     private final PaperService paperService;
+    private final PaperAuthorService paperAuthorService;
+
+    /** Concrete generic types allow Swagger to describe the two page variants. */
+    public static class CoauthorshipPageSchema extends org.springframework.data.domain.PageImpl<CoauthorshipPaperResponseDTO> {
+        public CoauthorshipPageSchema() { super(List.of()); }
+    }
+    public static class PaperSummaryPageSchema extends org.springframework.data.domain.PageImpl<PaperSummaryResponseDTO> {
+        public PaperSummaryPageSchema() { super(List.of()); }
+    }
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
     
@@ -156,21 +169,24 @@ public class PaperController {
 
     @Operation(
             summary = "Obtener trabajos de un congreso paginados y filtrados",
-            description = "Obtiene una página de trabajos resumidos de un congreso especificando su código, permitiendo aplicar filtros por estado, evaluador asignado, estado de pago y búsqueda por texto. Los administradores del congreso y superadministradores ven todos los trabajos; los evaluadores solo ven los actualmente asignados y los autores aceptados solo sus propios trabajos."
+            description = "Modo habitual: administradores ven todos, evaluadores los asignados y autores aceptados los propios. Con forCoauthorship=true: catálogo exclusivo de LISTENER/EXPOSITOR activos con institución, NOT_SUBMITTED con cupo y sin relación propia, durante presentación en congreso habilitado. Solo devuelve código, título, área y cupo; admite search (código/título) y thematicArea, ignora filtros administrativos y ordena por código. Fuera del período devuelve página vacía."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
+            @ApiResponse(responseCode = "200", description = "Página habitual o página mínima de coautoría según forCoauthorship",
+                    content = @Content(schema = @Schema(oneOf = { PaperSummaryPageSchema.class, CoauthorshipPageSchema.class }))),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
             @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/congresses/{congressCode}")
-    public ResponseEntity<Page<PaperSummaryResponseDTO>> getPapersByCongress(
+    public ResponseEntity<Page<?>> getPapersByCongress(
             @PathVariable String congressCode,
+            @RequestParam(defaultValue = "false") boolean forCoauthorship,
             @ModelAttribute PaperFilterDTO filter,
             @PageableDefault(size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
+        if (forCoauthorship) return ResponseEntity.ok(paperAuthorService.getAvailableForCoauthorship(congressCode, filter, pageable));
         Page<PaperSummaryResponseDTO> papersPage = paperService.getPaperSummariesByCongress(congressCode, filter, pageable);
         return ResponseEntity.ok(papersPage);
     }

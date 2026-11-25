@@ -2,12 +2,17 @@ package com.tfi.gestion_congresos_backend.services;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperAuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperAuthorUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.CoauthorshipPaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
 public interface PaperAuthorService {
     
     // GETS
+    Page<CoauthorshipPaperResponseDTO> getAvailableForCoauthorship(String congressCode, PaperFilterDTO filter, Pageable pageable);
     List<PaperAuthorResponseDTO> getPaperAuthors(String paperCode);
     List<PaperAuthorResponseDTO> getCongressAuthors(String congressCode);
     List<PaperAuthorResponseDTO> getPendingAuthorRequests(String paperCode);
