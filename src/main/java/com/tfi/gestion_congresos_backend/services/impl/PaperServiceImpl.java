@@ -506,6 +506,7 @@ public class PaperServiceImpl implements PaperService {
 
         // 12. Asignar el evaluador
         paper.setUserReviewer(reviewer);
+        paper.setReviewerAssignedAt(assignmentDate);
 
         // 13. Guardar los cambios
         Paper savedPaper = paperRepository.save(paper);
@@ -616,6 +617,7 @@ public class PaperServiceImpl implements PaperService {
         // permanecen vinculadas al paper y quedan disponibles para quien
         // recibe la asignación actual.
         paper.setUserReviewer(newReviewer);
+        paper.setReviewerAssignedAt(reassignmentDate);
 
         // 15. Guardar los cambios
         Paper savedPaper = paperRepository.save(paper);
