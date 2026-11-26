@@ -90,6 +90,8 @@ public class PaperAuthorController {
             summary = "Solicitar unirse como co-autor a un trabajo",
             description = """
                 Permite a un usuario solicitar incorporarse a un trabajo existente.
+                Requiere congreso habilitado, período de presentación abierto (extremos incluidos),
+                institución completa y cupo disponible contando solo autores ACCEPTED.
 			    La relación se crea en estado PENDING y debe ser aceptada por el
 			    Autor Principal, un Administrador del congreso o un Súper Administrador.
 			
@@ -221,6 +223,7 @@ public class PaperAuthorController {
             summary = "Aceptar solicitud de coautoría",
             description = """
                     Cambia el estado de una solicitud de PENDING a ACCEPTED.
+                    Requiere congreso habilitado y período de presentación abierto (extremos incluidos).
 
                     **Permisos:**
                     - Autor principal del trabajo.
@@ -257,6 +260,7 @@ public class PaperAuthorController {
             summary = "Rechazar solicitud de co-autoría",
             description = """
                 Rechaza una solicitud en estado PENDING, eliminándola de la base de datos sin conservar historial.
+                Requiere congreso habilitado y período de presentación abierto (extremos incluidos).
 
 		        **Permisos:**
 		        - Autor principal del trabajo.

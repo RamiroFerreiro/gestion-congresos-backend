@@ -4,6 +4,11 @@ package com.tfi.gestion_congresos_backend.repository;
 import com.tfi.gestion_congresos_backend.entities.Paper;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantPaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomeAcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomePaymentMetricsProjection;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +19,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+import com.tfi.gestion_congresos_backend.repository.projection.CoauthorshipPaperProjection;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,6 +57,119 @@ public interface PaperRepository extends JpaRepository<Paper, Long>, JpaSpecific
     boolean existsByCode(String code);
 
     Optional<Paper> findByCode(String code);
+
+    // All coauthorship decisions and submission serialize on this parent row.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Paper p where p.code = :code")
+    Optional<Paper> findByCodeForUpdate(@Param("code") String code);
+
+    @Query(value = """
+        SELECT p.code AS code, p.title AS title, p.thematicArea AS thematicArea,
+               COUNT(a) AS acceptedAuthorCount, c.maxNumberOfAuthors AS maxNumberOfAuthors
+        FROM Paper p JOIN p.congress c
+        LEFT JOIN p.authors a ON a.status = com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus.ACCEPTED
+        WHERE c.code = :congressCode
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED
+          AND NOT EXISTS (SELECT mine FROM PaperAuthor mine WHERE mine.paper = p AND mine.author.userId = :userId)
+          AND (:search IS NULL OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%')))
+          AND (:area IS NULL OR p.thematicArea = :area)
+        GROUP BY p.paperId, p.code, p.title, p.thematicArea, c.maxNumberOfAuthors
+        HAVING c.maxNumberOfAuthors IS NULL OR COUNT(a) < c.maxNumberOfAuthors
+        """, countQuery = """
+        SELECT COUNT(p) FROM Paper p JOIN p.congress c
+        WHERE c.code = :congressCode
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED
+          AND NOT EXISTS (SELECT mine FROM PaperAuthor mine WHERE mine.paper = p AND mine.author.userId = :userId)
+          AND (:search IS NULL OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%')))
+          AND (:area IS NULL OR p.thematicArea = :area)
+          AND (c.maxNumberOfAuthors IS NULL OR
+              (SELECT COUNT(a) FROM PaperAuthor a WHERE a.paper = p
+               AND a.status = com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus.ACCEPTED) < c.maxNumberOfAuthors)
+        """)
+    Page<CoauthorshipPaperProjection> findAvailableForCoauthorship(
+            @Param("congressCode") String congressCode, @Param("userId") Long userId,
+            @Param("search") String search, @Param("area") String area, Pageable pageable);
+
+    @Query(value = """
+        SELECT p.code AS code,
+               p.title AS title,
+               p.version AS version,
+               p.status AS status,
+               p.submittedAt AS submittedAt,
+               pa.isMainAuthor AS responsibleAuthor,
+               c.isFree AS freeCongress,
+               pp.status AS rawPaymentStatus,
+               p.lastActivityType AS lastActivityType,
+               p.lastActivityAt AS lastActivityAt
+        FROM Paper p
+        JOIN p.congress c
+        JOIN p.authors pa
+        LEFT JOIN PaperPayment pp ON pp.paper = p
+        WHERE c.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedStatus
+          AND (:status IS NULL OR p.status = :status)
+        """,
+        countQuery = """
+        SELECT COUNT(p)
+        FROM Paper p
+        JOIN p.congress c
+        JOIN p.authors pa
+        WHERE c.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedStatus
+          AND (:status IS NULL OR p.status = :status)
+        """)
+    Page<ParticipantPaperSummaryProjection> findParticipantPaperSummaries(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedStatus") PaperAuthorStatus acceptedStatus,
+            @Param("status") PaperStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+        SELECT COUNT(DISTINCT p) AS totalAssociatedPapers,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NOT_SUBMITTED THEN 1 ELSE 0 END), 0) AS drafts,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.NEEDS_REVISION THEN 1 ELSE 0 END), 0) AS needsRevision,
+               COALESCE(SUM(CASE WHEN p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.UNDER_EVALUATION THEN 1 ELSE 0 END), 0) AS underEvaluation
+        FROM Paper p
+        JOIN p.authors pa
+        WHERE p.congress.code = :congressCode
+          AND pa.author.userId = :userId
+          AND pa.status = :acceptedAuthorStatus
+        """)
+    ParticipantHomeAcademicMetricsProjection getParticipantHomeAcademicMetrics(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedAuthorStatus") PaperAuthorStatus acceptedAuthorStatus
+    );
+
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN pp.paperPaymentId IS NULL
+                              OR pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.REJECTED
+                         THEN 1 ELSE 0 END), 0) AS paymentsWithoutValidReceipt,
+               COALESCE(SUM(CASE WHEN pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.PENDING_APPROVAL
+                         THEN 1 ELSE 0 END), 0) AS paymentsPendingApproval,
+               COALESCE(SUM(CASE WHEN pp.status = com.tfi.gestion_congresos_backend.enums.PaymentStatus.APPROVED
+                         THEN 1 ELSE 0 END), 0) AS paymentsVerified
+        FROM Paper p
+        JOIN p.authors pa
+        LEFT JOIN PaperPayment pp ON pp.paper = p
+        WHERE p.congress.code = :congressCode
+          AND p.congress.isFree = false
+          AND p.status = com.tfi.gestion_congresos_backend.enums.PaperStatus.ACCEPTED
+          AND pa.author.userId = :userId
+          AND pa.isMainAuthor = true
+          AND pa.status = :acceptedAuthorStatus
+        """)
+    ParticipantHomePaymentMetricsProjection getParticipantHomePaymentMetrics(
+            @Param("congressCode") String congressCode,
+            @Param("userId") Long userId,
+            @Param("acceptedAuthorStatus") PaperAuthorStatus acceptedAuthorStatus
+    );
     
     /// Busca los trabajos asignados a un evaluador dentro de un congreso
     @EntityGraph(attributePaths = "congress")

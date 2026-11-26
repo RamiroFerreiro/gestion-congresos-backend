@@ -2,6 +2,8 @@ package com.tfi.gestion_congresos_backend.repository;
 
 import com.tfi.gestion_congresos_backend.entities.User;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +17,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     
     Optional<User> findByCode(String code);
+
+    List<User> findByCodeIn(Collection<String> codes);
     
     long countBySuperAdminTrueAndEnabledTrue();
 }

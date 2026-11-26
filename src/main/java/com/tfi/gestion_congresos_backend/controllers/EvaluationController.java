@@ -30,7 +30,13 @@ public class EvaluationController {
     ///----------------------------------------------------------GETS----------------------------------------------------------///
     @Operation(
             summary = "Obtener historial de evaluaciones de un trabajo",
-            description = "Obtiene la lista de evaluaciones asociadas a un Paper específico, ordenadas por fecha descendente."
+            description = """
+                    Obtiene la lista de evaluaciones asociadas a un Paper específico, ordenadas por fecha descendente.
+                    Los autores ACCEPTED solo reciben evaluaciones liberadas. Los campos evaluatorCode y
+                    evaluatorFullName se informan para administradores del congreso y superadministradores,
+                    y para autores ACCEPTED únicamente en modalidad simple ciego. En modalidad doble ciego,
+                    y para evaluadores asignados sin privilegios administrativos, ambos campos son null.
+                    """
     )
     @ApiResponse(
             responseCode = "200",

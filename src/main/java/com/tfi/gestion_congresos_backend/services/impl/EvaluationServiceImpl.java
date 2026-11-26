@@ -11,6 +11,7 @@ import com.tfi.gestion_congresos_backend.entities.User;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaperActivityType;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -26,6 +27,7 @@ import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.EvaluationService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +37,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -64,13 +69,15 @@ public class EvaluationServiceImpl implements EvaluationService {
         Paper paper = findPaperOrThrow(paperCode);
         Congress congress = paper.getCongress();
 
+        boolean isAdministrativeViewer = securityEvaluator.isSuperAdmin(user)
+                || securityEvaluator.isAdminOfCongress(user, congress.getCode());
+        boolean isAssignedReviewer = !isAdministrativeViewer
+                && securityEvaluator.isAssignedReviewer(user, paper);
+        boolean privileged = isAdministrativeViewer || isAssignedReviewer;
+        boolean isAcceptedAuthor = !privileged
+                && securityEvaluator.isAcceptedAuthor(user, paper);
 
-        
-        boolean privileged = securityEvaluator.isSuperAdminOr(user, () ->
-                securityEvaluator.isAssignedReviewer(user, paper)
-                || securityEvaluator.isAdminOfCongress(user, congress.getCode()));
-
-        if (!privileged && !securityEvaluator.isAcceptedAuthor(user, paper)) {
+        if (!privileged && !isAcceptedAuthor) {
             throw new UserDisabledException(
                     "No tenés permisos para ver las evaluaciones de este trabajo.");
         }
@@ -88,7 +95,20 @@ public class EvaluationServiceImpl implements EvaluationService {
                     .toList();
         }
 
-        return evaluations.stream().map(evaluationMapper::toResponseDTO).collect(Collectors.toList());
+        List<EvaluationResponseDTO> response = evaluations.stream()
+                .map(evaluationMapper::toResponseDTO)
+                .collect(Collectors.toList());
+
+        response.forEach(this::clearEvaluatorIdentity);
+
+        boolean canViewEvaluatorIdentity = isAdministrativeViewer
+                || (isAcceptedAuthor && congress.isSingleBlind());
+
+        if (canViewEvaluatorIdentity) {
+            populateEvaluatorIdentity(evaluations, response);
+        }
+
+        return response;
     }
 
     @Override
@@ -154,16 +174,17 @@ public class EvaluationServiceImpl implements EvaluationService {
         Evaluation evaluation = evaluationMapper.toEntity(requestDTO);
         evaluation.setPaper(paper);
         evaluation.setEvaluatedVersion(paper.getVersion());   // ANTES del resultado: el snapshot debe decir "1.0"
-        evaluation.setEvaluationDate(LocalDateTime.now());
+        evaluation.setEvaluationDate(DateUtils.now());
         evaluation.setNewStatus(requestDTO.getNewStatus());
 
         boolean immediate = congress.getEvaluationReleaseMode() == EvaluationReleaseMode.IMMEDIATE;
         evaluation.setReleased(immediate);
-        evaluation.setReleasedAt(immediate ? LocalDateTime.now() : null);
+        evaluation.setReleasedAt(immediate ? DateUtils.now() : null);
 
         Evaluation saved = evaluationRepository.save(evaluation);
         if (immediate) {
             applyResult(saved);
+            recordEvaluationReleasedActivity(saved.getPaper(), saved.getReleasedAt());
         }
         return evaluationMapper.toResponseDTO(saved);
     }
@@ -189,12 +210,13 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         List<Evaluation> pending = evaluationRepository.findByPaper_Congress_CodeAndIsReleasedFalse(congressCode);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateUtils.now();
 
         for (Evaluation evaluation : pending) {
             evaluation.setReleased(true);
             evaluation.setReleasedAt(now);
             applyResult(evaluation);
+            recordEvaluationReleasedActivity(evaluation.getPaper(), now);
         }
         evaluationRepository.saveAll(pending);
 
@@ -208,6 +230,50 @@ public class EvaluationServiceImpl implements EvaluationService {
     private Paper findPaperOrThrow(String paperCode) {
         return paperRepository.findByCode(paperCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Paper no encontrado con código: " + paperCode));
+    }
+
+    private void clearEvaluatorIdentity(EvaluationResponseDTO evaluationResponse) {
+        evaluationResponse.setEvaluatorCode(null);
+        evaluationResponse.setEvaluatorFullName(null);
+    }
+
+    private void populateEvaluatorIdentity(
+            List<Evaluation> evaluations,
+            List<EvaluationResponseDTO> response
+    ) {
+        Set<String> evaluatorCodes = evaluations.stream()
+                .map(Evaluation::getCreatedBy)
+                .filter(this::isHistoricalEvaluatorCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (evaluatorCodes.isEmpty()) {
+            return;
+        }
+
+        Map<String, User> evaluatorsByCode = userRepository.findByCodeIn(evaluatorCodes)
+                .stream()
+                .collect(Collectors.toMap(User::getCode, Function.identity()));
+
+        for (int index = 0; index < evaluations.size(); index++) {
+            String evaluatorCode = evaluations.get(index).getCreatedBy();
+            User evaluator = evaluatorsByCode.get(evaluatorCode);
+
+            if (evaluator == null) {
+                continue;
+            }
+
+            EvaluationResponseDTO evaluationResponse = response.get(index);
+            evaluationResponse.setEvaluatorCode(evaluatorCode);
+            evaluationResponse.setEvaluatorFullName(
+                    evaluator.getFirstName() + " " + evaluator.getLastName()
+            );
+        }
+    }
+
+    private boolean isHistoricalEvaluatorCode(String evaluatorCode) {
+        return evaluatorCode != null
+                && !evaluatorCode.isBlank()
+                && !"SYSTEM".equals(evaluatorCode);
     }
 
     private void validateResultAndDeadline(EvaluationRequestDTO dto, Congress congress) {
@@ -240,6 +306,11 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         notifyAuthors(evaluation);
+    }
+
+    private void recordEvaluationReleasedActivity(Paper paper, LocalDateTime releasedAt) {
+        paper.setLastActivityType(ParticipantPaperActivityType.EVALUATION_RELEASED);
+        paper.setLastActivityAt(releasedAt);
     }
 
     private void notifyAuthors(Evaluation evaluation) {

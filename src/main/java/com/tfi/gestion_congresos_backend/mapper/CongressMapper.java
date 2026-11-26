@@ -1,6 +1,7 @@
 package com.tfi.gestion_congresos_backend.mapper;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
@@ -12,13 +13,17 @@ import com.tfi.gestion_congresos_backend.entities.Congress;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface CongressMapper {
-	
-	// De entidad a DTO de respuesta:
+
+    // De entidad a DTO de respuesta:
+    @Mapping(target = "isFree", source = "free")
+    @Mapping(target = "isSingleBlind", source = "singleBlind")
     CongressResponseDTO toCongressResponseDTO(Congress congress);
     CongressSummaryDTO toCongressResponseSummaryDTO(Congress congress);
     CongressPaperSubmissionRulesDTO toCongressPaperSubmissionRulesDTO(Congress congress);
 
     // De DTO de creación a entidad:
+    @Mapping(target = "isFree", source = "free")
+    @Mapping(target = "isSingleBlind", source = "singleBlind")
     Congress toEntity(CongressRequestDTO dto);
 
     // Actualización de una entidad existente desde un DTO:

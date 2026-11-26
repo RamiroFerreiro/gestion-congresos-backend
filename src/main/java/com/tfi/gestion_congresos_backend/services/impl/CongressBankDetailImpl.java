@@ -1,5 +1,6 @@
 package com.tfi.gestion_congresos_backend.services.impl;
 
+import com.tfi.gestion_congresos_backend.repository.CongressRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +33,7 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
 
     private final CongressBankDetailRepository bankDetailRepository;
     private final PaperRepository paperRepository;
-    private final CongressService congressService;
+    private final CongressRepository congressRepository;
     private final CongressBankDetailMapper bankDetailMapper;
     private final AuthorizationService authorizationService;
     private final CongressParticipantInstitutionValidator institutionValidator;
@@ -57,7 +58,7 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
         validateCurrentUserInstitution(congressCode);
         
         //4. Validar existencia del congreso
-        Congress congress = congressService.getCongressEntityByCode(congressCode);
+        Congress congress = getCongressEntityByCode(congressCode);
 
         //5. Validar que el congreso sea de pago
         if (Boolean.TRUE.equals(congress.isFree())) {
@@ -93,7 +94,7 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
         validateCurrentUserInstitution(congressCode);
 
         //3. Validar que el congreso exista
-        congressService.getCongressEntityByCode(congressCode);
+        getCongressEntityByCode(congressCode);
 
         //4. Buscar los datos bancarios
         CongressBankDetail bankDetail = bankDetailRepository.findByCongress_Code(congressCode)
@@ -107,7 +108,7 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
     public boolean existsByCongressCode(String congressCode) {
 
         // 1. Verificar que el congreso exista
-        congressService.getCongressEntityByCode(congressCode);
+        getCongressEntityByCode(congressCode);
 
         // 2. Validar que el usuario tenga su institución definida
         validateCurrentUserInstitution(congressCode);
@@ -201,6 +202,15 @@ public class CongressBankDetailImpl implements CongressBankDetailService{
                         mainAuthor.getCode(), congress.getCode(), exception);
             }
         }
+    }
+
+    private Congress getCongressEntityByCode(String code) {
+        return congressRepository.findByCodeWithThematicAreas(code)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Congreso no encontrado con código: " + code
+                        )
+                );
     }
 }
 

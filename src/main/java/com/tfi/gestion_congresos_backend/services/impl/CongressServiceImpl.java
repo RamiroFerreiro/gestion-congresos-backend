@@ -6,8 +6,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,15 +18,17 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressPaperSubmissionRulesDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
-import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.congress.MyCongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
 import com.tfi.gestion_congresos_backend.entities.CongressPaperType;
 import com.tfi.gestion_congresos_backend.entities.CongressParticipant;
 import com.tfi.gestion_congresos_backend.entities.User;
+import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
+import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 import com.tfi.gestion_congresos_backend.enums.PaperType;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
@@ -39,6 +43,8 @@ import com.tfi.gestion_congresos_backend.repository.PaperPaymentRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.projection.AcademicMetricsProjection;
 import com.tfi.gestion_congresos_backend.repository.projection.FinancialMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomeAcademicMetricsProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantHomePaymentMetricsProjection;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
@@ -57,12 +63,59 @@ public class CongressServiceImpl implements CongressService {
 	private final CongressPaperTypeRepository congressPaperTypeRepository;
 	private final CongressMapper congressMapper;
 	private final AuthorizationService authorizationService;
+	private final CongressBankDetailService congressBankDetailService;
 	private final CongressParticipantInstitutionValidator institutionValidator;
 
 	private final PaperRepository paperRepository;
 	private final PaperPaymentRepository paperPaymentRepository;
 	private final CongressDashboardMapper dashboardMapper;
 	private final EmailService emailService;
+
+	@Override
+	@Transactional(readOnly = true)
+	public ParticipantHomeResponseDTO getParticipantHome(String congressCode) {
+		Congress congress = getCongressEntityByCode(congressCode);
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+		CongressParticipant participant = institutionValidator
+				.requireAuthenticatedActiveParticipantWithInstitution(congressCode);
+
+		RoleName role = participant.getRole().getName();
+		if (role != RoleName.LISTENER && role != RoleName.EXPOSITOR) {
+			throw new AccessDeniedException(
+					"Solo los participantes con rol LISTENER o EXPOSITOR pueden acceder al inicio personal."
+			);
+		}
+
+		ParticipantHomeAcademicMetricsProjection academicMetrics = paperRepository
+				.getParticipantHomeAcademicMetrics(
+						congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+
+		long paymentsWithoutValidReceipt = 0;
+		long paymentsPendingApproval = 0;
+		long paymentsVerified = 0;
+		if (!congress.isFree()) {
+			ParticipantHomePaymentMetricsProjection paymentMetrics = paperRepository
+					.getParticipantHomePaymentMetrics(
+							congressCode, authenticatedUser.getUserId(), PaperAuthorStatus.ACCEPTED);
+			paymentsWithoutValidReceipt = paymentMetrics.getPaymentsWithoutValidReceipt();
+			paymentsPendingApproval = paymentMetrics.getPaymentsPendingApproval();
+			paymentsVerified = paymentMetrics.getPaymentsVerified();
+		}
+
+		return ParticipantHomeResponseDTO.builder()
+				.congressCode(congress.getCode())
+				.congressName(congress.getName())
+				.place(congress.getPlace())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.totalAssociatedPapers(academicMetrics.getTotalAssociatedPapers())
+				.drafts(academicMetrics.getDrafts())
+				.needsRevision(academicMetrics.getNeedsRevision())
+				.underEvaluation(academicMetrics.getUnderEvaluation())
+				.paymentsWithoutValidReceipt(paymentsWithoutValidReceipt)
+				.paymentsPendingApproval(paymentsPendingApproval)
+				.paymentsVerified(paymentsVerified)
+				.build();
+	}
 
 	@Override
 	public CongressDashboardResponseDTO getDashboardMetrics(String congressCode) {
@@ -119,6 +172,41 @@ public class CongressServiceImpl implements CongressService {
 		return getCongressesVisibleToAuthenticatedUser(enabled).stream()
 				.map(congressMapper::toCongressResponseSummaryDTO)
 				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<MyCongressSummaryDTO> getMyCongresses() {
+		User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+
+		if (authenticatedUser.isSuperAdmin()) {
+			return congressRepository.findAllWithThematicAreas().stream()
+					.map(congress -> toMyCongressSummary(congress, "SUPER_ADMIN", null))
+					.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+					.toList();
+		}
+
+		return congressParticipantRepository.findActiveParticipationsByUserId(authenticatedUser.getUserId())
+				.stream()
+				.map(participant -> toMyCongressSummary(
+						participant.getCongress(), participant.getRole().getName().name(), participant.getInstitution()))
+				.sorted(Comparator.comparing(MyCongressSummaryDTO::getStartDate).reversed())
+				.toList();
+	}
+
+	private MyCongressSummaryDTO toMyCongressSummary(Congress congress, String role, String institution) {
+		return MyCongressSummaryDTO.builder()
+				.code(congress.getCode())
+				.name(congress.getName())
+				.place(congress.getPlace())
+				.enabled(congress.isEnabled())
+				.startDate(congress.getStartDate())
+				.endDate(congress.getEndDate())
+				.presentationStartDate(congress.getPresentationStartDate())
+				.presentationEndDate(congress.getPresentationEndDate())
+				.role(role)
+				.institution(institution)
+				.build();
 	}
 
 	@Override
@@ -210,7 +298,8 @@ public class CongressServiceImpl implements CongressService {
 		Congress congress = congressMapper.toEntity(request);
 		
 		// Generamos un código para el congreso:
-		congress.setCode(generateCongressCode());
+		String congressCode = generateCongressCode();
+		congress.setCode(congressCode);
 		
 		// Activamos el congreso:
 		congress.setEnabled(true);
@@ -218,7 +307,10 @@ public class CongressServiceImpl implements CongressService {
 		Congress savedCongress = congressRepository.save(congress);
 
 		createAbstractPaperType(savedCongress, request);
-		 
+
+		// Configuramos los datos bancarios en caso de que el mismo sea pago (congress.isFree = 'false').
+		configureCongressBankDetails(savedCongress, request);
+
 		return congressMapper.toCongressResponseDTO(savedCongress);
 	}
 	
@@ -626,5 +718,17 @@ public class CongressServiceImpl implements CongressService {
 					"La configuración económica del tipo ABSTRACT solo puede definirse al crear el congreso."
 			);
 		}
+	}
+
+	private void configureCongressBankDetails (Congress savedCongress, CongressRequestDTO request) {
+		log.info("Se van a configurar los datos bancarios del congreso con codigo: [{}]", savedCongress.getCode());
+		if (savedCongress.isFree()) {
+			log.info("El congreso es gratis, se saltea la configuración de sus datos bancarios.");
+			return;
+		}
+		congressBankDetailService.create(
+				savedCongress.getCode(),
+				request.getBankDetailRequestDTO()
+		);
 	}
 }

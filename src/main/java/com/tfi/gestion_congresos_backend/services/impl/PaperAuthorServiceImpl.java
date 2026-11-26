@@ -2,6 +2,8 @@ package com.tfi.gestion_congresos_backend.services.impl;
 
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperAuthorResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperAuthorUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.CoauthorshipPaperResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.entities.*;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
@@ -16,16 +18,23 @@ import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
 import com.tfi.gestion_congresos_backend.services.CongressParticipantService;
+import com.tfi.gestion_congresos_backend.services.CongressService;
 import com.tfi.gestion_congresos_backend.services.EmailService;
 import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
 import com.tfi.gestion_congresos_backend.services.UserService;
 import com.tfi.gestion_congresos_backend.services.validation.CongressParticipantInstitutionValidator;
+import com.tfi.gestion_congresos_backend.services.validation.CoauthorshipPolicy;
+import com.tfi.gestion_congresos_backend.utils.DateUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.Comparator;
 import java.util.HashSet;
@@ -49,8 +58,27 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     private final SecurityEvaluator securityEvaluator;
     private final PaperAuthorMapper paperAuthorMapper;
     private final EmailService emailService;
+    private final CoauthorshipPolicy coauthorshipPolicy;
+    private final CongressService congressService;
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CoauthorshipPaperResponseDTO> getAvailableForCoauthorship(
+            String congressCode, PaperFilterDTO filter, Pageable pageable) {
+        var congress = congressService.getCongressEntityByCode(congressCode);
+        var participant = coauthorshipPolicy.requireApplicant(congressCode);
+        var paging = PageRequest.of(pageable.getPageNumber(), Math.min(pageable.getPageSize(), 100), Sort.by("code"));
+        if (!CoauthorshipPolicy.isOpen(congress, DateUtils.now())) return Page.empty(paging);
+
+        // Administrative filters cannot override the coauthorship eligibility rules.
+        return paperRepository.findAvailableForCoauthorship(congressCode, participant.getUser().getUserId(),
+                normalizedCatalogFilter(filter == null ? null : filter.getSearch()),
+                normalizedCatalogFilter(filter == null ? null : filter.getThematicArea()), paging)
+                .map(row -> new CoauthorshipPaperResponseDTO(row.getCode(), row.getTitle(), row.getThematicArea(),
+                        row.getAcceptedAuthorCount(), row.getMaxNumberOfAuthors()));
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -121,7 +149,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             String paperCode,
             List<PaperAuthorUpdateRequestDTO> updates
     ) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
 
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
@@ -296,7 +324,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Override
     @Transactional
     public PaperAuthorResponseDTO requestToJoinPaper(String paperCode, String userCode) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
+        coauthorshipPolicy.requireOpen(paper.getCongress());
+        coauthorshipPolicy.requireApplicant(paper.getCongress().getCode());
 
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
@@ -323,6 +353,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
                     "Ya tienes una relación (pendiente o aceptada) con este trabajo."
             );
         }
+
+        validateMaxAuthors(paper.getCongress(), paperAuthorRepository
+                .countByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED) + 1);
 
         PaperAuthor request = PaperAuthor.builder()
                 .paper(paper)
@@ -362,9 +395,11 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Override
     @Transactional
     public List<PaperAuthorResponseDTO> acceptAuthorRequest(String paperCode, String userCode) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
         verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
+
+        coauthorshipPolicy.requireOpen(paper.getCongress());
 
         PaperAuthor request = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe ninguna solicitud para el usuario indicado."));
@@ -377,6 +412,12 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
                 request.getAuthor(),
                 paper.getCongress()
         );
+
+        var applicant = congressParticipantRepository.findActiveParticipantByUserCodeAndCongressCode(
+                userCode, paper.getCongress().getCode()).orElseThrow(() -> new ResourceNotFoundException("Inscripción del solicitante no encontrada."));
+        if (applicant.getInstitution() == null || applicant.getInstitution().isBlank()) {
+            throw new AccessDeniedException("El solicitante debe completar su institución antes de ser aceptado.");
+        }
         
         long acceptedCount = paperAuthorRepository.countByPaper_CodeAndStatus(paperCode, PaperAuthorStatus.ACCEPTED);
         validateMaxAuthors(paper.getCongress(), acceptedCount + 1);
@@ -423,9 +464,10 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Override
     @Transactional
     public List<PaperAuthorResponseDTO> rejectAuthorRequest(String paperCode, String userCode) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
         verifyAdminOrMainAuthorAccess(paper, authorizationService.getAuthenticatedUserEntity());
+        coauthorshipPolicy.requireOpen(paper.getCongress());
 
         PaperAuthor request = paperAuthorRepository.findByPaper_CodeAndAuthor_Code(paperCode, userCode)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe ninguna solicitud para el usuario indicado."));
@@ -458,7 +500,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     @Override
     @Transactional
     public List<PaperAuthorResponseDTO> addAuthorDirectly(String paperCode, String userCode) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
         verifyAdminAccess(paper, authorizationService.getAuthenticatedUserEntity()); // SOLO Admin o SuperAdmin
 
@@ -543,7 +585,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             String paperCode,
             String userCode
     ) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
 
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
@@ -652,7 +694,7 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             String paperCode,
             String newMainAuthorCode
     ) {
-        Paper paper = getPaperEntity(paperCode);
+        Paper paper = getPaperForUpdate(paperCode);
 
         validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED);
 
@@ -795,6 +837,9 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
     ///----------------------------------------------------------MÉTODOS PRIVADOS AUXILIARES----------------------------------------------------------///
 
     private void verifyAdminOrMainAuthorAccess(Paper paper, User currentUser) {
+        if (!currentUser.isEnabled()) {
+            throw new AccessDeniedException("La cuenta del usuario está deshabilitada.");
+        }
         boolean isSuperAdmin = currentUser.isSuperAdmin();
         boolean isAdmin = securityEvaluator.hasRoleInCongress(currentUser, paper.getCongress().getCode(), RoleName.ADMINISTRATOR);
         
@@ -858,6 +903,15 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
 
     private Paper getPaperEntity(String paperCode) {
         return paperRepository.findByCode(paperCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + paperCode));
+    }
+
+    private String normalizedCatalogFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private Paper getPaperForUpdate(String paperCode) {
+        return paperRepository.findByCodeForUpdate(paperCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + paperCode));
     }
 

@@ -6,6 +6,8 @@ import com.tfi.gestion_congresos_backend.entities.*;
 import com.tfi.gestion_congresos_backend.enums.PaperAuthorStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperStatus;
 import com.tfi.gestion_congresos_backend.enums.PaperType;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaperActivityType;
+import com.tfi.gestion_congresos_backend.enums.ParticipantPaymentStatus;
 import com.tfi.gestion_congresos_backend.enums.RoleName;
 import com.tfi.gestion_congresos_backend.exception.ArgumentNotValidException;
 import com.tfi.gestion_congresos_backend.exception.ResourceAlreadyExistsException;
@@ -17,6 +19,7 @@ import com.tfi.gestion_congresos_backend.repository.EvaluationRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperAuthorRepository;
 import com.tfi.gestion_congresos_backend.repository.PaperRepository;
 import com.tfi.gestion_congresos_backend.repository.projection.PaperSummaryProjection;
+import com.tfi.gestion_congresos_backend.repository.projection.ParticipantPaperSummaryProjection;
 import com.tfi.gestion_congresos_backend.repository.specification.PaperSpecification;
 import com.tfi.gestion_congresos_backend.security.SecurityEvaluator;
 import com.tfi.gestion_congresos_backend.services.AuthorizationService;
@@ -292,6 +295,28 @@ public class PaperServiceImpl implements PaperService {
         return projectionPage.map(paperMapper::toSummaryResponseDTO);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ParticipantPaperSummaryResponseDTO> getMyPaperSummariesByCongress(
+            String congressCode,
+            PaperStatus status,
+            Pageable pageable
+    ) {
+        congressService.getCongressEntityByCode(congressCode);
+        validateCurrentUserInstitution(congressCode);
+
+        User authenticatedUser = authorizationService.getAuthenticatedUserEntity();
+        boolean isExpositor = securityEvaluator.isExpositorOfCongress(authenticatedUser, congressCode);
+
+        return paperRepository.findParticipantPaperSummaries(
+                congressCode,
+                authenticatedUser.getUserId(),
+                PaperAuthorStatus.ACCEPTED,
+                status,
+                pageable
+        ).map(projection -> toParticipantPaperSummary(projection, isExpositor));
+    }
+
     ///----------------------------------------------------------CREATE & UPDATE----------------------------------------------------------///
 
     @Override
@@ -345,6 +370,7 @@ public class PaperServiceImpl implements PaperService {
         paper.setCongress(congress);
         paper.setCongressPaperType(paperType);
         paper.setPay(false);
+        recordParticipantActivity(paper, ParticipantPaperActivityType.DRAFT_SAVED, DateUtils.now());
         paper.setAuthors(new ArrayList<>());
         paper.setKeywords(new HashSet<>());
 
@@ -396,6 +422,7 @@ public class PaperServiceImpl implements PaperService {
         // MapStruct actualiza la entidad existente ignorando colecciones y campos bloqueados
         paperMapper.updateEntityFromDto(dto, paper);
         paper.setSummary(paperSummarySanitizer.sanitizeAndValidate(dto.getSummary()));
+        recordParticipantActivity(paper, ParticipantPaperActivityType.DRAFT_SAVED, DateUtils.now());
 
         Paper savedPaper = paperRepository.save(paper);
         PaperDetailResponseDTO response = paperMapper.toPaperDetailResponseDTO(savedPaper);
@@ -652,7 +679,8 @@ public class PaperServiceImpl implements PaperService {
             String paperCode,
             boolean confirmDiscardPendingRequests
     ) {
-        Paper paper = getPaperEntityByCode(paperCode);
+        Paper paper = paperRepository.findByCodeForUpdate(paperCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + paperCode));
 
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
@@ -740,6 +768,13 @@ public class PaperServiceImpl implements PaperService {
 		// Cambiar el estado y persistir
 		paper.setStatus(PaperStatus.UNDER_EVALUATION);
 		paper.setSubmittedAt(submissionDate);
+		recordParticipantActivity(
+		        paper,
+		        isInitialSubmission
+		                ? ParticipantPaperActivityType.PAPER_SUBMITTED
+		                : ParticipantPaperActivityType.CORRECTION_SUBMITTED,
+		        submissionDate
+		);
 		
 		Paper savedPaper = paperRepository.save(paper);
 		
@@ -1052,6 +1087,60 @@ public class PaperServiceImpl implements PaperService {
         institutionValidator.validateAuthenticatedParticipantInstitution(
                 congressCode
         );
+    }
+
+    private ParticipantPaperSummaryResponseDTO toParticipantPaperSummary(
+            ParticipantPaperSummaryProjection projection,
+            boolean isExpositor
+    ) {
+        ParticipantPaymentStatus paymentStatus = resolveParticipantPaymentStatus(projection);
+        boolean canUploadPayment = projection.isResponsibleAuthor()
+                && isExpositor
+                && !projection.isFreeCongress()
+                && projection.getStatus() == PaperStatus.ACCEPTED
+                && (projection.getRawPaymentStatus() == null
+                || projection.getRawPaymentStatus() == com.tfi.gestion_congresos_backend.enums.PaymentStatus.PENDING_APPROVAL
+                || projection.getRawPaymentStatus() == com.tfi.gestion_congresos_backend.enums.PaymentStatus.REJECTED);
+
+        return ParticipantPaperSummaryResponseDTO.builder()
+                .code(projection.getCode())
+                .title(projection.getTitle())
+                .version(projection.getVersion())
+                .status(projection.getStatus())
+                .submittedAt(projection.getSubmittedAt())
+                .responsibleAuthor(projection.isResponsibleAuthor())
+                .paymentStatus(paymentStatus)
+                .canUploadPayment(canUploadPayment)
+                .lastActivityType(projection.getLastActivityType())
+                .lastActivityAt(projection.getLastActivityAt())
+                .build();
+    }
+
+    private ParticipantPaymentStatus resolveParticipantPaymentStatus(
+            ParticipantPaperSummaryProjection projection
+    ) {
+        if (projection.isFreeCongress() || projection.getStatus() != PaperStatus.ACCEPTED) {
+            return ParticipantPaymentStatus.NOT_ENABLED;
+        }
+
+        if (projection.getRawPaymentStatus() == null) {
+            return ParticipantPaymentStatus.PENDING_RECEIPT;
+        }
+
+        return switch (projection.getRawPaymentStatus()) {
+            case PENDING_APPROVAL -> ParticipantPaymentStatus.PENDING_APPROVAL;
+            case APPROVED -> ParticipantPaymentStatus.VERIFIED;
+            case REJECTED -> ParticipantPaymentStatus.REJECTED;
+        };
+    }
+
+    private void recordParticipantActivity(
+            Paper paper,
+            ParticipantPaperActivityType activityType,
+            LocalDateTime activityAt
+    ) {
+        paper.setLastActivityType(activityType);
+        paper.setLastActivityAt(activityAt);
     }
     
     private void validatePaperDetailAccess(Paper paper) {

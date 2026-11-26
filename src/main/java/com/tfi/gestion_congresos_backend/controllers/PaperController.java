@@ -3,12 +3,17 @@ package com.tfi.gestion_congresos_backend.controllers;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperDetailResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperFilterDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperPendingReassignmentResponseDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ParticipantPaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
+import com.tfi.gestion_congresos_backend.services.PaperAuthorService;
+import com.tfi.gestion_congresos_backend.dtos.paper.CoauthorshipPaperResponseDTO;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,6 +34,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 
+import com.tfi.gestion_congresos_backend.enums.PaperStatus;
+
 @RestController
 @RequestMapping("/api/papers")
 @RequiredArgsConstructor
@@ -36,6 +43,15 @@ import java.util.Set;
 public class PaperController {
 
     private final PaperService paperService;
+    private final PaperAuthorService paperAuthorService;
+
+    /** Concrete generic types allow Swagger to describe the two page variants. */
+    public static class CoauthorshipPageSchema extends org.springframework.data.domain.PageImpl<CoauthorshipPaperResponseDTO> {
+        public CoauthorshipPageSchema() { super(List.of()); }
+    }
+    public static class PaperSummaryPageSchema extends org.springframework.data.domain.PageImpl<PaperSummaryResponseDTO> {
+        public PaperSummaryPageSchema() { super(List.of()); }
+    }
 
     ///----------------------------------------------------------GETS----------------------------------------------------------///
     
@@ -153,23 +169,48 @@ public class PaperController {
 
     @Operation(
             summary = "Obtener trabajos de un congreso paginados y filtrados",
-            description = "Obtiene una página de trabajos resumidos de un congreso especificando su código, permitiendo aplicar filtros por estado, evaluador asignado, estado de pago y búsqueda por texto. Los administradores del congreso y superadministradores ven todos los trabajos; los evaluadores solo ven los actualmente asignados y los autores aceptados solo sus propios trabajos."
+            description = "Modo habitual: administradores ven todos, evaluadores los asignados y autores aceptados los propios. Con forCoauthorship=true: catálogo exclusivo de LISTENER/EXPOSITOR activos con institución, NOT_SUBMITTED con cupo y sin relación propia, durante presentación en congreso habilitado. Solo devuelve código, título, área y cupo; admite search (código/título) y thematicArea, ignora filtros administrativos y ordena por código. Fuera del período devuelve página vacía."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Trabajos obtenidos correctamente"),
+            @ApiResponse(responseCode = "200", description = "Página habitual o página mínima de coautoría según forCoauthorship",
+                    content = @Content(schema = @Schema(oneOf = { PaperSummaryPageSchema.class, CoauthorshipPageSchema.class }))),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
             @ApiResponse(responseCode = "403", description = "No tiene permisos para realizar esta operación o tiene pendiente completar su institución"),
             @ApiResponse(responseCode = "404", description = "No se encontró un congreso con el código especificado")
     })
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/congresses/{congressCode}")
-    public ResponseEntity<Page<PaperSummaryResponseDTO>> getPapersByCongress(
+    public ResponseEntity<Page<?>> getPapersByCongress(
             @PathVariable String congressCode,
+            @RequestParam(defaultValue = "false") boolean forCoauthorship,
             @ModelAttribute PaperFilterDTO filter,
             @PageableDefault(size = 10, sort = "submittedAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
+        if (forCoauthorship) return ResponseEntity.ok(paperAuthorService.getAvailableForCoauthorship(congressCode, filter, pageable));
         Page<PaperSummaryResponseDTO> papersPage = paperService.getPaperSummariesByCongress(congressCode, filter, pageable);
         return ResponseEntity.ok(papersPage);
+    }
+
+    @Operation(
+            summary = "Obtener la bandeja personal de trabajos del participante",
+            description = "Devuelve de forma paginada únicamente los trabajos del congreso en los que el usuario autenticado es autor ACCEPTED. Incluye el estado de pago, la posibilidad de cargar comprobante y la última actividad visible para el autor, sin exponer información de evaluadores."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Bandeja personal obtenida correctamente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Institución incompleta para el congreso"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el congreso o una participación activa")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/congresses/{congressCode}/mine")
+    public ResponseEntity<Page<ParticipantPaperSummaryResponseDTO>> getMyPapersByCongress(
+            @PathVariable String congressCode,
+            @RequestParam(required = false) PaperStatus status,
+            @PageableDefault(size = 10, sort = "lastActivityAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return ResponseEntity.ok(
+                paperService.getMyPaperSummariesByCongress(congressCode, status, pageable)
+        );
     }
 
     @Operation(
