@@ -81,6 +81,9 @@ public class Paper extends AuditableEntity{
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "users_reviewer_id")
 	private User userReviewer;
+
+    @Column(name = "reviewer_assigned_at")
+    private LocalDateTime reviewerAssignedAt;
 	
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "congresses_id", nullable = false)
