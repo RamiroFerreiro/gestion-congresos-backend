@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+import com.tfi.gestion_congresos_backend.dtos.CongressBankDetailRequestDTO;
 import com.tfi.gestion_congresos_backend.enums.EvaluationReleaseMode;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -79,4 +81,7 @@ public class CongressRequestDTO {
 	@NotBlank(message = "El email de contacto del congreso no puede estar vacío")
 	@Email(message = "El email de contacto no tiene un formato válido")
 	private String contactMail;
+
+	@Valid
+	private CongressBankDetailRequestDTO bankDetailRequestDTO;
 }

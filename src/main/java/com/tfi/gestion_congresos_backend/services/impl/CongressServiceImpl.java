@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,9 +20,7 @@ import com.tfi.gestion_congresos_backend.dtos.congress.CongressResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.CongressSummaryDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.ParticipantHomeResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.congress.MyCongressSummaryDTO;
-import com.tfi.gestion_congresos_backend.dtos.dashboard.AcademicDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.CongressDashboardResponseDTO;
-import com.tfi.gestion_congresos_backend.dtos.dashboard.FinancialDashboardMetricsDTO;
 import com.tfi.gestion_congresos_backend.dtos.dashboard.MetricValueDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.entities.Congress;
@@ -64,6 +63,7 @@ public class CongressServiceImpl implements CongressService {
 	private final CongressPaperTypeRepository congressPaperTypeRepository;
 	private final CongressMapper congressMapper;
 	private final AuthorizationService authorizationService;
+	private final CongressBankDetailService congressBankDetailService;
 	private final CongressParticipantInstitutionValidator institutionValidator;
 
 	private final PaperRepository paperRepository;
@@ -298,7 +298,8 @@ public class CongressServiceImpl implements CongressService {
 		Congress congress = congressMapper.toEntity(request);
 		
 		// Generamos un código para el congreso:
-		congress.setCode(generateCongressCode());
+		String congressCode = generateCongressCode();
+		congress.setCode(congressCode);
 		
 		// Activamos el congreso:
 		congress.setEnabled(true);
@@ -306,7 +307,10 @@ public class CongressServiceImpl implements CongressService {
 		Congress savedCongress = congressRepository.save(congress);
 
 		createAbstractPaperType(savedCongress, request);
-		 
+
+		// Configuramos los datos bancarios en caso de que el mismo sea pago (congress.isFree = 'false').
+		configureCongressBankDetails(savedCongress, request);
+
 		return congressMapper.toCongressResponseDTO(savedCongress);
 	}
 	
@@ -714,5 +718,17 @@ public class CongressServiceImpl implements CongressService {
 					"La configuración económica del tipo ABSTRACT solo puede definirse al crear el congreso."
 			);
 		}
+	}
+
+	private void configureCongressBankDetails (Congress savedCongress, CongressRequestDTO request) {
+		log.info("Se van a configurar los datos bancarios del congreso con codigo: [{}]", savedCongress.getCode());
+		if (savedCongress.isFree()) {
+			log.info("El congreso es gratis, se saltea la configuración de sus datos bancarios.");
+			return;
+		}
+		congressBankDetailService.create(
+				savedCongress.getCode(),
+				request.getBankDetailRequestDTO()
+		);
 	}
 }

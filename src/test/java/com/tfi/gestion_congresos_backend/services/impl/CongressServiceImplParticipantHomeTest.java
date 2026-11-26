@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import com.tfi.gestion_congresos_backend.services.CongressBankDetailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,7 @@ class CongressServiceImplParticipantHomeTest {
     @Mock private CongressPaperTypeRepository congressPaperTypeRepository;
     @Mock private CongressMapper congressMapper;
     @Mock private AuthorizationService authorizationService;
+    @Mock private CongressBankDetailService congressBankDetailService;
     @Mock private CongressParticipantInstitutionValidator institutionValidator;
     @Mock private PaperRepository paperRepository;
     @Mock private PaperPaymentRepository paperPaymentRepository;
@@ -68,8 +70,8 @@ class CongressServiceImplParticipantHomeTest {
     @BeforeEach
     void setUp() {
         service = new CongressServiceImpl(congressRepository, congressParticipantRepository,
-                congressPaperTypeRepository, congressMapper, authorizationService, institutionValidator,
-                paperRepository, paperPaymentRepository, dashboardMapper, emailService);
+                congressPaperTypeRepository, congressMapper, authorizationService, congressBankDetailService,
+                institutionValidator, paperRepository, paperPaymentRepository, dashboardMapper, emailService);
 
         congress = Congress.builder().code(CONGRESS_CODE).name("Congreso 2026").place("Lanús")
                 .presentationEndDate(LocalDateTime.of(2026, 7, 31, 23, 59)).isFree(false).build();
