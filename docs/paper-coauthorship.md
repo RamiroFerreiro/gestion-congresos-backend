@@ -6,6 +6,8 @@ El catálogo se implementa en `PaperAuthorService#getAvailableForCoauthorship` y
 
 ## API
 
+El creador del trabajo es inicialmente un autor ACCEPTED y presentador. Mientras el trabajo esté NOT_SUBMITTED, el responsable o los administradores pueden seleccionar uno o más presentadores mediante la actualización masiva de autores. Al menos un autor ACCEPTED debe permanecer marcado; el responsable no tiene obligación de ser presentador y las solicitudes PENDING no cuentan. La eliminación de un autor se rechaza si dejaría al trabajo sin presentadores aceptados. No se reasigna automáticamente el presentador. Estas operaciones se serializan con el envío mediante el bloqueo del trabajo y se rechazan con HTTP 400 antes de aplicar cambios si incumplen la regla.
+
 `GET /api/papers/congresses/{congressCode}?forCoauthorship=true` agrega un modo de consulta sin cambiar el comportamiento anterior cuando el parámetro no está o es false. Swagger documenta ambas páginas de respuesta.
 
 La página de coautoría solo incluye código, título, área, cantidad de autores aceptados y máximo de autores. `search` busca coincidencias parciales en código/título y `thematicArea` conserva la coincidencia exacta existente. Se fuerza orden por código y un máximo de 100 filas por página. Los filtros administrativos no permiten eludir los criterios de elegibilidad.
