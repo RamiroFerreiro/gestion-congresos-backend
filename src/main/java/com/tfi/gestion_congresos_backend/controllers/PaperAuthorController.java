@@ -160,6 +160,8 @@ public class PaperAuthorController {
 			    - El trabajo debe estar en estado NOT_SUBMITTED.
 			    - Solo el Autor Principal, Administradores o Súper Administradores pueden ejecutar esta acción.
 			    - Deben enviarse todos los autores ACCEPTED del trabajo.
+			    - Al menos un autor ACCEPTED debe ser presentador; el principal no está obligado a serlo.
+			    - Los autores PENDING no cuentan como presentadores.
 			    - Los autores no pueden repetirse.
 			    - Los órdenes deben ser únicos, positivos y consecutivos desde 1.
 			    - No permite modificar la autoría principal (isMainAuthor).
@@ -294,6 +296,7 @@ public class PaperAuthorController {
                 Elimina permanentemente la relación de un autor ACEPTADO con el trabajo y compacta el orden de aparición del resto de los autores.
                 
                 **Reglas de negocio:**
+                - El trabajo debe estar en estado NOT_SUBMITTED y conservar al menos un presentador ACCEPTED.
                 - No se puede eliminar al Autor Principal (isMainAuthor = true). Si se requiere transferir la autoría principal, debe utilizarse el endpoint específico de transferencia de autoría.
                 - No utilizar este endpoint para solicitudes PENDING (utilizar el endpoint de rechazo).
                 """

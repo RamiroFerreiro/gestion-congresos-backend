@@ -271,6 +271,10 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             );
         }
 
+        if (updates.stream().noneMatch(update -> Boolean.TRUE.equals(update.getIsPresentator()))) {
+            throw new ArgumentNotValidException("El trabajo debe conservar al menos un autor aceptado como presentador.");
+        }
+
         Map<String, Boolean> presenterStatusBeforeUpdate = acceptedAuthors.stream()
                 .collect(java.util.stream.Collectors.toMap(
                         author -> author.getAuthor().getCode(),
@@ -625,6 +629,10 @@ public class PaperAuthorServiceImpl implements PaperAuthorService {
             throw new ArgumentNotValidException(
                     "El trabajo debe conservar al menos un autor aceptado."
             );
+        }
+
+        if (remainingAcceptedAuthors.stream().noneMatch(PaperAuthor::isPresentator)) {
+            throw new ArgumentNotValidException("El trabajo debe conservar al menos un autor aceptado como presentador.");
         }
 
         // Verificar que exista exactamente un autor principal
