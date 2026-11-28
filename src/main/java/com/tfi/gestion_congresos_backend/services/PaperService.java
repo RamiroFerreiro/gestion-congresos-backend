@@ -38,6 +38,7 @@ public interface PaperService {
     // KEYWORDS
     Set<String> addKeywordToPaper(String paperCode, String keyword);
     Set<String> removeKeywordFromPaper(String paperCode, String keyword);
+    Set<String> replaceKeywords(String paperCode, List<String> keywords);
 
     // EVALUADORES Y SUBMIT
     MessageResponseDTO assignReviewerToPaper(String paperCode, String reviewerCode);
