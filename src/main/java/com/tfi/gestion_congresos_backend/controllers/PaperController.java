@@ -7,6 +7,7 @@ import com.tfi.gestion_congresos_backend.dtos.paper.ParticipantPaperSummaryRespo
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperSummaryResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.PaperUpdateRequestDTO;
+import com.tfi.gestion_congresos_backend.dtos.paper.ReplaceKeywordsRequestDTO;
 import com.tfi.gestion_congresos_backend.dtos.paper.ReviewerWorkloadResponseDTO;
 import com.tfi.gestion_congresos_backend.dtos.user.MessageResponseDTO;
 import com.tfi.gestion_congresos_backend.services.PaperService;
@@ -276,6 +277,21 @@ public class PaperController {
     }
 
     ///----------------------------------------------------------PUT----------------------------------------------------------///
+
+    @Operation(summary = "Reemplazar las palabras clave de un trabajo", description = "Reemplaza atómicamente la lista completa. Solo el autor responsable con participación e institución válidas puede hacerlo en NOT_SUBMITTED o NEEDS_REVISION. Se eliminan espacios extremos y se reducen secuencias de espacios Unicode a uno; se rechazan vacíos y duplicados sin distinguir mayúsculas. Se aplica el máximo y, si keywordRepetition es false, se rechazan coincidencias con el título. El mínimo configurado se exige al enviar.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Palabras clave guardadas"),
+            @ApiResponse(responseCode = "400", description = "Lista, estado o palabras clave inválidos"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos o institución incompleta"),
+            @ApiResponse(responseCode = "404", description = "Trabajo o participación activa no encontrados")
+    })
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/{paperCode}/keywords")
+    public ResponseEntity<Set<String>> replaceKeywords(@PathVariable String paperCode,
+            @Valid @RequestBody ReplaceKeywordsRequestDTO dto) {
+        return ResponseEntity.ok(paperService.replaceKeywords(paperCode, dto.getKeywords()));
+    }
 
     @Operation(
             summary = "Actualizar metadatos de un trabajo (Guardar Progreso)",

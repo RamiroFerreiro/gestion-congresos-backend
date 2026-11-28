@@ -636,7 +636,7 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional
     public Set<String> addKeywordToPaper(String paperCode, String keyword) {
-        Paper paper = getPaperEntityByCode(paperCode);
+        Paper paper = getPaperForKeywordUpdate(paperCode);
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
@@ -655,7 +655,7 @@ public class PaperServiceImpl implements PaperService {
     @Override
     @Transactional
     public Set<String> removeKeywordFromPaper(String paperCode, String keyword) {
-        Paper paper = getPaperEntityByCode(paperCode);
+        Paper paper = getPaperForKeywordUpdate(paperCode);
         
         // Validar institución del usuario en el congreso
         validateCurrentUserInstitution(paper.getCongress().getCode());
@@ -669,6 +669,36 @@ public class PaperServiceImpl implements PaperService {
 
         removeKeywordInternal(paper, keyword);
         return paperRepository.save(paper).getKeywords();
+    }
+
+    @Override
+    @Transactional
+    public Set<String> replaceKeywords(String paperCode, List<String> keywords) {
+        Paper paper = getPaperForKeywordUpdate(paperCode);
+        validateCurrentUserInstitution(paper.getCongress().getCode());
+        validatePaperResponsibleAuthor(paper);
+        validatePaperEditableState(paper, PaperStatus.NOT_SUBMITTED, PaperStatus.NEEDS_REVISION);
+        if (keywords == null || keywords.isEmpty()) {
+            throw new ArgumentNotValidException("Debe ingresar al menos una palabra clave.");
+        }
+        Set<String> replacement = new LinkedHashSet<>();
+        for (String keyword : keywords) {
+            if (keyword == null) throw new ArgumentNotValidException("La palabra clave no puede estar vacía.");
+            String normalized = keyword.replaceAll("(?U)\\s+", " ").strip();
+            if (normalized.isEmpty()) throw new ArgumentNotValidException("La palabra clave no puede estar vacía.");
+            validateKeywordNotDuplicated(replacement, normalized);
+            validateKeywordRepetitionInTitle(paper.getCongress(), paper.getTitle(), normalized);
+            replacement.add(normalized);
+        }
+        validateKeywordCountMax(paper.getCongress(), replacement.size());
+        paper.getKeywords().clear();
+        paper.getKeywords().addAll(replacement);
+        return new LinkedHashSet<>(paperRepository.save(paper).getKeywords());
+    }
+
+    private Paper getPaperForKeywordUpdate(String paperCode) {
+        return paperRepository.findByCodeForUpdate(paperCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Trabajo no encontrado con código: " + paperCode));
     }
 
     ///----------------------------------------------------------SUBMIT----------------------------------------------------------///
